@@ -19,6 +19,7 @@ export interface Profile {
   name: string;
   full_name?: string;
   username?: string;
+  bio?: string;
   is_guest?: boolean;
   created_at: string;
   avatar_url?: string;
