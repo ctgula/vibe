@@ -17,6 +17,7 @@ export const supabase = createClient(
 export interface Profile {
   id: string;
   name: string;
+  full_name?: string;
   is_guest?: boolean;
   created_at: string;
   avatar_url?: string;
