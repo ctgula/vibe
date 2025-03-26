@@ -8,7 +8,7 @@ import { Settings, Edit, Heart, MessageCircle, Share2, Clock, Music, Bookmark } 
 import { motion, AnimatePresence, useInView } from "framer-motion"
 import { useProfile } from "@/hooks/use-profile"
 import { useAuth } from "@/hooks/use-supabase-auth"
-import { supabase } from "@/lib/supabase"
+import { supabase, Profile } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 
 // Define post type for TypeScript
@@ -192,7 +192,7 @@ export function UserProfile() {
               <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 via-indigo-500/10 to-blue-500/20 rounded-full backdrop-blur-sm"></div>
               <AvatarImage 
                 src={profile.avatar_url || "/placeholder.svg?height=100&width=100"} 
-                alt={profile.full_name || profile.username} 
+                alt={(profile as any).full_name || (profile as any).username} 
                 className="object-cover scale-[1.01]"
                 style={{ 
                   imageRendering: 'auto' as const,
@@ -200,7 +200,7 @@ export function UserProfile() {
                 }}
               />
               <AvatarFallback className="bg-gradient-to-br from-indigo-600 to-purple-700">
-                {(profile.full_name || profile.username || "User").substring(0, 2).toUpperCase()}
+                {((profile as any).full_name || (profile as any).username || "User").substring(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <motion.div
@@ -217,8 +217,8 @@ export function UserProfile() {
             />
           </motion.div>
           <div>
-            <h1 className="text-xl font-bold">{profile.full_name || profile.username}</h1>
-            <p className="text-muted-foreground">@{profile.username}</p>
+            <h1 className="text-xl font-bold">{(profile as any).full_name || (profile as any).username}</h1>
+            <p className="text-muted-foreground">@{(profile as any).username}</p>
           </div>
         </div>
         <motion.div
@@ -239,7 +239,7 @@ export function UserProfile() {
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.4, delay: 0.2 }}
       >
-        <p className="text-sm">{profile.bio || "No bio yet"}</p>
+        <p className="text-sm">{(profile as any).bio || "No bio yet"}</p>
         <div className="flex gap-4 mt-2">
           <p className="text-sm">
             <span className="font-bold">{0}</span> followers
