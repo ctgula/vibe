@@ -19,6 +19,7 @@ export interface Profile {
   name: string;
   is_guest?: boolean;
   created_at: string;
+  avatar_url?: string;
 }
 
 export interface Room {
