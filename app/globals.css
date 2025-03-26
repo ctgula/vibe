@@ -1,0 +1,353 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 260 30% 98%;
+  --foreground: 260 30% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 260 30% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 260 30% 10%;
+  --primary: 260 70% 40%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 280 60% 90%;
+  --secondary-foreground: 260 30% 40%;
+  --muted: 260 20% 95%;
+  --muted-foreground: 260 20% 40%;
+  --accent: 190 60% 50%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 260 20% 90%;
+  --input: 260 20% 90%;
+  --ring: 260 70% 40%;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 260 30% 8%;
+  --foreground: 260 10% 98%;
+  --card: 260 30% 12%;
+  --card-foreground: 260 10% 98%;
+  --popover: 260 30% 12%;
+  --popover-foreground: 260 10% 98%;
+  --primary: 260 70% 50%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 260 20% 15%;
+  --secondary-foreground: 260 10% 98%;
+  --muted: 260 20% 15%;
+  --muted-foreground: 260 10% 60%;
+  --accent: 190 60% 50%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 260 20% 20%;
+  --input: 260 20% 20%;
+  --ring: 260 60% 50%;
+}
+
+/* Glow effect utility classes */
+.glow-pink {
+  box-shadow: 0 0 10px rgba(236, 72, 153, 0.5), 0 0 20px rgba(236, 72, 153, 0.3);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.5), 0 0 20px rgba(34, 211, 238, 0.3);
+}
+
+.glow-purple {
+  box-shadow: 0 0 10px rgba(147, 51, 234, 0.5), 0 0 20px rgba(147, 51, 234, 0.3);
+}
+
+/* Glow Effects for Apple-inspired UI */
+.glow-cyan {
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.5), 0 0 5px rgba(56, 189, 248, 0.3);
+}
+
+.glow-pink {
+  box-shadow: 0 0 15px rgba(236, 72, 153, 0.5), 0 0 5px rgba(236, 72, 153, 0.3);
+}
+
+.glow-pink-subtle {
+  box-shadow: 0 0 10px rgba(236, 72, 153, 0.3);
+}
+
+.glow-orange {
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.5), 0 0 5px rgba(245, 158, 11, 0.3);
+}
+
+.glow-red {
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.5), 0 0 5px rgba(239, 68, 68, 0.3);
+}
+
+/* Frosted glass effect for modals and panels */
+.backdrop-blur-glass {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Smooth animations */
+.transition-all-smooth {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Subtle hover animation for interactive elements */
+@keyframes pulse-subtle {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+.hover-pulse:hover {
+  animation: pulse-subtle 2s infinite;
+}
+
+/* For active speakers highlight animation */
+@keyframes speaking-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(56, 189, 248, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+}
+
+.speaking-animation {
+  animation: speaking-pulse 2s infinite;
+}
+
+/* Improved scrollbars for the chat container */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+@layer components {
+  .glass-effect {
+    @apply bg-gradient-to-br from-purple-600/10 via-indigo-500/10 to-blue-500/10 backdrop-blur-md;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .dark .glass-effect {
+    @apply bg-gradient-to-br from-purple-700/20 via-indigo-600/20 to-blue-600/20 backdrop-blur-md;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  
+  .cosmic-blob {
+    @apply absolute rounded-full bg-gradient-to-r from-indigo-600/20 via-purple-500/20 to-blue-400/20;
+    filter: blur(40px);
+  }
+  
+  .dark .cosmic-blob {
+    @apply bg-gradient-to-r from-indigo-600/30 via-purple-500/30 to-blue-400/30;
+  }
+  
+  .cosmic-glow {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .cosmic-glow:active::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: 100%;
+    transform: translate(-50%, -50%) scale(0);
+    background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
+    animation: glow-ripple 0.6s ease-out;
+  }
+  
+  @keyframes glow-ripple {
+    to {
+      transform: translate(-50%, -50%) scale(2);
+      opacity: 0;
+    }
+  }
+  
+  .cosmic-input {
+    @apply transition-all duration-200;
+  }
+  
+  .cosmic-input:focus {
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2), 0 0 0 4px rgba(124, 58, 237, 0.1);
+  }
+  
+  .text-gradient {
+    @apply text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-600;
+  }
+  
+  .card-hover {
+    @apply transition-all duration-300 hover:bg-secondary/80 hover:scale-[1.01];
+  }
+  
+  .psychedelic-bg {
+    @apply bg-gradient-to-br from-indigo-700 via-purple-700 to-blue-700;
+    background-size: 200% 200%;
+    animation: gradient-shift 15s ease infinite;
+  }
+  
+  .nav-button {
+    @apply relative flex items-center justify-center w-12 h-12 rounded-full;
+  }
+  
+  .nav-button::after {
+    content: "";
+    @apply absolute w-1.5 h-1.5 rounded-full bg-primary -bottom-1 opacity-0 transition-all duration-200;
+  }
+  
+  .nav-button.active::after {
+    @apply opacity-100;
+  }
+  
+  .tab-indicator {
+    @apply absolute bottom-0 h-0.5 bg-primary rounded-full transition-all duration-300;
+  }
+  
+  .stage-area {
+    @apply rounded-xl bg-gradient-to-b from-indigo-800/30 to-purple-800/30 backdrop-blur-md;
+  }
+  
+  .audience-area {
+    @apply rounded-xl bg-gradient-to-b from-blue-800/20 to-indigo-800/20 backdrop-blur-md;
+  }
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  /* Prevent overscroll bouncing on iOS */
+  html, body {
+    position: fixed;
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: manipulation; /* Improves touch responsiveness */
+  }
+  
+  /* Enable scrolling on main content */
+  main {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Fix for mobile double-tap unwanted zoom */
+  button, a {
+    touch-action: manipulation;
+  }
+  
+  /* Make controls easier to tap */
+  .haptic-feedback:active {
+    opacity: 0.7;
+    transform: scale(0.96);
+    transition: transform 0.1s, opacity 0.1s;
+  }
+  
+  /* Prevent text selection while tapping */
+  .no-select {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  
+  /* Prevent unwanted scrolling when interacting with elements */
+  .prevent-scroll {
+    overscroll-behavior: contain;
+  }
+}
+
+/* Animation for audio wave in speakers */
+@keyframes audio-wave {
+  0% { height: 4px; }
+  50% { height: 12px; }
+  100% { height: 4px; }
+}
+
+.audio-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 12px;
+}
+
+.audio-wave-bar {
+  animation: audio-wave 1.2s ease-in-out infinite;
+  border-radius: 2px;
+}
+
+/* Subtle pulse animation for active elements */
+@keyframes pulse-subtle {
+  0% { opacity: 0.8; }
+  50% { opacity: 1; }
+  100% { opacity: 0.8; }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s infinite ease-in-out;
+}
+
+/* Add proper haptic feedback feel for iOS-style buttons */
+@keyframes haptic-press {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+
+.haptic-press {
+  animation: haptic-press 0.2s ease-out;
+}
+
+/* Shake animation for error state on inputs */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+/* Safe area insets for modern iOS devices */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
