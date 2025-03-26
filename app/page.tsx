@@ -32,16 +32,17 @@ export default function Home() {
       try {
         setLoading(true);
         
+        // Calculate timestamp for 2 minutes ago
+        const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+        
         // Fetch rooms active in the last 2 minutes
-        // Using Supabase's filtering syntax to match the SQL condition:
-        // last_active_at > now() - interval '2 minutes'
         const { data, error } = await supabase
           .from('rooms')
           .select(`
             *,
             room_participants:room_participants(count)
           `)
-          .filter('last_active_at', 'gt', 'now() - interval \'2 minutes\'')
+          .gt('last_active_at', twoMinutesAgo)
           .order('last_active_at', { ascending: false });
         
         if (error) {
