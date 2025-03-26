@@ -10,6 +10,22 @@ import { Input } from "@/components/ui/input";
 import { Check, User, LogOut, Camera, X, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+// Define room type for better type safety
+type RoomType = {
+  id: string;
+  room_name: string;
+  is_live: boolean;
+  enable_video: boolean;
+  created_by?: string;
+  participants?: Array<{count: number}>;
+  participant_count?: number;
+};
+
+// Define the structure of the joined rooms data from Supabase
+type JoinedRoomItem = {
+  room: RoomType;
+};
+
 export function Profile() {
   const [displayName, setDisplayName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -19,8 +35,8 @@ export function Profile() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [createdRooms, setCreatedRooms] = useState<any[]>([]);
-  const [joinedRooms, setJoinedRooms] = useState<any[]>([]);
+  const [createdRooms, setCreatedRooms] = useState<RoomType[]>([]);
+  const [joinedRooms, setJoinedRooms] = useState<RoomType[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -94,8 +110,13 @@ export function Profile() {
         } else {
           // Process and filter out rooms created by the user (to avoid duplication)
           const joined = joinedRoomsData
-            .map(item => item.room)
-            .filter(room => room && room.id && room.created_by !== user.id)
+            .map(item => {
+              // Use unknown as an intermediate type for safer type assertion
+              return item.room ? (item.room as unknown as RoomType) : null;
+            })
+            .filter((room): room is RoomType => 
+              !!room && !!room.id && !!room.room_name && room.created_by !== user.id
+            )
             .map(room => ({
               ...room,
               participant_count: room.participants?.[0]?.count || 0
