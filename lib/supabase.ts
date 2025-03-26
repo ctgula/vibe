@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import type { Database, Participant } from './database.types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -49,3 +50,6 @@ export interface Message {
   content: string;
   created_at: string;
 }
+
+// Re-export the Participant type
+export type { Participant };
