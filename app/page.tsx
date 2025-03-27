@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useClickAway } from 'react-use';
 import { useRef } from 'react';
 import crypto from 'crypto';
+import { generateCreativeGuestName, generateAvatarUrl } from '@/lib/utils';
 
 export default function Home() {
   const [rooms, setRooms] = useState<any[]>([]);
@@ -40,7 +41,8 @@ export default function Home() {
           .from('rooms')
           .select(`
             *,
-            room_participants:room_participants(count)
+            room_participants:room_participants(count),
+            profiles:profiles(name, avatar_url)
           `)
           .gt('last_active_at', twoMinutesAgo)
           .order('last_active_at', { ascending: false });
@@ -54,7 +56,9 @@ export default function Home() {
         // Format room data with participant count
         const formattedRooms = data.map(room => ({
           ...room,
-          participants_count: room.room_participants[0]?.count || 0
+          participants_count: room.room_participants[0]?.count || 0,
+          host_name: room.profiles?.name || 'Unknown Host',
+          host_avatar: room.profiles?.avatar_url || null
         }));
         
         setRooms(formattedRooms);
@@ -100,18 +104,10 @@ export default function Home() {
       if (!guestProfileId) {
         // Create a new guest profile
         const guestId = crypto.randomUUID();
-        const guestNumber = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-        const guestName = `Guest_${guestNumber}`;
+        const guestName = generateCreativeGuestName();
         
-        // Pick a random avatar
-        const avatars = [
-          "https://api.dicebear.com/6.x/bottts-neutral/svg?seed=fox",
-          "https://api.dicebear.com/6.x/bottts-neutral/svg?seed=otter",
-          "https://api.dicebear.com/6.x/bottts-neutral/svg?seed=doge",
-          "https://api.dicebear.com/6.x/bottts-neutral/svg?seed=cat",
-          "https://api.dicebear.com/6.x/bottts-neutral/svg?seed=alien",
-        ];
-        const avatarUrl = avatars[Math.floor(Math.random() * avatars.length)];
+        // Generate a random avatar
+        const avatarUrl = generateAvatarUrl(guestId);
         
         // Create profile in database
         const { data, error } = await supabase
@@ -297,7 +293,22 @@ export default function Home() {
                   <h2 className="relative text-xl font-semibold mb-2 text-white group-hover:text-cyan-400 transition-colors">
                     {room.room_name}
                   </h2>
-                  <p className="relative text-gray-400 mb-4 line-clamp-2">{room.description}</p>
+                  <p className="relative text-gray-400 mb-4 line-clamp-2">{room.description || "Join this room to start vibing!"}</p>
+                  
+                  {/* Topics */}
+                  {room.topics && room.topics.length > 0 && (
+                    <div className="relative flex flex-wrap gap-2 mb-4">
+                      {room.topics.map((topic: string, i: number) => (
+                        <span 
+                          key={i} 
+                          className="px-2 py-1 bg-cyan-500/20 text-cyan-300 text-xs rounded-full border border-cyan-500/30"
+                        >
+                          {topic}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  
                   <div className="relative flex justify-between items-center">
                     <span className="text-sm text-gray-400 flex items-center gap-1">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">

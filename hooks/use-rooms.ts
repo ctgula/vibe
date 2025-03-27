@@ -118,6 +118,10 @@ export function useRooms() {
       
       if (participantError) throw participantError;
       
+      // Store room creator info in localStorage
+      localStorage.setItem("isHost", "true");
+      localStorage.setItem("roomId", room.id);
+      
       return room.id;
     } catch (error) {
       console.error("Error creating room:", error);

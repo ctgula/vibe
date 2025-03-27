@@ -90,7 +90,7 @@ export function Stage({
                 )}
                 
                 {/* Active speaker indicator */}
-                <div className={`absolute -bottom-0.5 right-0 z-10 w-3 h-3 rounded-full border-2 border-zinc-900 ${speaker.isActive || !speaker.isMuted ? 'bg-emerald-500' : 'bg-zinc-600'}`}></div>
+                <div className={`absolute -bottom-0.5 right-0 z-10 w-3 h-3 rounded-full border-2 border-zinc-900 ${speaker.isActive ? 'bg-emerald-500' : speaker.isMuted ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
                 
                 {/* Camera video or avatar */}
                 {speaker.id === currentUserId && isCameraOn && videoStream ? (
@@ -109,15 +109,28 @@ export function Stage({
                     />
                   </motion.div>
                 ) : (
-                  <img
-                    src={speaker.avatar || "/default-avatar.png"}
-                    alt={speaker.name}
-                    className={`w-16 h-16 sm:w-18 sm:h-18 rounded-full object-cover border-2 ${
-                      speaker.isActive || !speaker.isMuted
-                        ? 'border-emerald-500/30 shadow-lg shadow-emerald-500/10'
-                        : 'border-zinc-700/50'
-                    }`}
-                  />
+                  <div className="relative">
+                    <img
+                      src={speaker.avatar || "/default-avatar.png"}
+                      alt={speaker.name}
+                      className={`w-16 h-16 sm:w-18 sm:h-18 rounded-full object-cover border-2 ${
+                        speaker.isActive 
+                          ? 'border-emerald-500/30 shadow-lg shadow-emerald-500/10'
+                          : speaker.isMuted 
+                            ? 'border-red-500/30 shadow-lg shadow-red-500/10' 
+                            : 'border-emerald-500/30 shadow-lg shadow-emerald-500/10'
+                      }`}
+                    />
+                    
+                    {/* Mute overlay */}
+                    {speaker.isMuted && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="bg-black/50 rounded-full p-1">
+                          <MicOff className="w-4 h-4 text-red-400" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {/* Name and Role - simplified */}
@@ -127,31 +140,24 @@ export function Stage({
                   </p>
                 </div>
 
-                {/* Mute indicator - moved to a subtle icon below name */}
-                {speaker.isMuted && (
-                  <div className="mt-1 flex justify-center">
-                    <MicOff className="w-3 h-3 text-zinc-400" />
+                {/* Host controls - only visible to host and not for themselves */}
+                {isHost && speaker.id !== currentUserId && (
+                  <div className="flex gap-1 mt-2 flex-wrap justify-center">
+                    <button
+                      onClick={() => onMuteSpeaker?.(speaker.id)}
+                      className="text-xs px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-full transition-colors"
+                    >
+                      Mute
+                    </button>
+                    <button
+                      onClick={() => onRemoveSpeaker?.(speaker.id)}
+                      className="text-xs px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-full transition-colors"
+                    >
+                      Remove
+                    </button>
                   </div>
                 )}
               </div>
-
-              {/* Host controls - only visible to host and not for themselves */}
-              {isHost && speaker.id !== currentUserId && (
-                <div className="flex gap-1 mt-2 flex-wrap justify-center">
-                  <button
-                    onClick={() => onMuteSpeaker?.(speaker.id)}
-                    className="text-xs px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-full transition-colors"
-                  >
-                    Mute
-                  </button>
-                  <button
-                    onClick={() => onRemoveSpeaker?.(speaker.id)}
-                    className="text-xs px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-full transition-colors"
-                  >
-                    Remove
-                  </button>
-                </div>
-              )}
             </motion.div>
           ))}
         </AnimatePresence>

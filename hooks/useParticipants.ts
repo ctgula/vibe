@@ -23,21 +23,50 @@ export function useParticipants(roomId: string, userId: string) {
     isHost: false
   });
 
+  // Check if the user is the room creator
+  const checkIfRoomCreator = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('rooms')
+        .select('created_by')
+        .eq('id', roomId)
+        .single();
+      
+      if (error) {
+        console.error('❌ Error checking room creator:', error);
+        return false;
+      }
+      
+      return data?.created_by === userId;
+    } catch (err) {
+      console.error('❌ Error checking room creator:', err);
+      return false;
+    }
+  };
+
   const joinRoom = async () => {
     try {
-      console.log('🔄 Joining room as listener:', { roomId, userId });
+      console.log('🔄 Joining room:', { roomId, userId });
+      
+      // Check if user is the room creator
+      const isCreator = await checkIfRoomCreator();
+      console.log('🔍 Is user the room creator?', isCreator);
+      
+      // Prepare participant data based on creator status
+      const participantData = {
+        room_id: roomId,
+        user_id: userId,
+        is_speaker: isCreator, // Automatically make creator a speaker
+        is_host: isCreator, // Automatically make creator a host
+        has_raised_hand: false,
+        is_muted: true, // Start muted by default for safety
+        joined_at: new Date().toISOString()
+      };
       
       const { error: joinError } = await supabase
         .from('room_participants')
         .upsert(
-          {
-            room_id: roomId,
-            user_id: userId,
-            is_speaker: false,
-            has_raised_hand: false,
-            is_muted: true,
-            joined_at: new Date().toISOString()
-          },
+          participantData,
           { onConflict: 'room_id,user_id', ignoreDuplicates: false }
         );
 
@@ -46,7 +75,7 @@ export function useParticipants(roomId: string, userId: string) {
         throw joinError;
       }
       
-      console.log('✅ Successfully joined room');
+      console.log('✅ Successfully joined room with data:', participantData);
       
       // Refresh participant list after joining
       fetchParticipants();
@@ -59,6 +88,10 @@ export function useParticipants(roomId: string, userId: string) {
     try {
       setLoading(true);
       console.log('🔄 Fetching participants for room:', roomId);
+      
+      // First check if user is the room creator
+      const isCreator = await checkIfRoomCreator();
+      console.log('🔍 Is user the room creator?', isCreator);
       
       const { data, error } = await supabase
         .from('room_participants')
@@ -108,12 +141,29 @@ export function useParticipants(roomId: string, userId: string) {
       // Update current user's status
       const userParticipant = data.find(p => p.user_id === userId);
       if (userParticipant) {
-        setUserStatus({
-          isSpeaker: userParticipant.is_speaker || false,
-          isMuted: userParticipant.is_muted || true,
-          hasRaisedHand: userParticipant.has_raised_hand || false,
-          isHost: userParticipant.is_host || false
-        });
+        // If user is the creator but not marked as host/speaker, update their status
+        if (isCreator && (!userParticipant.is_host || !userParticipant.is_speaker)) {
+          console.log('🔄 Updating room creator status to host and speaker');
+          updateParticipantStatus(userId, {
+            is_host: true,
+            is_speaker: true
+          });
+          
+          // Update local state immediately for better UX
+          setUserStatus({
+            isSpeaker: true,
+            isMuted: userParticipant.is_muted || true,
+            hasRaisedHand: userParticipant.has_raised_hand || false,
+            isHost: true
+          });
+        } else {
+          setUserStatus({
+            isSpeaker: userParticipant.is_speaker || false,
+            isMuted: userParticipant.is_muted || true,
+            hasRaisedHand: userParticipant.has_raised_hand || false,
+            isHost: userParticipant.is_host || false
+          });
+        }
       } else {
         // Auto-join as a listener if not already in the room
         joinRoom();
@@ -123,6 +173,26 @@ export function useParticipants(roomId: string, userId: string) {
       setError(err.message || 'An error occurred fetching participants');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Function to update a participant's status
+  const updateParticipantStatus = async (participantId: string, updates: any) => {
+    try {
+      const { error } = await supabase
+        .from('room_participants')
+        .update(updates)
+        .eq('room_id', roomId)
+        .eq('user_id', participantId);
+      
+      if (error) {
+        console.error('❌ Error updating participant status:', error);
+        throw error;
+      }
+      
+      console.log('✅ Successfully updated participant status:', { participantId, ...updates });
+    } catch (err) {
+      console.error('❌ Error updating participant status:', err);
     }
   };
 
@@ -208,7 +278,7 @@ export function useParticipants(roomId: string, userId: string) {
               return {
                 ...participant,
                 isSpeaker: payload.new.is_speaker || false,
-                isMuted: payload.new.is_muted || true,
+                isMuted: payload.new.is_muted,
                 hasRaisedHand: payload.new.has_raised_hand || false,
                 isHost: payload.new.is_host || false
               };
@@ -217,13 +287,24 @@ export function useParticipants(roomId: string, userId: string) {
           }));
           
           // Update current user's status if it's the user being updated
+          // But don't override mute state if this update was triggered by another user's action
           if (payload.new.user_id === userId) {
-            setUserStatus({
-              isSpeaker: payload.new.is_speaker || false,
-              isMuted: payload.new.is_muted || true,
-              hasRaisedHand: payload.new.has_raised_hand || false,
-              isHost: payload.new.is_host || false
-            });
+            // Only update the user's own mute state if the change was made by the user
+            // This prevents the mute state from being overridden by other participants' updates
+            const currentUserStatus = { ...userStatus };
+            
+            // Always update these properties
+            currentUserStatus.isSpeaker = payload.new.is_speaker || false;
+            currentUserStatus.hasRaisedHand = payload.new.has_raised_hand || false;
+            currentUserStatus.isHost = payload.new.is_host || false;
+            
+            // Only update mute state if it's different from what we already have
+            // This prevents the UI from flickering between states
+            if (currentUserStatus.isMuted !== payload.new.is_muted) {
+              currentUserStatus.isMuted = payload.new.is_muted;
+            }
+            
+            setUserStatus(currentUserStatus);
           }
         }
       )
@@ -256,6 +337,7 @@ export function useParticipants(roomId: string, userId: string) {
     loading,
     error,
     refetch: fetchParticipants,
-    joinRoom
+    joinRoom,
+    updateParticipantStatus
   };
 }

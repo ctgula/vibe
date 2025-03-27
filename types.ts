@@ -3,6 +3,19 @@
 // Re-export types from database
 export * from './lib/database.types';
 
+// Participant interface with is_host field
+export interface Participant {
+  id: string;
+  room_id: string;
+  user_id: string;
+  created_at: string;
+  is_host: boolean;
+  is_speaker?: boolean;
+  is_muted?: boolean;
+  has_raised_hand?: boolean;
+  joined_at?: string;
+}
+
 // Additional application-specific types
 export interface RoomWithDetails {
   id: string;

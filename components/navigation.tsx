@@ -37,8 +37,8 @@ export function Navigation() {
     const navItems = [
       { path: "/" },
       { path: "/discover" },
+      { path: "/directory" },
       { path: "/create-room" },
-      { path: "/rooms" },
       { path: "/profile" },
     ]
     
@@ -131,14 +131,14 @@ export function Navigation() {
       icon: <Search className="h-6 w-6" />,
     },
     {
+      path: "/directory",
+      label: "Directory",
+      icon: <Users className="h-6 w-6" />,
+    },
+    {
       path: "/create-room",
       label: "Create",
       icon: <PlusCircle className="h-6 w-6" />,
-    },
-    {
-      path: "/rooms",
-      label: "Rooms",
-      icon: <Users className="h-6 w-6" />,
     },
     {
       path: "/profile",

@@ -50,6 +50,7 @@ export interface Database {
           is_muted: boolean
           has_raised_hand: boolean
           joined_at: string
+          is_host: boolean
         }
         Insert: {
           id?: string
@@ -59,6 +60,7 @@ export interface Database {
           is_muted?: boolean
           has_raised_hand?: boolean
           joined_at?: string
+          is_host?: boolean
         }
         Update: {
           id?: string
@@ -68,6 +70,7 @@ export interface Database {
           is_muted?: boolean
           has_raised_hand?: boolean
           joined_at?: string
+          is_host?: boolean
         }
       }
       profiles: {

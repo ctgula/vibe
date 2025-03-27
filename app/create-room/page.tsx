@@ -10,17 +10,22 @@ import { loadSlim } from 'tsparticles-slim';
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { v4 as uuidv4 } from 'uuid';
 import { PageTransition } from '@/components/transitions/PageTransition';
+import { generateCreativeGuestName, generateAvatarUrl } from '@/lib/utils';
 
 async function createOrGetGuestProfile() {
   let id = localStorage.getItem("guestProfileId");
 
   if (!id) {
     id = uuidv4();
+    const guestName = generateCreativeGuestName();
+    const avatarUrl = generateAvatarUrl(id);
 
     const { error } = await supabase.from("profiles").insert({
       id,
-      name: `Guest_${id.slice(0, 6)}`,
+      name: guestName,
+      display_name: guestName,
       is_guest: true,
+      avatar_url: avatarUrl,
       created_at: new Date().toISOString()
     });
 
@@ -43,12 +48,30 @@ export default function CreateRoom() {
   const [enableVideo, setEnableVideo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [animateButton, setAnimateButton] = useState(false);
   const router = useRouter();
   const { guestId, loading } = useGuestSession();
 
   // Add debug logging for component mount
   useEffect(() => {
     console.log('CreateRoom mounted - Guest ID:', guestId, 'Loading:', loading);
+    
+    // Add haptic feedback for iOS devices
+    const enableHaptics = () => {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        // @ts-ignore - Some browsers support this
+        navigator.vibrate = navigator.vibrate || navigator.webkitVibrate || navigator.mozVibrate || navigator.msVibrate;
+      }
+    };
+    
+    enableHaptics();
+    
+    // Add smooth scrolling behavior
+    document.documentElement.style.scrollBehavior = 'smooth';
+    
+    return () => {
+      document.documentElement.style.scrollBehavior = '';
+    };
   }, [guestId, loading]);
 
   const particlesInit = async (engine: any) => {
@@ -68,6 +91,12 @@ export default function CreateRoom() {
   ];
 
   const handleTopicToggle = (topic: string) => {
+    // Add haptic feedback
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      // @ts-ignore
+      navigator.vibrate(10);
+    }
+    
     if (topics.includes(topic)) {
       setTopics(topics.filter((t) => t !== topic));
     } else {
@@ -79,6 +108,13 @@ export default function CreateRoom() {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setAnimateButton(true);
+    
+    // Add haptic feedback for form submission
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      // @ts-ignore
+      navigator.vibrate([15, 10, 15]);
+    }
     
     console.log('Creating room with guest ID:', guestId);
 
@@ -88,6 +124,7 @@ export default function CreateRoom() {
       if (!guestId) {
         console.error('❌ No guest profile ID available');
         toast.error('Failed to create room: No guest profile ID');
+        setAnimateButton(false);
         return;
       }
 
@@ -108,6 +145,7 @@ export default function CreateRoom() {
       if (roomError) {
         console.error("❌ Failed to create room:", roomError);
         toast.error('Failed to create room');
+        setAnimateButton(false);
         return;
       }
 
@@ -127,8 +165,13 @@ export default function CreateRoom() {
       if (participantError) {
         console.error("❌ Failed to add host to room participants:", participantError);
         toast.error('Failed to join room');
+        setAnimateButton(false);
         return;
       }
+
+      // Store room creator info in localStorage for persistence
+      localStorage.setItem(`room_${roomId}_creator`, guestId);
+      localStorage.setItem(`room_${roomId}_created_at`, new Date().toISOString());
 
       console.log('✅ Added creator as host participant');
       toast.success('Room created successfully!');
@@ -139,6 +182,7 @@ export default function CreateRoom() {
     } catch (err) {
       console.error('❌ Error in handleSubmit:', err);
       toast.error('An unexpected error occurred');
+      setAnimateButton(false);
     } finally {
       setIsLoading(false);
     }
@@ -306,8 +350,11 @@ export default function CreateRoom() {
                 value={roomName}
                 onChange={(e) => setRoomName(e.target.value)}
                 placeholder="My Awesome Room"
-                className="w-full px-4 py-2 bg-gray-800/60 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                className="w-full px-4 py-2 bg-gray-800/60 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 transition-all"
                 required
+                autoFocus
+                autoComplete="off"
+                aria-label="Room Name"
               />
             </div>
             
@@ -317,7 +364,8 @@ export default function CreateRoom() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="What's this room about?"
-                className="w-full px-4 py-2 bg-gray-800/60 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 min-h-[100px]"
+                className="w-full px-4 py-2 bg-gray-800/60 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 min-h-[100px] transition-all"
+                aria-label="Room Description"
               />
             </div>
             
@@ -331,11 +379,11 @@ export default function CreateRoom() {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => handleTopicToggle(topic)}
-                    className={`px-3 py-1 rounded-full text-sm ${
+                    className={`px-3 py-1.5 rounded-full text-sm ${
                       topics.includes(topic)
-                        ? 'bg-cyan-400 text-black'
+                        ? 'bg-cyan-400 text-black font-medium shadow-lg shadow-cyan-400/20'
                         : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                    } transition-colors`}
+                    } transition-all`}
                   >
                     {topic}
                   </motion.button>
@@ -351,6 +399,7 @@ export default function CreateRoom() {
                     checked={isPublic}
                     onChange={() => setIsPublic(!isPublic)}
                     className="sr-only peer"
+                    aria-label="Public Room Toggle"
                   />
                   <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-400"></div>
                   <span className="ml-3 text-sm font-medium text-gray-300">Public Room</span>
@@ -364,6 +413,7 @@ export default function CreateRoom() {
                     checked={enableVideo}
                     onChange={() => setEnableVideo(!enableVideo)}
                     className="sr-only peer"
+                    aria-label="Enable Video Toggle"
                   />
                   <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-400"></div>
                   <span className="ml-3 text-sm font-medium text-gray-300">Enable Video</span>
@@ -374,6 +424,10 @@ export default function CreateRoom() {
             <motion.button
               whileHover={{ scale: 1.02, boxShadow: "0 0 15px rgba(56, 189, 248, 0.4)" }}
               whileTap={{ scale: 0.98 }}
+              animate={animateButton ? { 
+                scale: [1, 1.05, 1],
+                transition: { duration: 0.3, repeat: Infinity, repeatType: "reverse" }
+              } : {}}
               type="submit"
               disabled={isLoading}
               className="w-full py-3 mt-4 bg-gradient-to-r from-cyan-400 to-blue-500 text-black font-medium rounded-md hover:opacity-90 transition-all disabled:opacity-50 flex justify-center items-center"

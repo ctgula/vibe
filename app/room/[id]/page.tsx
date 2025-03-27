@@ -8,9 +8,10 @@ import { Stage } from '@/components/room/Stage';
 import { Audience } from '@/components/room/Audience';
 import { Controls } from '@/components/room/Controls';
 import { RaisedHands } from '@/components/room/RaisedHands';
-import { MessageCircle, X, ChevronDown } from 'lucide-react';
+import { MessageCircle, X, ChevronDown, Video } from 'lucide-react';
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { useGuestSession } from '@/hooks/useGuestSession';
+import { VideoChat } from '@/components/VideoChat';
 
 export default function Room({ params }: { params: { id: string } }) {
   const [room, setRoom] = useState<any>(null);
@@ -25,12 +26,14 @@ export default function Room({ params }: { params: { id: string } }) {
   const [hasRaisedHand, setHasRaisedHand] = useState(false);
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
+  const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isJoining, setIsJoining] = useState(true);
+  const [roomHasVideoEnabled, setRoomHasVideoEnabled] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [activeParticipants, setActiveParticipants] = useState<string[]>([]);
@@ -50,6 +53,28 @@ export default function Room({ params }: { params: { id: string } }) {
       setHasRaisedHand(userStatus.hasRaisedHand);
     }
   }, [userStatus]);
+
+  // Check if user is the host of this room from localStorage
+  useEffect(() => {
+    const storedHost = localStorage.getItem("isHost");
+    const storedRoomId = localStorage.getItem("roomId");
+
+    if (
+      storedHost === "true" &&
+      storedRoomId === params.id &&
+      user.id // make sure userId is available
+    ) {
+      const updateHostStatus = async () => {
+        await supabase
+          .from("room_participants")
+          .update({ is_host: true, is_speaker: true })
+          .eq("room_id", params.id)
+          .eq("user_id", user.id);
+      };
+
+      updateHostStatus();
+    }
+  }, [params.id, user.id]);
 
   const router = useRouter();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -150,9 +175,67 @@ export default function Room({ params }: { params: { id: string } }) {
     }
   };
 
+  // Initialize audio stream when user becomes a speaker
+  useEffect(() => {
+    let mounted = true;
+    
+    const initializeAudioStream = async () => {
+      try {
+        // Only initialize audio if user is a speaker and not already initialized
+        if (isSpeaker && !audioStream) {
+          console.log('🎤 Initializing audio stream for speaker...');
+          
+          // Request audio permissions
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            } 
+          });
+          
+          if (mounted) {
+            setAudioStream(stream);
+            streamRef.current = stream;
+            
+            // Apply mute state to the audio tracks
+            stream.getAudioTracks().forEach(track => {
+              track.enabled = !isMuted;
+            });
+            
+            console.log('✅ Audio stream initialized successfully');
+          }
+        }
+      } catch (err) {
+        console.error('❌ Error initializing audio stream:', err);
+        if (mounted) {
+          setError('Failed to access microphone. Please check your permissions.');
+        }
+      }
+    };
+    
+    if (isSpeaker) {
+      initializeAudioStream();
+    }
+    
+    return () => {
+      mounted = false;
+    };
+  }, [isSpeaker, audioStream]);
+
+  // Apply mute state changes to the audio stream
+  useEffect(() => {
+    if (audioStream) {
+      audioStream.getAudioTracks().forEach(track => {
+        track.enabled = !isMuted;
+      });
+      console.log(`🔊 Audio track ${isMuted ? 'muted' : 'unmuted'}`);
+    }
+  }, [isMuted, audioStream]);
+
   // Fetch room details and set up subscriptions
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchRoomDetails = async () => {
       try {
         // Fetch room details
         const { data: roomData, error: roomError } = await supabase
@@ -161,8 +244,19 @@ export default function Room({ params }: { params: { id: string } }) {
           .eq('id', params.id)
           .single();
 
-        if (roomError) throw roomError;
+        if (roomError) {
+          console.error('Error fetching room:', roomError);
+          setError('Failed to load room details. The room may no longer exist.');
+          return;
+        }
+
         setRoom(roomData);
+        setRoomHasVideoEnabled(roomData.has_camera || false);
+        
+        // Set document title to room name for better PWA experience
+        if (typeof document !== 'undefined') {
+          document.title = `${roomData.name || 'Room'} | Vibe`;
+        }
 
         // Fetch messages
         const { data: messagesData, error: messagesError } = await supabase
@@ -182,7 +276,7 @@ export default function Room({ params }: { params: { id: string } }) {
       }
     };
 
-    fetchData();
+    fetchRoomDetails();
 
     // Set up real-time subscription for messages
     const messagesSubscription = supabase
@@ -282,29 +376,70 @@ export default function Room({ params }: { params: { id: string } }) {
 
   const handleToggleMute = async () => {
     try {
-      console.log('🔄 Toggling mute state from', isMuted, 'to', !isMuted);
+      // Get the current state before toggling
+      const currentMuteState = isMuted;
+      console.log('🔄 Toggling mute state from', currentMuteState, 'to', !currentMuteState);
       
       // Update local state immediately for responsive UI
-      setIsMuted(!isMuted);
+      setIsMuted(!currentMuteState);
+      
+      // Apply mute state to audio tracks if stream exists
+      if (audioStream) {
+        audioStream.getAudioTracks().forEach(track => {
+          track.enabled = currentMuteState; // Enable if currently muted
+        });
+      } else if (isSpeaker) {
+        // Initialize audio stream if it doesn't exist yet
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            } 
+          });
+          
+          setAudioStream(stream);
+          streamRef.current = stream;
+          
+          // Apply mute state to the new audio tracks
+          stream.getAudioTracks().forEach(track => {
+            track.enabled = currentMuteState; // Enable if currently muted
+          });
+        } catch (err) {
+          console.error('❌ Error initializing audio stream during mute toggle:', err);
+          setError('Failed to access microphone. Please check your permissions.');
+          // Revert mute state if we couldn't initialize audio
+          setIsMuted(currentMuteState);
+          return;
+        }
+      }
       
       // Then update the database
       const { error } = await supabase
         .from('room_participants')
-        .update({ is_muted: !isMuted })
+        .update({ is_muted: !currentMuteState })
         .eq('room_id', params.id)
         .eq('user_id', user.id);
 
       if (error) {
         console.error('❌ Failed to toggle mute:', error);
         // Revert local state if database update fails
-        setIsMuted(isMuted);
+        setIsMuted(currentMuteState);
+        
+        // Also revert audio track state
+        if (audioStream) {
+          audioStream.getAudioTracks().forEach(track => {
+            track.enabled = !currentMuteState; // Revert to previous state
+          });
+        }
         return;
       }
 
-      // Update room activity when user toggles mute
-      await updateRoomActivity();
-
-      console.log(`✅ ${isMuted ? 'Unmuted' : 'Muted'} successfully`);
+      console.log(`✅ ${currentMuteState ? 'Unmuted' : 'Muted'} successfully`);
+      
+      // Don't update the participants list here - let the real-time subscription handle it
+      // This prevents the UI from flickering between states
     } catch (err) {
       console.error('❌ Error toggling mute:', err);
       // Revert local state if there's an error
@@ -434,6 +569,14 @@ export default function Room({ params }: { params: { id: string } }) {
       // Stop any active media streams
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      
+      if (audioStream) {
+        audioStream.getTracks().forEach(track => track.stop());
+      }
+      
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
       }
       
       // Remove the user from the room_participants table
@@ -588,9 +731,6 @@ export default function Room({ params }: { params: { id: string } }) {
   }, [user, room]);
 
   // Determine if the room has video enabled
-  const roomHasVideoEnabled = room?.enable_video || false;
-
-  // Determine if the current user can use camera (speakers in video-enabled rooms)
   const canUseCamera = isSpeaker && roomHasVideoEnabled;
 
   // Prepare speakers with camera status
@@ -644,7 +784,28 @@ export default function Room({ params }: { params: { id: string } }) {
     );
   }
 
-  if (!room || participantsLoading || isJoining) {
+  if (isJoining) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-900">
+        <div className="text-center p-8 rounded-lg bg-zinc-800/50 backdrop-blur-lg max-w-md">
+          <div className="flex justify-center mb-4">
+            <div className="relative w-16 h-16">
+              <div className="absolute inset-0 rounded-full bg-indigo-500/20 animate-ping"></div>
+              <div className="relative flex items-center justify-center w-16 h-16 rounded-full bg-indigo-600">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Joining Room...</h2>
+          <p className="text-zinc-300">Setting up your audio and preparing the space</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!room || participantsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-900">
         <div className="text-center">
@@ -655,7 +816,7 @@ export default function Room({ params }: { params: { id: string } }) {
             transition={{ duration: 0.5 }}
             className="text-zinc-400"
           >
-            {isJoining ? 'Joining room...' : 'Loading room...'}
+            Loading room...
           </motion.p>
         </div>
       </div>
@@ -667,34 +828,53 @@ export default function Room({ params }: { params: { id: string } }) {
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-gradient-to-b from-zinc-800 to-zinc-900 text-white" data-component-name="Room">
-        {/* Room Header */}
-        <header className="sticky top-0 z-20 backdrop-blur-lg bg-zinc-900/70 border-b border-zinc-800/50 shadow-md">
-          <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => router.push('/')}
-                className="p-2 -ml-2 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800/70 transition-colors"
+      <div className="min-h-screen bg-zinc-900 text-white">
+        {/* Room Header with Info */}
+        <div className="bg-gradient-to-b from-indigo-900/30 to-zinc-900/0 backdrop-blur-sm border-b border-white/5 p-4 sm:p-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-start justify-between">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">{room?.name || 'Loading room...'}</h1>
+                {room?.description && (
+                  <p className="text-zinc-300 mb-3 max-w-xl">{room.description}</p>
+                )}
+                
+                {/* Display room topics */}
+                {room?.topics && room.topics.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {room.topics.map((topic: string, index: number) => (
+                      <span 
+                        key={index} 
+                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
+                      >
+                        #{topic}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              <button
+                onClick={handleLeaveRoom}
+                className="flex items-center justify-center px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-md transition-colors"
               >
-                <ChevronDown className="w-5 h-5" />
+                <span className="mr-1.5">Leave</span>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
               </button>
-              <h1 className="text-lg font-semibold truncate">{room.name}</h1>
             </div>
             
-            <button 
-              onClick={toggleMessages}
-              className="relative p-2 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800/70 transition-colors"
-            >
-              <MessageCircle className="w-5 h-5" />
-              {unreadCount > 0 && (
-                <span className="absolute top-0 right-0 w-4 h-4 bg-indigo-500 rounded-full text-[10px] flex items-center justify-center">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
+            {/* Host info - simplified since we don't have the profile data */}
+            <div className="flex items-center mt-3">
+              <div className="flex items-center text-sm text-zinc-400">
+                <span className="mr-2">Room created by</span>
+                <span className="font-medium text-zinc-300">Host</span>
+              </div>
+            </div>
           </div>
-        </header>
-
+        </div>
+        
         <main className="max-w-4xl mx-auto px-4 py-6">
           {/* Stage section - only rendered when there are speakers */}
           {speakers.length > 0 && (
@@ -719,6 +899,11 @@ export default function Room({ params }: { params: { id: string } }) {
                   onDismiss={handleDismissRaisedHand}
                 />
               )}
+              
+              {/* Video Chat Section */}
+              <div className="mt-6 mb-6 bg-zinc-800/50 rounded-lg border border-zinc-700/50 p-4">
+                <VideoChat roomId={params.id} userId={user.id} />
+              </div>
             </>
           )}
 
@@ -752,12 +937,12 @@ export default function Room({ params }: { params: { id: string } }) {
           isMuted={isMuted} 
           onToggleMute={handleToggleMute}
           hasRaisedHand={hasRaisedHand}
-          onToggleRaiseHand={handleRaiseHand}
+          onToggleRaiseHand={!isSpeaker ? handleRaiseHand : undefined}
           isSpeaker={isSpeaker}
           onLeaveRoom={handleLeaveRoom}
           isCameraOn={isCameraOn}
-          onToggleCamera={canUseCamera ? handleToggleCamera : undefined}
-          showCameraButton={canUseCamera}
+          onToggleCamera={handleToggleCamera}
+          showCameraButton={isSpeaker && roomHasVideoEnabled}
         />
 
         {/* Messages Panel */}
