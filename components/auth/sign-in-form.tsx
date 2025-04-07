@@ -6,14 +6,15 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/use-supabase-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/toast";
+import toast from "react-hot-toast";
+import Link from "next/link";
 
 export function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { signIn } = useAuth();
-  const { showToast } = useToast();
   const router = useRouter();
 
   // Apply haptic feedback for interactions
@@ -28,22 +29,32 @@ export function SignInForm() {
     if (!email || !password) return;
 
     setIsLoading(true);
-    hapticFeedback([3, 10, 3]); // Light feedback on submit
+    setError("");
+    hapticFeedback(5); // Feedback for submit
 
     try {
-      const { error } = await signIn(email, password);
+      const { error: signInError } = await signIn(email, password);
 
-      if (error) {
+      if (signInError) {
+        setError(signInError.message || "Failed to sign in");
         hapticFeedback([10, 5, 10, 5, 10]); // Error feedback
-        showToast(error.message, "error");
+        toast.error(signInError.message || "Failed to sign in");
       } else {
-        hapticFeedback(5); // Success feedback
-        showToast("Successfully signed in", "success");
-        router.push("/");
+        hapticFeedback([3, 30, 3]); // Success feedback
+        toast.success("Successfully signed in");
+        
+        // Set flag for redirection logic and clear any redirect flags
+        sessionStorage.setItem('justLoggedIn', 'true');
+        sessionStorage.removeItem('redirectedToLogin');
+        sessionStorage.removeItem('loggingIn');
+        
+        // Use replace instead of push to avoid history issues
+        router.replace("/");
       }
     } catch (error: any) {
+      setError(error.message || "An unexpected error occurred");
       hapticFeedback([10, 5, 10, 5, 10]); // Error feedback
-      showToast(error.message || "Failed to sign in", "error");
+      toast.error(error.message || "An unexpected error occurred");
     } finally {
       setIsLoading(false);
     }
@@ -69,7 +80,7 @@ export function SignInForm() {
             required
           />
         </div>
-
+        
         <div className="space-y-1">
           <Input
             type="password"
@@ -82,17 +93,44 @@ export function SignInForm() {
             required
           />
         </div>
-
-        <motion.div whileTap={{ scale: 0.98 }}>
-          <Button
-            type="submit"
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
-            disabled={isLoading}
+        
+        {error && (
+          <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-md text-sm text-white">
+            {error}
+          </div>
+        )}
+        
+        <Button
+          type="submit"
+          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-md transition-colors"
+          disabled={isLoading}
+        >
+          {isLoading ? "Signing in..." : "Sign in"}
+        </Button>
+        
+        <div className="text-center mt-4">
+          <Link 
+            href="/auth/reset-password" 
+            className="text-indigo-400 hover:text-indigo-300 text-sm"
+            onClick={() => hapticFeedback()}
           >
-            {isLoading ? "Signing in..." : "Sign In"}
-          </Button>
-        </motion.div>
+            Forgot password?
+          </Link>
+        </div>
       </form>
+      
+      <div className="mt-8 text-center">
+        <p className="text-white/60">
+          Don't have an account?{" "}
+          <Link 
+            href="/auth/signup" 
+            className="text-indigo-400 hover:text-indigo-300 font-medium"
+            onClick={() => hapticFeedback()}
+          >
+            Sign up
+          </Link>
+        </p>
+      </div>
     </motion.div>
   );
 }

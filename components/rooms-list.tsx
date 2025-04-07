@@ -89,7 +89,7 @@ export function RoomsList() {
                 </div>
 
                 {room.isLive ? (
-                  <Link href={`/rooms/${room.id}`}>
+                  <Link href={`/room/${room.id}`}>
                     <button className="bg-white hover:bg-white/90 text-primary text-sm font-medium py-1.5 px-4 rounded-md transition-all">
                       Join
                     </button>

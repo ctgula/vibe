@@ -1,7 +1,11 @@
 'use client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Sparkles, Video, UserMinus, Volume2, VolumeX } from 'lucide-react';
+import { connectToLiveKit } from '@/utils/livekit';
+import { createLocalVideoTrack, createLocalAudioTrack, Room, Participant, Track } from 'livekit-client';
+import { SpeakerAvatar } from '@/components/SpeakerAvatar';
+import { useParticipantProfiles } from '@/hooks/useParticipantProfiles';
 
 interface SpeakerProps {
   id: string;
@@ -16,33 +20,119 @@ interface SpeakerProps {
 interface StageProps {
   speakers: SpeakerProps[];
   currentUserId: string;
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef?: React.RefObject<HTMLVideoElement>;
   videoStream?: MediaStream | null;
   isCameraOn?: boolean;
   isHost?: boolean;
   onMuteSpeaker?: (userId: string) => Promise<void>;
   onRemoveSpeaker?: (userId: string) => Promise<void>;
   onPromoteSpeaker?: (userId: string) => Promise<void>;
+  roomId: string;
+  isSpeaker?: boolean;
 }
 
 export function Stage({ 
   speakers, 
   currentUserId, 
-  videoRef, 
+  videoRef,
   videoStream, 
   isCameraOn,
   isHost,
   onMuteSpeaker,
   onRemoveSpeaker,
-  onPromoteSpeaker
+  onPromoteSpeaker,
+  roomId,
+  isSpeaker = true
 }: StageProps) {
   const [selectedSpeaker, setSelectedSpeaker] = useState<string | null>(null);
+  const [livekitRoom, setLivekitRoom] = useState<Room | null>(null);
+  const [participants, setParticipants] = useState<Map<string, Participant>>(new Map());
+
+  // Fetch profiles for all speakers
+  const speakerIds = speakers.map(speaker => speaker.id);
+  const { profiles, loading: profilesLoading } = useParticipantProfiles(speakerIds);
 
   useEffect(() => {
-    if (videoRef.current && videoStream) {
+    // For backward compatibility with the old video implementation
+    if (videoRef?.current && videoStream) {
       videoRef.current.srcObject = videoStream;
     }
   }, [videoStream, videoRef]);
+
+  useEffect(() => {
+    async function setupLiveKit() {
+      try {
+        // Fetch token from API
+        const res = await fetch(`/api/token?room=${roomId}&identity=${currentUserId}`);
+        const data = await res.json();
+        const token = data.token;
+        const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://vibe-nxa4lizr.livekit.cloud';
+
+        // Connect to LiveKit room
+        const room = await connectToLiveKit(token, livekitUrl);
+        setLivekitRoom(room);
+        
+        // Handle participants
+        Array.from(room.remoteParticipants.values()).forEach((participant) => {
+          setParticipants(prev => new Map(prev.set(participant.identity, participant)));
+        });
+
+        // Add local participant as well
+        setParticipants(prev => new Map(prev.set(room.localParticipant.identity, room.localParticipant)));
+
+        // Listen for participant events
+        room.on('participantConnected', (participant) => {
+          console.log("New participant connected:", participant.identity);
+          setParticipants(prev => new Map(prev.set(participant.identity, participant)));
+        });
+
+        room.on('participantDisconnected', (participant) => {
+          console.log("Participant disconnected:", participant.identity);
+          setParticipants(prev => {
+            const updated = new Map(prev);
+            updated.delete(participant.identity);
+            return updated;
+          });
+        });
+
+        // Handle track subscriptions
+        room.on('trackSubscribed', (track, publication, participant) => {
+          console.log("Subscribed to", track.kind, "from", participant.identity);
+        });
+
+        room.on('trackUnsubscribed', (track, publication, participant) => {
+          console.log("Unsubscribed from", track.kind, "from", participant.identity);
+        });
+
+        // Create and publish local tracks if camera is on and user is a speaker
+        if (isSpeaker && isCameraOn) {
+          console.log("Creating and publishing tracks as speaker");
+          const videoTrack = await createLocalVideoTrack();
+          const audioTrack = await createLocalAudioTrack();
+          
+          await room.localParticipant.publishTrack(videoTrack);
+          await room.localParticipant.publishTrack(audioTrack);
+        }
+
+        // Cleanup function
+        return () => {
+          room.disconnect();
+        };
+      } catch (error) {
+        console.error('Error setting up LiveKit:', error);
+      }
+    }
+
+    if (roomId && currentUserId) {
+      setupLiveKit();
+    }
+
+    return () => {
+      if (livekitRoom) {
+        livekitRoom.disconnect();
+      }
+    };
+  }, [roomId, currentUserId, isCameraOn, isSpeaker]);
 
   const handleSpeakerClick = (speakerId: string) => {
     setSelectedSpeaker(speakerId === selectedSpeaker ? null : speakerId);
@@ -76,88 +166,31 @@ export function Stage({
                 }
               }}
               exit={{ opacity: 0, scale: 0.8 }}
-              className="flex flex-col items-center"
             >
-              {/* Speaker container with relative positioning */}
-              <div className="relative">
-                {/* Host badge - now a plus icon */}
-                {speaker.isHost && (
-                  <div className="absolute -top-1 -right-1 z-10 bg-amber-500 rounded-full p-1 shadow-lg shadow-amber-500/20 border border-amber-400">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5 text-white">
-                      <path d="M12 5v14M5 12h14" />
-                    </svg>
-                  </div>
-                )}
-                
-                {/* Active speaker indicator */}
-                <div className={`absolute -bottom-0.5 right-0 z-10 w-3 h-3 rounded-full border-2 border-zinc-900 ${speaker.isActive ? 'bg-emerald-500' : speaker.isMuted ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
-                
-                {/* Camera video or avatar */}
-                {speaker.id === currentUserId && isCameraOn && videoStream ? (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.3 }}
-                    className="w-16 h-16 sm:w-18 sm:h-18 rounded-full overflow-hidden border-2 border-zinc-700/50 shadow-lg"
+              <SpeakerAvatar 
+                participant={speaker}
+                isCurrentUser={speaker.id === currentUserId}
+                livekitParticipant={participants.get(speaker.id)}
+                profile={profiles[speaker.id]}
+              />
+              
+              {/* Host controls - only visible to host and not for themselves */}
+              {isHost && speaker.id !== currentUserId && (
+                <div className="flex gap-1 mt-2 flex-wrap justify-center">
+                  <button
+                    onClick={() => onMuteSpeaker?.(speaker.id)}
+                    className="text-xs px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-full transition-colors"
                   >
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover"
-                    />
-                  </motion.div>
-                ) : (
-                  <div className="relative">
-                    <img
-                      src={speaker.avatar || "/default-avatar.png"}
-                      alt={speaker.name}
-                      className={`w-16 h-16 sm:w-18 sm:h-18 rounded-full object-cover border-2 ${
-                        speaker.isActive 
-                          ? 'border-emerald-500/30 shadow-lg shadow-emerald-500/10'
-                          : speaker.isMuted 
-                            ? 'border-red-500/30 shadow-lg shadow-red-500/10' 
-                            : 'border-emerald-500/30 shadow-lg shadow-emerald-500/10'
-                      }`}
-                    />
-                    
-                    {/* Mute overlay */}
-                    {speaker.isMuted && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="bg-black/50 rounded-full p-1">
-                          <MicOff className="w-4 h-4 text-red-400" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Name and Role - simplified */}
-                <div className="mt-2 text-center w-full">
-                  <p className="font-medium text-white text-xs truncate max-w-[80px] sm:max-w-[90px] mx-auto">
-                    {speaker.name}
-                  </p>
+                    Mute
+                  </button>
+                  <button
+                    onClick={() => onRemoveSpeaker?.(speaker.id)}
+                    className="text-xs px-2 py-0.5 bg-red-900/40 hover:bg-red-900/60 text-red-300 rounded-full transition-colors"
+                  >
+                    Remove
+                  </button>
                 </div>
-
-                {/* Host controls - only visible to host and not for themselves */}
-                {isHost && speaker.id !== currentUserId && (
-                  <div className="flex gap-1 mt-2 flex-wrap justify-center">
-                    <button
-                      onClick={() => onMuteSpeaker?.(speaker.id)}
-                      className="text-xs px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-full transition-colors"
-                    >
-                      Mute
-                    </button>
-                    <button
-                      onClick={() => onRemoveSpeaker?.(speaker.id)}
-                      className="text-xs px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-full transition-colors"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
-              </div>
+              )}
             </motion.div>
           ))}
         </AnimatePresence>

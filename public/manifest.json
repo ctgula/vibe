@@ -2,11 +2,42 @@
   "name": "Vibe - Live Audio Rooms",
   "short_name": "Vibe",
   "description": "Connect through live audio rooms with spatial audio",
-  "start_url": "/",
+  "start_url": "/?source=pwa",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#38bdf8",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
+  "categories": ["social", "entertainment", "communication"],
+  "screenshots": [
+    {
+      "src": "/screenshots/home-screen.png",
+      "sizes": "1170x2532",
+      "type": "image/png",
+      "platform": "narrow",
+      "label": "Home Screen"
+    },
+    {
+      "src": "/screenshots/room-screen.png",
+      "sizes": "1170x2532",
+      "type": "image/png",
+      "platform": "narrow",
+      "label": "Room Screen"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Create Room",
+      "url": "/room/create",
+      "description": "Create a new room",
+      "icons": [{ "src": "/icons/create-room.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Join Recent Room",
+      "url": "/directory",
+      "description": "Browse available rooms",
+      "icons": [{ "src": "/icons/recent-room.png", "sizes": "96x96" }]
+    }
+  ],
   "icons": [
     {
       "src": "/icons/icon-72x72.png",
@@ -55,6 +86,39 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "apple touch icon"
     }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "edge_side_panel": {
+    "preferred_width": 480
+  },
+  "handle_links": "preferred",
+  "launch_handler": {
+    "client_mode": "auto"
+  },
+  "scope": "/",
+  "id": "vibe-live-audio-rooms",
+  "dir": "ltr",
+  "lang": "en",
+  "iarc_rating_id": "",
+  "share_target": {
+    "action": "/share-target",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
   ]
 }

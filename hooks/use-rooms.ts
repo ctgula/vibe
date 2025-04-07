@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase, Room, Participant, Profile } from "@/lib/supabase";
-import { useAuth } from "./use-supabase-auth";
+import { useAuth } from "./useAuth";
+import { addParticipant } from "@/utils/participants";
 
 export type RoomWithParticipants = Room & {
   participants: (Participant & { profile: Profile })[];
@@ -13,7 +14,7 @@ export function useRooms() {
   const [rooms, setRooms] = useState<RoomWithParticipants[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const { user } = useAuth();
+  const { user, guestId, isGuest } = useAuth();
 
   useEffect(() => {
     let roomsSubscription: any;
@@ -27,7 +28,7 @@ export function useRooms() {
           .from('rooms')
           .select(`
             *,
-            participants:participants(
+            participants:room_participants(
               *,
               profile:profiles(*)
             )
@@ -67,18 +68,25 @@ export function useRooms() {
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'rooms' }, 
         (payload) => {
+          console.log('Room change detected:', payload);
           // Refresh all rooms when there's a change
           fetchRooms();
         }
       )
       .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'participants' }, 
+        { event: '*', schema: 'public', table: 'room_participants' }, 
         (payload) => {
+          console.log('Room participant change detected:', payload);
           // Refresh all rooms when there's a participant change
           fetchRooms();
         }
       )
-      .subscribe();
+      .subscribe((status, error) => {
+        if (error) {
+          console.error('Subscription error:', error);
+        }
+        console.log('Subscription status:', status);
+      });
     
     return () => {
       // Clean up subscription
@@ -86,11 +94,11 @@ export function useRooms() {
         supabase.removeChannel(roomsSubscription);
       }
     };
-  }, [user?.id]);
+  }, [user?.id, guestId]);
 
   // Create a new room
   const createRoom = async (name: string, description: string, topics: string[] = []) => {
-    if (!user) throw new Error("You must be logged in to create a room");
+    if (!user && !guestId) throw new Error("You must be logged in or in guest mode to create a room");
     
     try {
       // Add haptic feedback for better mobile experience
@@ -102,21 +110,28 @@ export function useRooms() {
       const { data: room, error: roomError } = await supabase
         .from('rooms')
         .insert([
-          { name, description, topics, created_by: user.id }
+          { 
+            name, 
+            description, 
+            topics, 
+            created_by: user?.id || null,
+            created_by_guest: !user ? guestId : null,
+            is_public: true,
+            is_active: true,
+            created_at: new Date().toISOString()
+          }
         ])
         .select()
         .single();
       
       if (roomError) throw roomError;
       
-      // Add creator as host
-      const { error: participantError } = await supabase
-        .from('participants')
-        .insert([
-          { room_id: room.id, profile_id: user.id, role: 'host', is_muted: false }
-        ]);
-      
-      if (participantError) throw participantError;
+      // Add creator as host using the utility function
+      await addParticipant(room.id, user?.id || null, !user ? guestId : null, {
+        is_host: true,
+        is_speaker: true,
+        is_muted: false
+      });
       
       // Store room creator info in localStorage
       localStorage.setItem("isHost", "true");
@@ -131,7 +146,7 @@ export function useRooms() {
   
   // Join a room as a listener
   const joinRoom = async (roomId: string) => {
-    if (!user) throw new Error("You must be logged in to join a room");
+    if (!user && !guestId) throw new Error("You must be logged in or in guest mode to join a room");
     
     try {
       // Add haptic feedback for better mobile experience
@@ -139,34 +154,18 @@ export function useRooms() {
         window.navigator.vibrate(3);
       }
       
-      const { error } = await supabase
-        .from('participants')
-        .upsert([
-          { 
-            room_id: roomId, 
-            profile_id: user.id, 
-            role: 'listener',
-            is_muted: true,
-            hand_raised: false,
-            joined_at: new Date().toISOString()
-          }
-        ], {
-          onConflict: 'room_id,profile_id',
-          ignoreDuplicates: false
-        });
-      
-      if (error) throw error;
+      await addParticipant(roomId, user?.id || null, !user ? guestId : null);
       
       return roomId;
     } catch (error) {
-      console.error("Error joining room:", error);
+      console.error("❌ Error joining room:", error);
       throw error;
     }
   };
   
   // Leave a room
   const leaveRoom = async (roomId: string) => {
-    if (!user) return;
+    if (!user && !guestId) return;
     
     try {
       // Add haptic feedback for better mobile experience
@@ -175,9 +174,12 @@ export function useRooms() {
       }
       
       const { error } = await supabase
-        .from('participants')
-        .delete()
-        .match({ room_id: roomId, profile_id: user.id });
+        .from('room_participants')
+        .update({ is_active: false })
+        .match({ 
+          room_id: roomId, 
+          ...(user ? { user_id: user.id } : { guest_id: guestId })
+        });
       
       if (error) throw error;
     } catch (error) {

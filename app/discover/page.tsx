@@ -15,6 +15,7 @@ function DiscoverContent() {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
   const [rooms, setRooms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [isSmallScreen, setIsSmallScreen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const isInView = useInView(containerRef, { once: false, amount: 0.2 })
   const router = useRouter()
@@ -25,6 +26,24 @@ function DiscoverContent() {
       window.navigator.vibrate(3) // Very short vibration for iOS-like feedback
     }
   }
+  
+  // Detect screen size for responsive design
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsSmallScreen(window.innerWidth < 768)
+    }
+    
+    // Initial check
+    checkScreenSize()
+    
+    // Add listener for resize events
+    window.addEventListener('resize', checkScreenSize)
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', checkScreenSize)
+    }
+  }, [])
   
   const trendingTopics = [
     { id: "1", name: "Music Production", icon: <Music className="h-3 w-3 mr-1" /> },
@@ -39,24 +58,105 @@ function DiscoverContent() {
   useEffect(() => {
     const fetchRooms = async () => {
       setLoading(true)
-      let query = supabase
-        .from('rooms')
-        .select('*')
-        .eq('is_live', true)
-      
-      // Apply topic filter if selected
-      if (selectedTopic) {
-        query = query.contains('topics', [selectedTopic])
+      try {
+        // Completely reengineered query to ensure compatibility with current schema
+        let query = supabase
+          .from('rooms')
+          .select(`
+            id, 
+            created_at,
+            created_by,
+            name,
+            title,
+            description,
+            theme,
+            topics,
+            last_active_at,
+            is_active
+          `)
+          .order('last_active_at', { ascending: false })
+          .limit(50)
+       
+        // Apply topic filter if selected
+        if (selectedTopic) {
+          query = query.contains('topics', [selectedTopic])
+        }
+        
+        // Execute the query
+        const { data, error } = await query
+        
+        if (error) {
+          console.error('Error fetching rooms:', error)
+          setRooms([])
+          setLoading(false)
+          return
+        }
+        
+        // Transform the raw data to ensure consistency
+        const transformedRooms = data.map(room => {
+          // Create a consistent room structure regardless of what fields exist in the DB
+          const roomName = room.name || room.title || `Room ${room.id.substring(0, 4)}`;
+          const roomDescription = room.description || 'Join this room to chat with others!';
+          
+          return {
+            ...room,
+            id: room.id,
+            name: roomName,
+            title: roomName,
+            description: roomDescription,
+            is_live: room.is_active !== false, // Use is_active as a proxy for is_live
+            created_at: room.created_at,
+            last_active_at: room.last_active_at || room.created_at,
+            topics: room.topics || [],
+            participants_count: 0, // Will be populated in the next step
+            theme: room.theme || { color: 'default' }
+          };
+        });
+        
+        // Get participant counts in a single efficient query
+        if (transformedRooms.length > 0) {
+          const roomIds = transformedRooms.map(room => room.id);
+          
+          // First try the room_participants table
+          const { data: participantData, error: participantError } = await supabase
+            .from('room_participants')
+            .select('room_id, count(*)', { count: 'exact' })
+            .in('room_id', roomIds)
+            .group('room_id');
+            
+          if (!participantError && participantData) {
+            // Update participant counts in transformed rooms
+            participantData.forEach(item => {
+              const room = transformedRooms.find(r => r.id === item.room_id);
+              if (room) {
+                room.participants_count = item.count;
+              }
+            });
+          } else {
+            // Fallback to participants table if room_participants fails
+            const { data: fallbackData, error: fallbackError } = await supabase
+              .from('participants')
+              .select('room_id, count(*)', { count: 'exact' })
+              .in('room_id', roomIds)
+              .group('room_id');
+              
+            if (!fallbackError && fallbackData) {
+              fallbackData.forEach(item => {
+                const room = transformedRooms.find(r => r.id === item.room_id);
+                if (room) {
+                  room.participants_count = item.count;
+                }
+              });
+            }
+          }
+        }
+        
+        setRooms(transformedRooms)
+      } catch (err) {
+        console.error('Error in fetchRooms:', err);
+      } finally {
+        setLoading(false)
       }
-      
-      const { data, error } = await query
-      
-      if (error) {
-        console.error('Error fetching rooms:', error)
-      } else {
-        setRooms(data || [])
-      }
-      setLoading(false)
     }
 
     fetchRooms()
@@ -288,7 +388,7 @@ function DiscoverContent() {
               />
             </motion.div>
           ) : filteredRooms.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-3 pb-16 md:pb-0">
               {filteredRooms.map((room, index) => (
                 <motion.div 
                   key={room.id}
@@ -301,7 +401,8 @@ function DiscoverContent() {
                     ease: [0.25, 0.1, 0.25, 1.0] // iOS-like easing
                   }}
                   whileTap={{ scale: 0.98 }}
-                  className="bg-white/5 backdrop-blur-md rounded-lg p-3 border border-white/10 transition-all hover:bg-white/10 will-change-transform cursor-pointer relative overflow-hidden"
+                  className="bg-white/5 backdrop-blur-md rounded-lg p-3 sm:p-4 border border-white/10 transition-all hover:bg-white/10 will-change-transform cursor-pointer relative overflow-hidden"
+                  onClick={() => handleJoinRoom(room.id)}
                 >
                   {/* Add subtle hover effect */}
                   <motion.div 
@@ -310,69 +411,75 @@ function DiscoverContent() {
                     whileHover={{ opacity: 1 }}
                     transition={{ duration: 0.2 }}
                   />
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-medium text-white">{room.name}</h3>
-                      <div className="flex items-center mt-1">
-                        <div className="flex -space-x-2 mr-2">
+                  <div className="flex flex-col sm:flex-row justify-between items-start">
+                    <div className="w-full sm:w-auto">
+                      <h3 className="font-medium text-white text-base sm:text-lg truncate">{room.name}</h3>
+                      <div className="flex items-center mt-1 flex-wrap">
+                        <div className="flex -space-x-2 mr-2 mb-1 sm:mb-0">
                           {Array.from({length: 3}).map((_, i) => (
                             <motion.div 
                               key={i} 
-                              className="w-5 h-5 rounded-full bg-indigo-600 ring-2 ring-indigo-900/30 flex items-center justify-center text-[8px] font-bold text-white"
-                              initial={{ scale: 0, opacity: 0 }}
-                              animate={{ scale: 1, opacity: 1 }}
-                              transition={{ delay: 0.1 + (i * 0.05) }}
-                            >
-                              {String.fromCharCode(65 + i)}
-                            </motion.div>
+                              className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/10 border border-white/20"
+                            />
                           ))}
                         </div>
-                        <span className="text-xs text-white/60">{room.participants_count || 0} listening</span>
+                        <span className="text-xs sm:text-sm text-white/60">
+                          {room.participants_count || 0} listening
+                        </span>
                       </div>
                     </div>
-                    <div className="flex items-center">
-                      <span className="relative flex h-2 w-2 mr-1">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                      </span>
-                      <span className="text-xs text-white/60">Live</span>
+                    <div className="mt-2 sm:mt-0 w-full sm:w-auto flex justify-end">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="bg-white/10 border-white/20 hover:bg-white/20 text-xs sm:text-sm w-full sm:w-auto"
+                      >
+                        Join
+                      </Button>
                     </div>
                   </div>
-                  <motion.button
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="mt-3 w-full px-3 py-1.5 bg-gradient-to-r from-cyan-400 to-blue-500 text-black font-medium rounded-md hover:shadow-lg hover:shadow-cyan-400/20 border border-cyan-300/20 transition-all text-sm"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleInteraction();
-                      handleJoinRoom(room.id);
-                    }}
-                  >
-                    Join Room
-                  </motion.button>
+                  
+                  {/* Tags */}
+                  {room.topics && room.topics.length > 0 && (
+                    <div className="flex flex-wrap gap-1 sm:gap-2 mt-2 sm:mt-3">
+                      {(isSmallScreen ? room.topics.slice(0, 3) : room.topics).map((topic: string, i: number) => (
+                        <span key={i} className="text-xs bg-white/5 text-white/70 px-2 py-0.5 rounded-full text-[10px] sm:text-xs whitespace-nowrap">
+                          #{topic}
+                        </span>
+                      ))}
+                      {isSmallScreen && room.topics.length > 3 && (
+                        <span className="text-xs bg-white/5 text-white/70 px-2 py-0.5 rounded-full text-[10px]">
+                          +{room.topics.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </motion.div>
               ))}
             </div>
           ) : (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="bg-white/5 backdrop-blur-md rounded-lg p-6 border border-white/10 flex flex-col items-center justify-center"
+              className="text-center py-6 sm:py-10 px-2 sm:px-4"
             >
-              <Search className="h-10 w-10 text-white/20 mb-2" />
-              <p className="text-white/50 text-center">No rooms found matching your search</p>
-              <Button 
-                variant="link" 
-                className="mt-2 text-indigo-400"
-                onClick={() => {
-                  setSearchQuery('');
-                  setSelectedTopic(null);
-                  handleInteraction();
-                }}
+              <motion.div
+                className="inline-block mb-4 p-4 bg-white/5 rounded-full"
               >
-                Clear filters
+                <Users className="h-6 w-6 sm:h-10 sm:w-10 text-white/30" />
+              </motion.div>
+              <h3 className="text-lg sm:text-xl font-medium text-white mb-2">No rooms found</h3>
+              <p className="text-white/60">
+                {searchQuery || selectedTopic 
+                  ? "Try adjusting your search or filters" 
+                  : "Be the first to create a room"}
+              </p>
+              <Button 
+                onClick={() => router.push('/rooms/create')} 
+                className="mt-4 bg-indigo-600 hover:bg-indigo-700"
+              >
+                Create a Room
               </Button>
             </motion.div>
           )}
@@ -384,25 +491,13 @@ function DiscoverContent() {
 
 export default function DiscoverPage() {
   return (
-    <div className="min-h-screen psychedelic-bg">
+    <div className="min-h-screen bg-zinc-900 relative overflow-x-hidden">
+      <div className="absolute inset-0 z-0">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900/40 via-zinc-900/80 to-zinc-900 z-0" />
+      </div>
       <Navigation />
-      <main className="container max-w-md mx-auto pt-16 pb-20 px-4">
-        <motion.div 
-          className="glass-effect p-6 rounded-xl"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1.0] }}
-        >
-          <motion.h1 
-            className="text-2xl font-bold mb-6 text-white"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            Discover
-          </motion.h1>
-          <DiscoverContent />
-        </motion.div>
+      <main className="relative z-10 max-w-xl mx-auto pt-20 px-3 sm:px-4 pb-20">
+        <DiscoverContent />
       </main>
     </div>
   )

@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 import type { Database, Participant } from './database.types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -9,21 +9,53 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Supabase environment variables are missing');
 }
 
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+// Custom storage object that uses cookies
+const cookieStorage = {
+  getItem: (key: string) => {
+    if (typeof document === 'undefined') return null
+    const item = document.cookie
+      .split('; ')
+      .find(row => row.startsWith(`${key}=`))
+    return item ? item.split('=')[1] : null
+  },
+  setItem: (key: string, value: string) => {
+    if (typeof document !== 'undefined') {
+      document.cookie = `${key}=${value}; path=/; max-age=2592000; SameSite=Lax` // 30 days
+    }
+  },
+  removeItem: (key: string) => {
+    if (typeof document !== 'undefined') {
+      document.cookie = `${key}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`
+    }
+  }
+}
+
+// Use createBrowserClient for client-side interactions
+export const supabase = createBrowserClient<Database>(
+  supabaseUrl,
+  supabaseAnonKey,
+  {
+    auth: {
+      flowType: 'pkce',
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      persistSession: true,
+      storage: cookieStorage
+    }
+  }
 )
 
 // Type definitions
 export interface Profile {
   id: string;
   name: string;
-  full_name?: string;
+  display_name?: string;
   username?: string;
-  bio?: string;
-  is_guest?: boolean;
-  created_at: string;
   avatar_url?: string;
+  bio?: string;
+  created_at?: string;
+  updated_at?: string;
+  is_guest?: boolean;
 }
 
 export interface Room {

@@ -6,22 +6,22 @@ import { Check, AlertCircle, X } from "lucide-react"
 
 interface ToastProps {
   message: string
-  type: "success" | "error" | "info"
+  variant: "success" | "destructive" | "info"
   duration?: number
   onClose: () => void
 }
 
-export function Toast({ message, type, duration = 3000, onClose }: ToastProps) {
+export function Toast({ message, variant, duration = 3000, onClose }: ToastProps) {
   const [isVisible, setIsVisible] = useState(true)
 
   // Apply haptic feedback based on toast type
   useEffect(() => {
     if (window.navigator && window.navigator.vibrate) {
-      switch (type) {
+      switch (variant) {
         case "success":
           window.navigator.vibrate([3, 10, 3])
           break
-        case "error":
+        case "destructive":
           window.navigator.vibrate([10, 5, 10, 5, 10])
           break
         case "info":
@@ -29,7 +29,7 @@ export function Toast({ message, type, duration = 3000, onClose }: ToastProps) {
           break
       }
     }
-  }, [type])
+  }, [variant])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -41,10 +41,10 @@ export function Toast({ message, type, duration = 3000, onClose }: ToastProps) {
   }, [duration, onClose])
 
   const getIcon = () => {
-    switch (type) {
+    switch (variant) {
       case "success":
         return <Check className="h-4 w-4" />
-      case "error":
+      case "destructive":
         return <AlertCircle className="h-4 w-4" />
       case "info":
         return <AlertCircle className="h-4 w-4" />
@@ -52,10 +52,10 @@ export function Toast({ message, type, duration = 3000, onClose }: ToastProps) {
   }
 
   const getBgColor = () => {
-    switch (type) {
+    switch (variant) {
       case "success":
         return "bg-green-500/90 backdrop-blur-sm"
-      case "error":
+      case "destructive":
         return "bg-red-500/90 backdrop-blur-sm"
       case "info":
         return "bg-blue-500/90 backdrop-blur-sm"
@@ -82,7 +82,7 @@ export function Toast({ message, type, duration = 3000, onClose }: ToastProps) {
               boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
             }}
           >
-            <div className={`flex-shrink-0 mr-3 p-1 rounded-full ${type === "success" ? "bg-green-100" : type === "error" ? "bg-red-100" : "bg-blue-100"}`}>
+            <div className={`flex-shrink-0 mr-3 p-1 rounded-full ${variant === "success" ? "bg-green-100" : variant === "destructive" ? "bg-red-100" : "bg-blue-100"}`}>
               {getIcon()}
             </div>
             <div className="flex-1 mr-2">
@@ -108,19 +108,19 @@ export function Toast({ message, type, duration = 3000, onClose }: ToastProps) {
 import { createContext, useContext, ReactNode } from "react"
 
 type ToastContextType = {
-  showToast: (message: string, type: "success" | "error" | "info", duration?: number) => void
+  showToast: (message: string, variant: "success" | "destructive" | "info", duration?: number) => void
 }
 
-const ToastContext = createContext<ToastContextType | undefined>(undefined)
+export const ToastContext = createContext<ToastContextType | undefined>(undefined)
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: "success" | "error" | "info"; duration?: number }>>([])
+  const [toasts, setToasts] = useState<Array<{ id: number; message: string; variant: "success" | "destructive" | "info"; duration?: number }>>([])
   const [lastId, setLastId] = useState(0)
 
-  const showToast = (message: string, type: "success" | "error" | "info", duration?: number) => {
+  const showToast = (message: string, variant: "success" | "destructive" | "info", duration?: number) => {
     const id = lastId + 1
     setLastId(id)
-    setToasts((prev) => [...prev, { id, message, type, duration }])
+    setToasts((prev) => [...prev, { id, message, variant, duration }])
   }
 
   const removeToast = (id: number) => {
@@ -135,7 +135,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <Toast
             key={toast.id}
             message={toast.message}
-            type={toast.type}
+            variant={toast.variant}
             duration={toast.duration}
             onClose={() => removeToast(toast.id)}
           />

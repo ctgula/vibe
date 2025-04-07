@@ -9,10 +9,12 @@ export interface Participant {
   isMuted: boolean;
   hasRaisedHand: boolean;
   isHost: boolean;
-  isActive?: boolean;
+  isActive: boolean;
+  isGuest: boolean;
+  guestId?: string;
 }
 
-export function useParticipants(roomId: string, userId: string) {
+export function useParticipants(roomId: string, userId: string, guestId?: string) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export function useParticipants(roomId: string, userId: string) {
     try {
       const { data, error } = await supabase
         .from('rooms')
-        .select('created_by')
+        .select('created_by, created_by_guest')
         .eq('id', roomId)
         .single();
       
@@ -37,7 +39,7 @@ export function useParticipants(roomId: string, userId: string) {
         return false;
       }
       
-      return data?.created_by === userId;
+      return data?.created_by === userId || data?.created_by_guest === guestId;
     } catch (err) {
       console.error('❌ Error checking room creator:', err);
       return false;
@@ -46,7 +48,7 @@ export function useParticipants(roomId: string, userId: string) {
 
   const joinRoom = async () => {
     try {
-      console.log('🔄 Joining room:', { roomId, userId });
+      console.log('🔄 Joining room:', { roomId, userId, guestId });
       
       // Check if user is the room creator
       const isCreator = await checkIfRoomCreator();
@@ -55,11 +57,13 @@ export function useParticipants(roomId: string, userId: string) {
       // Prepare participant data based on creator status
       const participantData = {
         room_id: roomId,
-        user_id: userId,
+        user_id: userId || null,
+        guest_id: guestId || null,
         is_speaker: isCreator, // Automatically make creator a speaker
         is_host: isCreator, // Automatically make creator a host
         has_raised_hand: false,
         is_muted: true, // Start muted by default for safety
+        is_active: true, // Mark as active
         joined_at: new Date().toISOString()
       };
       
@@ -67,7 +71,7 @@ export function useParticipants(roomId: string, userId: string) {
         .from('room_participants')
         .upsert(
           participantData,
-          { onConflict: 'room_id,user_id', ignoreDuplicates: false }
+          { onConflict: 'room_id,user_id,guest_id', ignoreDuplicates: false }
         );
 
       if (joinError) {
@@ -103,7 +107,8 @@ export function useParticipants(roomId: string, userId: string) {
             avatar_url
           )
         `)
-        .eq('room_id', roomId);
+        .eq('room_id', roomId)
+        .eq('is_active', true); // Only get active participants
 
       if (error) {
         console.error('❌ Error fetching participants:', error);
@@ -125,29 +130,34 @@ export function useParticipants(roomId: string, userId: string) {
       }
 
       const mappedParticipants = data.map((participant) => ({
-        id: participant.user_id,
-        name: participant.profiles?.name || `Guest_${participant.user_id.substring(0, 6)}`,
+        id: participant.user_id || participant.guest_id,
+        name: participant.profiles?.name || `Guest_${(participant.user_id || participant.guest_id).substring(0, 6)}`,
         avatar: participant.profiles?.avatar_url || null,
         isSpeaker: participant.is_speaker || false,
         isMuted: participant.is_muted || false,
         hasRaisedHand: participant.has_raised_hand || false,
         isHost: participant.is_host || false,
-        isActive: false, // Default to inactive
+        isActive: participant.is_active || false,
+        isGuest: !!participant.guest_id,
+        guestId: participant.guest_id || undefined
       }));
       
       console.log('🔄 Mapped participants:', mappedParticipants);
       setParticipants(mappedParticipants);
       
       // Update current user's status
-      const userParticipant = data.find(p => p.user_id === userId);
+      const userParticipant = data.find(p => p.user_id === userId || p.guest_id === guestId);
       if (userParticipant) {
         // If user is the creator but not marked as host/speaker, update their status
         if (isCreator && (!userParticipant.is_host || !userParticipant.is_speaker)) {
           console.log('🔄 Updating room creator status to host and speaker');
-          updateParticipantStatus(userId, {
-            is_host: true,
-            is_speaker: true
-          });
+          const participantId = userId || guestId;
+          if (participantId) {
+            updateParticipantStatus(participantId, {
+              is_host: true,
+              is_speaker: true
+            }, !!guestId);
+          }
           
           // Update local state immediately for better UX
           setUserStatus({
@@ -177,13 +187,21 @@ export function useParticipants(roomId: string, userId: string) {
   };
 
   // Function to update a participant's status
-  const updateParticipantStatus = async (participantId: string, updates: any) => {
+  const updateParticipantStatus = async (participantId: string, updates: any, isGuestUser: boolean = false) => {
     try {
-      const { error } = await supabase
+      const query = supabase
         .from('room_participants')
         .update(updates)
-        .eq('room_id', roomId)
-        .eq('user_id', participantId);
+        .eq('room_id', roomId);
+      
+      // Add the appropriate filter based on whether it's a guest or regular user
+      if (isGuestUser) {
+        query.eq('guest_id', participantId);
+      } else {
+        query.eq('user_id', participantId);
+      }
+      
+      const { error } = await query;
       
       if (error) {
         console.error('❌ Error updating participant status:', error);
@@ -212,6 +230,36 @@ export function useParticipants(roomId: string, userId: string) {
     }
   };
 
+  // Function to leave the room
+  const leaveRoom = async () => {
+    try {
+      console.log('👋 Leaving room:', { roomId, userId, guestId });
+      
+      const query = supabase
+        .from('room_participants')
+        .update({ is_active: false })
+        .eq('room_id', roomId);
+      
+      // Add the appropriate filter based on whether it's a guest or regular user
+      if (guestId) {
+        query.eq('guest_id', guestId);
+      } else {
+        query.eq('user_id', userId);
+      }
+      
+      const { error } = await query;
+      
+      if (error) {
+        console.error('❌ Error leaving room:', error);
+        throw error;
+      }
+      
+      console.log('✅ Successfully left room');
+    } catch (err) {
+      console.error('❌ Error leaving room:', err);
+    }
+  };
+
   // Set up real-time subscription
   useEffect(() => {
     fetchParticipants();
@@ -224,33 +272,50 @@ export function useParticipants(roomId: string, userId: string) {
         async (payload) => {
           console.log('👋 New participant joined:', payload);
           
+          // Only process if the participant is active
+          if (!payload.new.is_active) {
+            return;
+          }
+          
           // Update room activity when a participant joins
           await updateRoomActivity();
           
           // Get the profile data for the new participant
           const fetchNewParticipantProfile = async () => {
             try {
-              const { data, error } = await supabase
-                .from('profiles')
-                .select('id, name, avatar_url')
-                .eq('id', payload.new.user_id)
-                .single();
-                
-              if (error) {
-                console.error('Error fetching new participant profile:', error);
-                return;
+              // Determine if this is a guest or regular user
+              const participantId = payload.new.user_id || payload.new.guest_id;
+              const isGuestUser = !!payload.new.guest_id;
+              
+              let profileData = null;
+              
+              // Only fetch profile data for regular users
+              if (!isGuestUser && payload.new.user_id) {
+                const { data, error } = await supabase
+                  .from('profiles')
+                  .select('id, name, avatar_url')
+                  .eq('id', payload.new.user_id)
+                  .single();
+                  
+                if (error) {
+                  console.error('Error fetching new participant profile:', error);
+                } else {
+                  profileData = data;
+                }
               }
               
               // Add the new participant to the state without refetching all participants
               const newParticipant: Participant = {
-                id: payload.new.user_id,
-                name: data?.name || `Guest_${payload.new.user_id.substring(0, 6)}`,
-                avatar: data?.avatar_url || null,
+                id: participantId,
+                name: profileData?.name || `Guest_${participantId.substring(0, 6)}`,
+                avatar: profileData?.avatar_url || null,
                 isSpeaker: payload.new.is_speaker || false,
                 isMuted: payload.new.is_muted || true,
                 hasRaisedHand: payload.new.has_raised_hand || false,
                 isHost: payload.new.is_host || false,
-                isActive: false
+                isActive: payload.new.is_active || false,
+                isGuest: isGuestUser,
+                guestId: payload.new.guest_id || undefined
               };
               
               setParticipants(prev => {
@@ -272,23 +337,43 @@ export function useParticipants(roomId: string, userId: string) {
         (payload) => {
           console.log('🔄 Participant updated:', payload);
           
+          // If is_active was changed to false, treat it as a DELETE event
+          if (payload.new.is_active === false) {
+            console.log('👋 Participant became inactive:', payload);
+            
+            // Determine the participant ID based on user_id or guest_id
+            const participantId = payload.new.user_id || payload.new.guest_id;
+            
+            // Remove the participant from state
+            setParticipants(prev => prev.filter(participant => participant.id !== participantId));
+            return;
+          }
+          
+          // Determine the participant ID based on user_id or guest_id
+          const participantId = payload.new.user_id || payload.new.guest_id;
+          
           // Update the participant in state without refetching all participants
           setParticipants(prev => prev.map(participant => {
-            if (participant.id === payload.new.user_id) {
+            if (participant.id === participantId) {
               return {
                 ...participant,
                 isSpeaker: payload.new.is_speaker || false,
                 isMuted: payload.new.is_muted,
                 hasRaisedHand: payload.new.has_raised_hand || false,
-                isHost: payload.new.is_host || false
+                isHost: payload.new.is_host || false,
+                isActive: payload.new.is_active || false
               };
             }
             return participant;
           }));
           
           // Update current user's status if it's the user being updated
-          // But don't override mute state if this update was triggered by another user's action
-          if (payload.new.user_id === userId) {
+          // Check if this update is for the current user (either regular user or guest)
+          const isCurrentUser = 
+            (userId && payload.new.user_id === userId) || 
+            (guestId && payload.new.guest_id === guestId);
+            
+          if (isCurrentUser) {
             // Only update the user's own mute state if the change was made by the user
             // This prevents the mute state from being overridden by other participants' updates
             const currentUserStatus = { ...userStatus };
@@ -329,7 +414,7 @@ export function useParticipants(roomId: string, userId: string) {
       console.log(`Unsubscribing from room ${roomId} participants channel`);
       roomChannel.unsubscribe();
     };
-  }, [roomId, userId]);
+  }, [roomId, userId, guestId]);
 
   return {
     participants,
@@ -338,6 +423,7 @@ export function useParticipants(roomId: string, userId: string) {
     error,
     refetch: fetchParticipants,
     joinRoom,
+    leaveRoom,
     updateParticipantStatus
   };
 }

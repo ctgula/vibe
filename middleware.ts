@@ -8,10 +8,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL(pathname.replace('/rooms/', '/room/'), req.url));
   }
 
-  if (pathname === '/create') {
-    return NextResponse.redirect(new URL('/create-room', req.url));
-  }
-  
   return NextResponse.next();
 }
 

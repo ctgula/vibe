@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Hand, Users } from 'lucide-react';
+import { useParticipantProfiles } from '@/hooks/useParticipantProfiles';
 
 interface ListenerProps {
   id: string;
@@ -25,6 +26,10 @@ export function Audience({
   onRaiseHand,
   roomId
 }: AudienceProps) {
+  // Fetch profiles for all listeners
+  const listenerIds = listeners.map(listener => listener.id);
+  const { profiles, loading: profilesLoading } = useParticipantProfiles(listenerIds);
+
   const handlePromote = async (userId: string) => {
     await promoteToSpeaker(userId);
     // Update room activity when promoting a user
@@ -103,102 +108,92 @@ export function Audience({
       </div>
 
       {/* Listeners Grid - Clubhouse style with smaller avatars */}
-      <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-3">
+      <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-3 mt-6">
         <AnimatePresence mode="popLayout">
           {(listeners ?? []).length > 0 ? (
-            (listeners ?? []).map((listener, index) => (
-              <motion.div
-                key={listener.id}
-                layout
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ 
-                  opacity: 1, 
-                  scale: 1,
-                  transition: {
-                    delay: index * 0.03, // Faster staggered animation
-                    type: "spring",
-                    stiffness: 260,
-                    damping: 20
-                  }
-                }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                className="flex flex-col items-center"
-              >
-                <div className="relative">
-                  {/* Raised hand indicator with animation */}
-                  {listener.hasRaisedHand && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ 
-                        opacity: 1, 
-                        y: 0,
-                        rotate: [0, -10, 0, 10, 0]
-                      }}
-                      transition={{ 
-                        duration: 1.5,
-                        repeat: Infinity,
-                        repeatType: "reverse"
-                      }}
-                      className="absolute -top-2 -right-1 z-10"
+            (listeners ?? []).map((listener, index) => {
+              // Get the profile data, with robust fallbacks for missing data
+              const profile = profiles?.find((p: { id: string }) => p.id === listener.id);
+              const name = profile?.name || profile?.display_name || listener.name || 'Anonymous';
+              
+              // Enhanced avatar handling with fallbacks
+              let avatar = profile?.avatar_url || listener.avatar;
+              if (!avatar) {
+                // If no avatar, generate one from Dicebear with consistent seed
+                avatar = `https://api.dicebear.com/6.x/avataaars/svg?seed=${listener.id}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+              } else if (avatar.includes("null") || avatar === "null") {
+                // Handle common error case where avatar url is "null" as a string
+                avatar = `https://api.dicebear.com/6.x/avataaars/svg?seed=${listener.id}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+              }
+             
+              return (
+                <motion.div
+                  key={listener.id}
+                  layoutId={`listener-${listener.id}`}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ type: 'spring', damping: 15 }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex flex-col items-center gap-2 cursor-pointer p-2 relative group"
+                  onClick={() => {
+                    if (listener.id === currentUserId) {
+                      handleRaiseHand(listener.id);
+                    } else if (listeners.length > 1) {
+                      handlePromote(listener.id);
+                    }
+                  }}
+                >
+                  <div className="relative flex items-center justify-center overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-full animate-pulse-slow"></div>
+                    <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-indigo-500/30 to-purple-500/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    
+                    <motion.div 
+                      className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-white/10 shadow-lg"
+                      whileHover={{ scale: 1.05 }}
+                      transition={{ type: "spring", stiffness: 300 }}
                     >
-                      <span className="text-xs">✋</span>
+                      <img
+                        src={avatar}
+                        alt={name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Enhanced error handling for failed images
+                          e.currentTarget.src = `https://api.dicebear.com/6.x/avataaars/svg?seed=${listener.id}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+                        }}
+                      />
                     </motion.div>
-                  )}
-                  
-                  {/* Listener avatar */}
-                  <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      if (currentUserId === listener.id && listener.hasRaisedHand) {
-                        onRaiseHand?.(listener.id);
-                      }
-                    }}
-                  >
-                    <img
-                      src={listener.avatar || "/default-avatar.png"}
-                      alt={listener.name}
-                      className="w-10 h-10 rounded-full object-cover border-2 border-zinc-700/50"
-                    />
-                  </motion.div>
-
-                  {/* Name only - simplified */}
-                  <div className="mt-1 text-center">
-                    <p className="font-medium text-white text-xs truncate max-w-[60px] mx-auto">
-                      {listener.name}
-                    </p>
+                    
+                    {listener.hasRaisedHand && (
+                      <motion.span
+                        className="absolute -bottom-1 -right-1 flex items-center justify-center h-5 w-5 bg-gradient-to-br from-amber-400 to-amber-500 text-white rounded-full shadow-lg border border-amber-300/30"
+                        animate={{ 
+                          scale: [1, 1.2, 1],
+                          rotate: [0, 10, 0] 
+                        }}
+                        transition={{ 
+                          repeat: Infinity,
+                          duration: 2,
+                          repeatType: "reverse"
+                        }}
+                      >
+                        <Hand className="h-3 w-3 text-white" />
+                      </motion.span>
+                    )}
                   </div>
-
-                  {/* Raise Hand button for current user if not already raised - simplified */}
-                  {listener.id === currentUserId && !listener.hasRaisedHand && (
-                    <motion.button
-                      initial={{ opacity: 0, y: 5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => handleRaiseHand(listener.id)}
-                      className="mt-1 px-2 py-0.5 text-[10px] font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-full transition-colors flex items-center gap-1"
-                    >
-                      <span>✋</span>
-                    </motion.button>
-                  )}
                   
-                  {/* Promote button for speakers when someone raises hand - simplified */}
-                  {currentUserId !== listener.id && listener.hasRaisedHand && (
-                    <motion.button
-                      initial={{ opacity: 0, y: 5 }}
-                      animate={{ opacity: 1, y: 0 }}
+                  <div className="text-center max-w-full">
+                    <motion.span 
+                      className="text-xs font-medium text-zinc-300 truncate inline-block max-w-full px-1 rounded group-hover:bg-zinc-800/50 transition-colors"
                       whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => handlePromote(listener.id)}
-                      className="mt-1 px-2 py-0.5 text-[10px] font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-full transition-colors"
                     >
-                      +
-                    </motion.button>
-                  )}
-                </div>
-              </motion.div>
-            ))
+                      {name.length > 10 ? `${name.substring(0, 10)}...` : name}
+                    </motion.span>
+                  </div>
+                </motion.div>
+              );
+            })
           ) : (
             <motion.div
               initial={{ opacity: 0 }}

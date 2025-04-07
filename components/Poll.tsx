@@ -21,7 +21,7 @@ export function Poll({ roomId, isHost = false }: { roomId: string; isHost?: bool
           .from("polls")
           .select(`
             *,
-            profiles:user_id(name, avatar_url),
+            profiles(name, avatar_url),
             poll_votes(user_id, option_index)
           `)
           .eq("room_id", roomId)
@@ -73,7 +73,7 @@ export function Poll({ roomId, isHost = false }: { roomId: string; isHost?: bool
             .from("polls")
             .select(`
               *,
-              profiles:user_id(name, avatar_url),
+              profiles(name, avatar_url),
               poll_votes(user_id, option_index)
             `)
             .eq("id", payload.new.id)

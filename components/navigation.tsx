@@ -3,10 +3,10 @@
 import React, { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Search, PlusCircle, Users, User, Bell } from "lucide-react"
+import { Home, Search, PlusCircle, Users, User } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import toast from "react-hot-toast"
+import { NotificationsButton } from "@/components/ui/notifications-button"
 
 export function Navigation() {
   const pathname = usePathname()
@@ -38,13 +38,16 @@ export function Navigation() {
       { path: "/" },
       { path: "/discover" },
       { path: "/directory" },
-      { path: "/create-room" },
+      { path: "/room/create" },
       { path: "/profile" },
     ]
     
     const activeIndex = navItems.findIndex(item => {
-      if (item.path === "/create-room" && pathname === "/create") {
-        return true
+      if (item.path === "/room/create" && (
+          pathname === "/room/create" || 
+          pathname === "/create-room"
+        )) {
+        return true;
       }
       return item.path === (newActiveTab === "/" ? "/" : `/${newActiveTab}`)
     })
@@ -98,25 +101,14 @@ export function Navigation() {
     if (
       (label.toLowerCase() === activeTab) || 
       (label === "Home" && activeTab === "/") ||
-      (label === "Create" && activeTab === "create-room")
+      (label === "Create" && activeTab === "room/create")
     ) {
       return
     }
   }
   
   const handleNotification = () => {
-    if (window.navigator && window.navigator.vibrate) {
-      window.navigator.vibrate(3)
-    }
-    toast("Coming soon: Notifications", {
-      icon: '🔔',
-      style: {
-        background: 'rgba(0,0,0,0.8)',
-        color: '#fff',
-        backdropFilter: 'blur(10px)',
-        border: '1px solid rgba(255,255,255,0.1)',
-      },
-    })
+    // No longer needed - notifications now handled by the NotificationsButton component
   }
   
   const navItems = [
@@ -136,7 +128,7 @@ export function Navigation() {
       icon: <Users className="h-6 w-6" />,
     },
     {
-      path: "/create-room",
+      path: "/room/create",
       label: "Create",
       icon: <PlusCircle className="h-6 w-6" />,
     },
@@ -156,36 +148,7 @@ export function Navigation() {
     >
       {/* Notification icon for top right */}
       <div className="fixed top-4 right-4 z-50">
-        <motion.div 
-          whileTap={{ scale: 0.94 }} 
-          whileHover={{ scale: 1.05 }}
-          transition={{ duration: 0.1 }}
-        >
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-10 w-10 rounded-full bg-white/10 border border-white/10 backdrop-blur-md shadow-lg transition-transform"
-            aria-label="Notifications"
-            onClick={handleNotification}
-          >
-            <Bell className="h-5 w-5 text-white" />
-            <motion.span 
-              className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 text-[10px] font-bold text-white"
-              initial={{ scale: 0.8 }}
-              animate={{ 
-                scale: [0.8, 1, 0.8],
-                opacity: [0.7, 1, 0.7]
-              }}
-              transition={{ 
-                repeat: Infinity,
-                duration: 2,
-                ease: "easeInOut"
-              }}
-            >
-              3
-            </motion.span>
-          </Button>
-        </motion.div>
+        <NotificationsButton />
       </div>
 
       <div className="container max-w-md mx-auto py-2">
@@ -217,7 +180,7 @@ export function Navigation() {
                   ref={navItemRefs.current[index]}
                   className={`flex flex-col items-center relative py-1 px-2 rounded-full ${
                     activeTab === (item.path === "/" ? "/" : item.path.substring(1)) ||
-                    (item.path === "/create-room" && activeTab === "create")
+                    (item.path === "/room/create" && activeTab === "room/create")
                       ? "text-white"
                       : "text-white/50 hover:text-white/70"
                   } transition-colors duration-200`}
@@ -231,7 +194,7 @@ export function Navigation() {
                   <motion.div
                     animate={
                       activeTab === (item.path === "/" ? "/" : item.path.substring(1)) ||
-                      (item.path === "/create-room" && activeTab === "create")
+                      (item.path === "/room/create" && activeTab === "room/create")
                         ? { 
                             scale: [1, 1.15, 1],
                             transition: { duration: 0.3 }
@@ -244,7 +207,7 @@ export function Navigation() {
                   <span className="text-[10px] mt-1 font-medium">{item.label}</span>
                   
                   {(activeTab === (item.path === "/" ? "/" : item.path.substring(1)) || 
-                    (item.path === "/create-room" && activeTab === "create")) && (
+                    (item.path === "/room/create" && activeTab === "room/create")) && (
                     <motion.div
                       className="absolute -bottom-1 left-1/2 w-1 h-1 bg-white rounded-full"
                       initial={{ scale: 0 }}

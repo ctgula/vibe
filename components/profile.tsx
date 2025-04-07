@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Check, User, LogOut, Camera, X, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 // Define room type for better type safety
 type RoomType = {
@@ -37,38 +38,54 @@ export function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [createdRooms, setCreatedRooms] = useState<RoomType[]>([]);
   const [joinedRooms, setJoinedRooms] = useState<RoomType[]>([]);
+  const [isClient, setIsClient] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const { user, guestId, isGuest, profile } = useAuth();
+
+  // Set isClient to true once component mounts
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         setIsLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
         
-        if (!user) {
-          toast.error('Please sign in to view your profile');
-          router.push('/login');
+        // Handle both authenticated users and guests
+        const currentUserId = user?.id || guestId;
+        
+        if (!currentUserId) {
+          toast.error('Please sign in or continue as guest to view your profile');
+          router.push('/welcome');
           return;
         }
         
-        setUserId(user.id);
+        setUserId(currentUserId);
 
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('display_name, avatar_url')
-          .eq('id', user.id)
-          .single();
-          
-        if (error) {
-          console.error(error);
-          toast.error('Could not load profile data');
-        } else if (data) {
-          setDisplayName(data.display_name || '');
-          setAvatarUrl(data.avatar_url || '');
+        // For authenticated users, fetch profile from profiles table
+        if (user) {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('display_name, avatar_url')
+            .eq('id', currentUserId)
+            .single();
+            
+          if (error) {
+            console.error(error);
+            toast.error('Could not load profile data');
+          } else if (data) {
+            setDisplayName(data.display_name || '');
+            setAvatarUrl(data.avatar_url || '');
+          }
+        } else if (isGuest) {
+          // For guests, set default values or fetch from guest profiles if applicable
+          setDisplayName('Guest User');
+          setAvatarUrl(`https://api.dicebear.com/6.x/avataaars/svg?seed=${guestId}`);
         }
         
-        // Fetch rooms created by user
+        // Fetch rooms created by user or guest
         const { data: createdRoomsData, error: createdRoomsError } = await supabase
           .from('rooms')
           .select(`
@@ -78,7 +95,7 @@ export function Profile() {
             enable_video,
             participants:room_participants(count)
           `)
-          .eq('created_by', user.id);
+          .or(`created_by.eq.${user?.id || null},created_by_guest.eq.${guestId || null}`);
           
         if (createdRoomsError) {
           console.error('Error fetching created rooms:', createdRoomsError);
@@ -91,7 +108,7 @@ export function Profile() {
           setCreatedRooms(processedRooms);
         }
         
-        // Fetch rooms the user has joined
+        // Fetch rooms the user or guest has joined
         const { data: joinedRoomsData, error: joinedRoomsError } = await supabase
           .from('room_participants')
           .select(`
@@ -103,7 +120,7 @@ export function Profile() {
               participants:room_participants(count)
             )
           `)
-          .eq('user_id', user.id);
+          .or(`user_id.eq.${user?.id || null},guest_id.eq.${guestId || null}`);
           
         if (joinedRoomsError) {
           console.error('Error fetching joined rooms:', joinedRoomsError);
@@ -115,7 +132,8 @@ export function Profile() {
               return item.room ? (item.room as unknown as RoomType) : null;
             })
             .filter((room): room is RoomType => 
-              !!room && !!room.id && !!room.room_name && room.created_by !== user.id
+              !!room && !!room.id && !!room.room_name && 
+              (user ? room.created_by !== user.id : true) // For guests, don't filter
             )
             .map(room => ({
               ...room,
@@ -132,8 +150,10 @@ export function Profile() {
       }
     };
     
-    fetchProfile();
-  }, [router]);
+    if (isClient) {
+      fetchProfile();
+    }
+  }, [router, user, guestId, isGuest, isClient]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,30 +164,38 @@ export function Profile() {
       setError(null);
       
       // Apply haptic feedback if available
-      if (window.navigator && window.navigator.vibrate) {
+      if (isClient && window.navigator && window.navigator.vibrate) {
         window.navigator.vibrate(5);
       }
       
       const saveToast = toast.loading('Saving your profile...');
 
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({ id: userId, display_name: displayName, avatar_url: avatarUrl });
-        
-      if (error) {
-        setError(error.message);
-        toast.dismiss(saveToast);
-        toast.error(`Failed to save: ${error.message}`);
+      // Only authenticated users can save profile changes
+      if (user) {
+        const { error } = await supabase
+          .from('profiles')
+          .upsert({ id: userId, display_name: displayName, avatar_url: avatarUrl });
+          
+        if (error) {
+          setError(error.message);
+          toast.dismiss(saveToast);
+          toast.error(`Failed to save: ${error.message}`);
+        } else {
+          setSaveSuccess(true);
+          setIsEditing(false);
+          toast.dismiss(saveToast);
+          toast.success('Profile updated successfully!');
+          
+          // Reset success message after 2 seconds
+          setTimeout(() => {
+            setSaveSuccess(false);
+          }, 2000);
+        }
       } else {
-        setSaveSuccess(true);
-        setIsEditing(false);
+        // For guests, just show a message that they need to sign up
         toast.dismiss(saveToast);
-        toast.success('Profile updated successfully!');
-        
-        // Reset success message after 2 seconds
-        setTimeout(() => {
-          setSaveSuccess(false);
-        }, 2000);
+        toast.error('Create an account to save profile changes');
+        setIsEditing(false);
       }
     } catch (err) {
       console.error('Error saving profile:', err);
@@ -180,17 +208,24 @@ export function Profile() {
 
   const handleLogout = async () => {
     // Apply haptic feedback if available
-    if (window.navigator && window.navigator.vibrate) {
+    if (isClient && window.navigator && window.navigator.vibrate) {
       window.navigator.vibrate(10);
     }
     
-    const logoutToast = toast.loading('Signing out...');
+    const logoutToast = toast.loading(isGuest ? 'Exiting guest mode...' : 'Signing out...');
     
     try {
       await supabase.auth.signOut();
+      
+      // Clear guest session if applicable
+      if (isGuest && isClient) {
+        localStorage.removeItem('guestId');
+        localStorage.removeItem('guestProfileId');
+      }
+      
       toast.dismiss(logoutToast);
-      toast.success('Signed out successfully');
-      router.push('/login');
+      toast.success(isGuest ? 'Exited guest mode' : 'Signed out successfully');
+      router.push('/welcome');
     } catch (error) {
       toast.dismiss(logoutToast);
       toast.error('Failed to sign out');
@@ -209,7 +244,7 @@ export function Profile() {
     }
     
     // Apply haptic feedback if available
-    if (window.navigator && window.navigator.vibrate) {
+    if (isClient && window.navigator && window.navigator.vibrate) {
       window.navigator.vibrate(3);
     }
   };
@@ -534,12 +569,33 @@ export function Profile() {
         transition={{ duration: 0.5, delay: 0.3 }}
         className="pt-6"
       >
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold mb-2">
+            {isGuest ? 'Guest Profile' : 'My Profile'}
+          </h1>
+          <p className="text-zinc-400">
+            {isGuest 
+              ? 'You\'re browsing as a guest. Create an account to save your profile and rooms.' 
+              : 'Manage your profile and see your activity.'}
+          </p>
+          
+          {isGuest && (
+            <div className="mt-4">
+              <Button
+                onClick={() => router.push('/auth/signup')}
+                className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg font-medium"
+              >
+                Create Account
+              </Button>
+            </div>
+          )}
+        </div>
         <Button 
           variant="destructive" 
           className="w-full bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
           onClick={handleLogout}
         >
-          <LogOut className="mr-2 h-4 w-4" /> Sign Out
+          <LogOut className="mr-2 h-4 w-4" /> {isGuest ? 'Exit Guest Mode' : 'Sign Out'}
         </Button>
       </motion.div>
     </div>

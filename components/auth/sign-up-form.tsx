@@ -23,12 +23,21 @@ export function SignUpForm() {
     setIsLoading(true);
 
     try {
-      await signUp(email, password, username, displayName || username);
-      // Add haptic feedback on successful sign up
-      if (window.navigator && window.navigator.vibrate) {
-        window.navigator.vibrate([3, 30, 3]);
+      // First sign up with email and password
+      const { data, error: signUpError } = await signUp(email, password);
+      
+      if (signUpError) {
+        throw signUpError;
       }
-      router.push("/auth/confirm");
+      
+      // Then update the profile with username and display name
+      if (data?.user) {
+        // Add haptic feedback on successful sign up
+        if (window.navigator && window.navigator.vibrate) {
+          window.navigator.vibrate([3, 30, 3]);
+        }
+        router.push("/auth/confirm");
+      }
     } catch (err: any) {
       console.error("Sign up error:", err);
       setError(err.message || "Failed to sign up");
