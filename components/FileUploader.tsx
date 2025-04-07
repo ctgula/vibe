@@ -10,7 +10,6 @@ export function FileUploader({ roomId }: { roomId: string }) {
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [dragActive, setDragActive] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -105,7 +104,6 @@ export function FileUploader({ roomId }: { roomId: string }) {
       setUploading(true);
       setError(null);
       setSuccess(null);
-      setUploadProgress(0);
       
       const { data: user } = await supabase.auth.getUser();
       
@@ -156,7 +154,6 @@ export function FileUploader({ roomId }: { roomId: string }) {
       setError(err.message || "Failed to upload file");
     } finally {
       setUploading(false);
-      setUploadProgress(0);
       
       // Reset file input
       if (fileInputRef.current) {
@@ -278,13 +275,7 @@ export function FileUploader({ roomId }: { roomId: string }) {
             <div className="flex justify-center mb-2">
               <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
             </div>
-            <p className="text-zinc-300 mb-2">Uploading file... {uploadProgress}%</p>
-            <div className="w-full bg-zinc-700 rounded-full h-2">
-              <div 
-                className="bg-indigo-600 h-2 rounded-full transition-all duration-300" 
-                style={{ width: `${uploadProgress}%` }}
-              ></div>
-            </div>
+            <p className="text-zinc-300 mb-2">Uploading file...</p>
           </div>
         ) : (
           <div 
