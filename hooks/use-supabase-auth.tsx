@@ -24,6 +24,7 @@ const defaultContextValue: AuthContextType = {
   isGuest: false,
   createGuestSession: async () => null,
   signInWithMagicLink: async () => ({ data: null, error: null }),
+  signInWithGoogle: async () => ({ data: null, error: null }),
   signOut: async () => {},
   updateProfile: async () => ({ success: false, error: null }),
   ensureSessionToken: async () => false,
@@ -419,6 +420,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Sign in with Google
+  const signInWithGoogle = async (): Promise<{ data: any | null; error: any | null }> => {
+    if (!supabase) return { data: null, error: new Error("Supabase client not initialized") };
+    
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        console.error('Error signing in with Google:', error);
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive"
+        });
+        return { data: null, error };
+      }
+
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error in signInWithGoogle:', error);
+      toast({
+        title: "Error",
+        description: "Could not sign in with Google. Please try again.",
+        variant: "destructive"
+      });
+      return { data: null, error };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Sign out
   const signOut = async () => {
     if (!supabase) return;
@@ -533,6 +571,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isGuest,
     createGuestSession,
     signInWithMagicLink,
+    signInWithGoogle,
     signOut,
     updateProfile,
     ensureSessionToken,

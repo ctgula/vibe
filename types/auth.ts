@@ -27,6 +27,7 @@ export interface AuthContextType {
   updateProfile: (profileData: Partial<UserProfile>) => Promise<{ success: boolean; error: string | null }>;
   createGuestSession: () => Promise<string | null>;
   signInWithMagicLink: (email: string) => Promise<{ data: any | null; error: any | null }>;
+  signInWithGoogle: () => Promise<{ data: any | null; error: any | null }>;
   ensureSessionToken: () => Promise<boolean>;
   clearGuestSession: () => Promise<void>;
   signUp: (email: string, password: string) => Promise<{ data: any | null; error: any | null }>;
