@@ -23,6 +23,8 @@ type AuthContextType = {
   isLoading: boolean;
   isGuest: boolean;
   signOut: () => Promise<void>;
+  signInWithGoogle: () => Promise<{ data?: any; error?: any }>;
+  signInWithMagicLink: (email: string) => Promise<{ data?: any; error?: any }>;
 };
 
 // Create the context with default values
@@ -33,6 +35,8 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   isGuest: false,
   signOut: async () => {},
+  signInWithGoogle: async () => ({}),
+  signInWithMagicLink: async (email: string) => ({}),
 });
 
 // Custom hook for using auth
@@ -124,6 +128,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const signInWithGoogle = async () => {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+      });
+      return { data, error };
+    } catch (error) {
+      console.error('Error signing in with Google:', error);
+      return { error };
+    }
+  };
+
+  const signInWithMagicLink = async (email: string) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      return { data, error };
+    } catch (error) {
+      console.error('Error signing in with magic link:', error);
+      return { error };
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -133,6 +164,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         isLoading,
         isGuest,
         signOut,
+        signInWithGoogle,
+        signInWithMagicLink,
       }}
     >
       {children}

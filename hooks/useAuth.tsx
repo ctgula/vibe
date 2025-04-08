@@ -16,6 +16,7 @@ type AuthContextType = {
   updateProfile: (profileData: any) => Promise<{ data?: any; error?: any }>;
   createGuestSession: () => Promise<string | null>;
   signInWithMagicLink: (email: string) => Promise<{ data?: any; error?: any }>;
+  signInWithGoogle: () => Promise<{ data?: any; error?: any }>;
   ensureSessionToken: () => Promise<void>;
   isAuthenticated: boolean;
   isGuest: boolean;
@@ -322,6 +323,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Sign in with Google
+  const signInWithGoogle = async () => {
+    if (!isClient) {
+      return { error: new Error('Cannot sign in on server') };
+    }
+    
+    try {
+      setIsLoading(true);
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Success",
+        description: "Signed in with Google",
+        variant: "default"
+      });
+      return { data };
+    } catch (error) {
+      console.error('Error in signInWithGoogle:', error);
+      toast({
+        title: "Error",
+        description: "Could not sign in with Google. Please try again.",
+        variant: "destructive"
+      });
+      return { error };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Ensure session token is set (used for guest sessions)
   const ensureSessionToken = async () => {
     if (!isClient || !guestSessionToken) return;
@@ -353,6 +388,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isGuest,
     createGuestSession,
     signInWithMagicLink,
+    signInWithGoogle,
     signOut,
     updateProfile,
     ensureSessionToken,
