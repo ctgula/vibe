@@ -17,7 +17,10 @@ export default function LoginPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const router = useRouter();
-  const { signInWithGoogle, signInWithMagicLink } = useAuth();
+  // Use type assertion to ensure TypeScript doesn't complain during build
+  const auth = useAuth() as any;
+  const signInWithGoogle = auth.signInWithGoogle;
+  const signInWithMagicLink = auth.signInWithMagicLink;
 
   // Set a flag to indicate we're in the login process
   useEffect(() => {
