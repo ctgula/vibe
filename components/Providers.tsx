@@ -6,7 +6,7 @@ import { NotificationProvider } from "@/contexts/NotificationContext"
 import { ThemeProvider } from "@/contexts/ThemeContext"
 import dynamic from 'next/dynamic';
 import { ErrorBoundary } from 'react-error-boundary';
-import { AuthProvider } from '@/hooks/use-supabase-auth';
+import { AuthProvider } from '@/contexts/AuthProvider';
 import { ThemeProvider as NextThemesProvider } from "@/components/theme-provider";
 import { NavBar } from '@/components/layout/NavBar';
 
