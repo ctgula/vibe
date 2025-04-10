@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from './use-supabase-auth';
 import { createBrowserClient } from '@supabase/ssr';
 
 type GuestProfile = {
@@ -10,28 +9,40 @@ type GuestProfile = {
   avatar_url: string;
 };
 
-export function useGuestSession() {
-  const { guestId } = useAuth();
+type UseGuestSessionReturn = {
+  guestId: string | null;
+  guestProfile: GuestProfile | null;
+  isLoading: boolean;
+  error: Error | null;
+  logout: () => Promise<void>;
+  createGuestSession: (username?: string) => Promise<string | null>;
+};
+
+export function useGuestSession(): UseGuestSessionReturn {
+  const [guestId, setGuestId] = useState<string | null>(null);
   const [guestProfile, setGuestProfile] = useState<GuestProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [isClient, setIsClient] = useState(false);
   const [supabase, setSupabase] = useState<any>(null);
 
   useEffect(() => {
     setIsClient(true);
-    // Initialize Supabase client on the client side
+    
     if (typeof window !== 'undefined') {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
       const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
       setSupabase(createBrowserClient(supabaseUrl, supabaseAnonKey));
+      
+      const storedGuestId = localStorage.getItem('guestProfileId');
+      setGuestId(storedGuestId);
     }
   }, []);
 
   useEffect(() => {
     if (!isClient || !supabase || !guestId) {
       setGuestProfile(null);
-      setLoading(false);
+      setIsLoading(false);
       return;
     }
     
@@ -60,7 +71,7 @@ export function useGuestSession() {
         setError(err instanceof Error ? err : new Error('Unknown error'));
         setGuestProfile(null);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
@@ -72,18 +83,46 @@ export function useGuestSession() {
     
     localStorage.removeItem('guestProfileId');
     localStorage.removeItem('guestSessionToken');
+    setGuestId(null);
     setGuestProfile(null);
   };
 
-  const createGuestSession = async (username?: string) => {
-    // This is just a stub - the real implementation is in useAuth
-    return null;
+  const createGuestSession = async (username?: string): Promise<string | null> => {
+    if (!isClient || !supabase) return null;
+    
+    try {
+      const guestProfileId = crypto.randomUUID();
+      
+      const { error } = await supabase
+        .from('profiles')
+        .insert({
+          id: guestProfileId,
+          username: username || `guest_${Math.floor(Math.random() * 10000)}`,
+          display_name: username || `Guest ${Math.floor(Math.random() * 10000)}`,
+          is_guest: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+      
+      if (error) {
+        console.error('Error creating guest profile:', error);
+        return null;
+      }
+      
+      localStorage.setItem('guestProfileId', guestProfileId);
+      setGuestId(guestProfileId);
+      
+      return guestProfileId;
+    } catch (err) {
+      console.error('Error creating guest session:', err);
+      return null;
+    }
   };
 
   return {
     guestId,
     guestProfile,
-    loading,
+    isLoading,
     logout,
     error,
     createGuestSession

@@ -69,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [authLoading, setAuthLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
   const [supabase, setSupabase] = useState<any>(null);
 
   // Flag to indicate client-side rendering
@@ -211,85 +212,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   /**
    * Create a guest session
+   * @param username - The username for the guest session
    * @returns The guest profile ID or null if failed
    */
-  const createGuestSession = async (): Promise<string | null> => {
-    if (!supabase) return null;
+  const createGuestSession = async (username?: string): Promise<string | null> => {
+    if (!isClient || !supabase) return null;
     
     try {
-      setIsLoading(true);
+      setAuthLoading(true);
       
-      // Check if we already have a guest ID in localStorage
-      const existingGuestId = localStorage.getItem('guestProfileId');
-      if (existingGuestId) {
-        setGuestId(existingGuestId);
-        
-        // Verify the guest profile exists
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', existingGuestId)
-          .single();
-        
-        if (!error && data) {
-          setProfile(data);
-          setAuthLoading(false);
-          return existingGuestId;
-        }
-        
-        // If verification fails, continue to create a new guest profile
-      }
-      
-      // Generate a new UUID for the guest
-      const newGuestId = uuidv4();
+      // Generate a unique ID for the guest
+      const guestProfileId = uuidv4();
       
       // Create a guest profile in the database
       const { error } = await supabase
         .from('profiles')
         .insert({
-          id: newGuestId,
-          username: `guest_${newGuestId.substring(0, 8)}`,
-          display_name: `Guest ${newGuestId.substring(0, 4)}`,
+          id: guestProfileId,
+          username: username || `guest_${Math.floor(Math.random() * 10000)}`,
+          display_name: username || `Guest ${Math.floor(Math.random() * 10000)}`,
           is_guest: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
       
       if (error) {
-        console.error('Error creating guest profile:', error);
         toast({
-          title: "Error",
-          description: "Could not create guest session. Please try again.",
-          variant: "destructive"
+          title: 'Error creating guest session',
+          description: error.message,
+          variant: 'destructive'
         });
         return null;
       }
       
       // Store the guest ID in localStorage
-      localStorage.setItem('guestProfileId', newGuestId);
-      setGuestId(newGuestId);
+      localStorage.setItem('guestProfileId', guestProfileId);
       
-      // Fetch the newly created profile
-      await fetchProfile(newGuestId);
+      // Update state
+      setGuestId(guestProfileId);
+      setIsGuest(true);
       
       toast({
-        title: "Success",
-        description: "Guest session created. You can now join rooms.",
-        variant: "default"
+        title: 'Guest session created',
+        description: 'You are now browsing as a guest'
       });
       
-      return newGuestId;
+      return guestProfileId;
     } catch (error) {
-      console.error('Error in createGuestSession:', error);
+      console.error('Error creating guest session:', error);
       toast({
-        title: "Error",
-        description: "Could not create guest session. Please try again.",
-        variant: "destructive"
+        title: 'Error creating guest session',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive'
       });
       return null;
     } finally {
-      setIsLoading(false);
+      setAuthLoading(false);
     }
+  };
+
+  /**
+   * Clear guest session
+   */
+  const clearGuestSession = async (): Promise<void> => {
+    if (!isClient) return;
+    
+    localStorage.removeItem('guestProfileId');
+    setGuestId(null);
+    setIsGuest(false);
   };
 
   /**
@@ -383,16 +373,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { data: null, error: errorObj };
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  /**
-   * Clear guest session
-   */
-  const clearGuestSession = async () => {
-    if (guestId) {
-      localStorage.removeItem('guestProfileId');
-      setGuestId(null);
     }
   };
 
@@ -599,7 +579,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Derived state
   const isAuthenticated = !!user;
-  const isGuest = !user && !!guestId;
 
   // Only render children when on the client side
   if (!isClient) {

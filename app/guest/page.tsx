@@ -15,7 +15,7 @@ export default function GuestPage() {
   const [joinAsGuest, setJoinAsGuest] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const { guestId, loading: guestLoading, createGuestProfile: createGuestProfileFn } = useGuestSession();
+  const { guestId, isLoading: guestLoading, createGuestSession } = useGuestSession();
   const router = useRouter();
 
   // Generate a creative nickname when the component loads
@@ -49,7 +49,7 @@ export default function GuestPage() {
     setError('');
     
     try {
-      await createGuestProfileFn();
+      await createGuestSession();
       
       // Set session flags to indicate successful login
       sessionStorage.setItem('justLoggedIn', 'true');
