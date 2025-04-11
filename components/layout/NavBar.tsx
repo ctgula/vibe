@@ -150,16 +150,11 @@ export function NavBar() {
                   {isGuest ? "Create Full Account" : "Profile"}
                 </DropdownMenuItem>
                 <DropdownMenuItem 
-                  asChild
-                  className="cursor-pointer focus:bg-zinc-800 focus:text-zinc-100"
+                  className="cursor-pointer focus:bg-zinc-800 focus:text-zinc-100 flex items-center"
+                  onClick={() => router.push('/settings')}
                 >
-                  <div 
-                    className="flex items-center w-full cursor-pointer"
-                    onClick={() => router.push('/settings')}
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
-                    Settings
-                  </div>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-zinc-800" />
                 <DropdownMenuItem 
