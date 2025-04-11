@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LogOut, Menu, User, Home, Grid, Settings } from 'lucide-react';
 import { useAuth } from '@/hooks/use-supabase-auth';
@@ -15,7 +14,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Logo } from '@/components/ui/logo';
 import Image from 'next/image';
 
 export function NavBar() {
@@ -84,9 +82,12 @@ export function NavBar() {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-b from-zinc-900/90 to-zinc-900/80 backdrop-blur-sm border-b border-zinc-800/30">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-        <Link href="/" className="flex items-center gap-2">
-          <Logo size="md" withText={true} />
-        </Link>
+        <div 
+          className="flex items-center gap-2 cursor-pointer"
+          onClick={() => router.push('/')}
+        >
+          <div className="font-bold text-xl bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 tracking-tight">VIBE</div>
+        </div>
 
         <div className="flex items-center gap-4">
           {isAuthenticated ? (
@@ -127,10 +128,13 @@ export function NavBar() {
                   asChild
                   className="cursor-pointer focus:bg-zinc-800 focus:text-zinc-100"
                 >
-                  <Link href="/settings" className="flex items-center w-full">
+                  <div 
+                    className="flex items-center w-full cursor-pointer"
+                    onClick={() => router.push('/settings')}
+                  >
                     <Settings className="h-4 w-4 mr-2" />
                     Settings
-                  </Link>
+                  </div>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-zinc-800" />
                 <DropdownMenuItem 
@@ -144,18 +148,18 @@ export function NavBar() {
             </DropdownMenu>
           ) : (
             <div className="flex items-center gap-2">
-              <Link
-                href="/auth/login"
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-white bg-zinc-800/80 hover:bg-zinc-700/90 transition-colors"
+              <div 
+                className="rounded-md px-3 py-1.5 text-sm font-medium text-white bg-zinc-800/80 hover:bg-zinc-700/90 transition-colors cursor-pointer"
+                onClick={() => router.push('/auth/login')}
               >
                 Log in
-              </Link>
-              <Link
-                href="/auth/signup"
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 transition-colors shadow-lg shadow-indigo-500/20"
+              </div>
+              <div 
+                className="rounded-md px-3 py-1.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 transition-colors shadow-lg shadow-indigo-500/20 cursor-pointer"
+                onClick={() => router.push('/auth/signup')}
               >
                 Sign Up
-              </Link>
+              </div>
             </div>
           )}
           <button
@@ -173,7 +177,10 @@ export function NavBar() {
           <div className="px-2 pt-2 pb-3 space-y-1">
             {isAuthenticated && (
               <>
-                <Link href="/">
+                <div 
+                  className="cursor-pointer"
+                  onClick={() => router.push('/')}
+                >
                   <Button 
                     variant={pathname === '/' ? 'default' : 'ghost'} 
                     size="sm"
@@ -182,8 +189,11 @@ export function NavBar() {
                     <Home className="h-4 w-4 mr-2" />
                     Home
                   </Button>
-                </Link>
-                <Link href="/directory">
+                </div>
+                <div 
+                  className="cursor-pointer"
+                  onClick={() => router.push('/directory')}
+                >
                   <Button 
                     variant={pathname === '/directory' ? 'default' : 'ghost'} 
                     size="sm"
@@ -192,17 +202,24 @@ export function NavBar() {
                     <Grid className="h-4 w-4 mr-2" />
                     Rooms
                   </Button>
-                </Link>
-                <Button 
-                  variant={pathname === '/profile' ? 'default' : 'ghost'} 
-                  size="sm"
-                  className="w-full justify-start"
+                </div>
+                <div 
+                  className="cursor-pointer"
                   onClick={handleProfileClick}
                 >
-                  <User className="h-4 w-4 mr-2" />
-                  {isGuest ? "Create Full Account" : "Profile"}
-                </Button>
-                <Link href="/settings">
+                  <Button 
+                    variant={pathname === '/profile' ? 'default' : 'ghost'} 
+                    size="sm"
+                    className="w-full justify-start"
+                  >
+                    <User className="h-4 w-4 mr-2" />
+                    {isGuest ? "Create Full Account" : "Profile"}
+                  </Button>
+                </div>
+                <div 
+                  className="cursor-pointer"
+                  onClick={() => router.push('/settings')}
+                >
                   <Button 
                     variant={pathname === '/settings' ? 'default' : 'ghost'} 
                     size="sm"
@@ -211,16 +228,20 @@ export function NavBar() {
                     <Settings className="h-4 w-4 mr-2" />
                     Settings
                   </Button>
-                </Link>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  className="w-full justify-start text-red-500"
+                </div>
+                <div 
+                  className="cursor-pointer"
                   onClick={handleLogout}
                 >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  {isGuest ? 'Exit Guest Mode' : 'Sign Out'}
-                </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="w-full justify-start text-red-500"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    {isGuest ? 'Exit Guest Mode' : 'Sign Out'}
+                  </Button>
+                </div>
               </>
             )}
           </div>
