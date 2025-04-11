@@ -18,14 +18,14 @@ export function RequireAuth({
   allowGuest = false,
   redirectTo = '/auth/login'
 }: RequireAuthProps) {
-  const { user, isLoading } = useAuth();
-  const { guestId, loading: guestLoading } = useGuestSession();
+  const { user, isLoading: authLoading } = useAuth();
+  const { guestId, isLoading } = useGuestSession();
   const router = useRouter();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
     // Check auth status once both regular auth and guest auth have loaded
-    if (!isLoading && !guestLoading) {
+    if (!authLoading && !isLoading) {
       const currentPath = window.location.pathname;
       const isAuthPath = currentPath.includes('/auth/');
       const isGuestPath = currentPath.includes('/guest');
@@ -47,10 +47,10 @@ export function RequireAuth({
       // Always update auth check status
       setIsCheckingAuth(false);
     }
-  }, [user, guestId, isLoading, guestLoading, allowGuest, redirectTo, router]);
+  }, [user, guestId, authLoading, isLoading, allowGuest, redirectTo, router]);
 
   // Show loading state while checking auth
-  if (isCheckingAuth || isLoading || guestLoading) {
+  if (isCheckingAuth || authLoading || isLoading) {
     return (
       <motion.div
         className="flex flex-col items-center justify-center min-h-[200px] py-12"

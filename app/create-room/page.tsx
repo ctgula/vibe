@@ -8,13 +8,13 @@ import { motion } from 'framer-motion';
 export default function CreateRoomRedirect() {
   const router = useRouter();
   const { isLoading: authLoading, isGuest, isAuthenticated, user, profile } = useAuth();
-  const { guestId, loading: guestLoading } = useGuestSession();
+  const { guestId, isLoading } = useGuestSession();
   
   useEffect(() => {
-    console.log('CreateRoomRedirect - Auth state:', { user: !!user, guestId: !!guestId, authLoading, guestLoading });
+    console.log('CreateRoomRedirect - Auth state:', { user: !!user, guestId: !!guestId, authLoading, isLoading });
     
     // Wait for auth states to load
-    if (authLoading || guestLoading) {
+    if (authLoading || isLoading) {
       console.log('Still loading auth state, waiting...');
       return;
     }
@@ -38,7 +38,7 @@ export default function CreateRoomRedirect() {
       console.log('No authentication found, redirecting to login');
       router.replace('/auth/login');
     }
-  }, [router, user, guestId, authLoading, guestLoading]);
+  }, [router, user, guestId, authLoading, isLoading]);
   
   // Show loading state while auth is initializing
   if (authLoading) {

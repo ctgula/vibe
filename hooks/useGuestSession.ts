@@ -13,7 +13,16 @@ export interface GuestProfile {
   is_guest: boolean;
 }
 
-export function useGuestSession() {
+// Define the return type for the hook
+export type GuestSession = {
+  guestId: string | null;
+  guestProfile: GuestProfile | null;
+  isLoading: boolean;
+  error: Error | null;
+  createGuestSession: (username?: string) => Promise<GuestProfile | null>;
+};
+
+export function useGuestSession(): GuestSession {
   const [isLoading, setIsLoading] = useState(true);
   const [guestProfile, setGuestProfile] = useState<GuestProfile | null>(null);
   const [error, setError] = useState<Error | null>(null);
@@ -153,8 +162,9 @@ export function useGuestSession() {
   };
 
   return {
-    isLoading,
+    guestId: authState.guestId || localStorage.getItem('guestProfileId'),
     guestProfile,
+    isLoading,
     error,
     createGuestSession
   };
