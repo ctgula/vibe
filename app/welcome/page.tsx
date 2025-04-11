@@ -28,7 +28,7 @@ function WelcomePageContent() {
   const router = useRouter();
   
   // Access auth context directly - will throw error if not available
-  const { user, authLoading, createGuestSession, isAuthenticated } = useAuth();
+  const { user, authLoading, createGuestSession, isAuthenticated, guestId } = useAuth();
 
   // Set isClient to true once component mounts
   useEffect(() => {
@@ -37,10 +37,10 @@ function WelcomePageContent() {
 
   // Redirect if user is already authenticated
   useEffect(() => {
-    if (isClient && isAuthenticated && !authLoading) {
+    if (isClient && (isAuthenticated || guestId) && !authLoading) {
       router.push("/");
     }
-  }, [isClient, isAuthenticated, authLoading, router]);
+  }, [isClient, isAuthenticated, guestId, authLoading, router]);
 
   // Feature rotation
   useEffect(() => {
