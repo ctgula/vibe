@@ -82,22 +82,22 @@ function WelcomePageContent() {
     {
       icon: <Users className="h-8 w-8 text-indigo-400" />,
       title: "Join Live Conversations",
-      description: "Connect with people in real-time audio rooms about topics you care about"
+      description: "Connect with people in real-time through immersive audio spaces designed for natural interaction."
     },
     {
       icon: <Music className="h-8 w-8 text-purple-400" />,
       title: "Spatial Audio",
-      description: "Experience immersive conversations with our spatial audio technology"
+      description: "Experience conversations with depth and dimension, placing each voice in a unique position around you."
     },
     {
       icon: <Video className="h-8 w-8 text-pink-400" />,
       title: "Video Rooms",
-      description: "Turn on your camera when you want a more personal connection"
+      description: "Switch to video when conversations call for more personal connection, without sacrificing audio quality."
     },
     {
       icon: <Headphones className="h-8 w-8 text-blue-400" />,
       title: "Listen Anywhere",
-      description: "Join rooms from any device, even in the background while using other apps"
+      description: "Stay connected even in background mode, with optimized performance across all your devices."
     }
   ];
 
@@ -111,33 +111,33 @@ function WelcomePageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white overflow-hidden" data-testid="welcome-content">
-      {/* Background gradient effects */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-indigo-900/20 via-transparent to-purple-900/20"></div>
-        <div className="absolute top-1/4 -left-1/4 w-1/2 h-1/2 bg-indigo-600/10 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-0 right-0 w-3/4 h-1/2 bg-purple-600/10 rounded-full blur-3xl"></div>
+    <div className="min-h-screen bg-gradient-to-b from-black to-zinc-900 text-white overflow-hidden" data-testid="welcome-content">
+      {/* Background gradient effects - more subtle and elegant */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-indigo-900/10 via-transparent to-purple-900/10"></div>
+        <div className="absolute top-1/4 -left-1/4 w-1/2 h-1/2 bg-indigo-600/5 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 right-0 w-3/4 h-1/2 bg-purple-600/5 rounded-full blur-3xl"></div>
       </div>
 
-      {/* Animated particles - Only render on client */}
+      {/* Animated particles - Only render on client - more subtle and fewer */}
       {isClient && (
         <div className="fixed inset-0 pointer-events-none">
-          {Array.from({ length: 20 }).map((_, i) => (
+          {Array.from({ length: 12 }).map((_, i) => (
             <motion.div
               key={i}
-              className="absolute w-1 h-1 bg-white/30 rounded-full"
+              className="absolute w-1 h-1 bg-white/20 rounded-full"
               initial={{
                 x: Math.random() * window.innerWidth,
                 y: Math.random() * window.innerHeight,
-                scale: Math.random() * 2 + 0.5,
-                opacity: Math.random() * 0.5 + 0.3
+                scale: Math.random() * 1.5 + 0.5,
+                opacity: Math.random() * 0.3 + 0.2
               }}
               animate={{
                 y: [null, Math.random() * -100 - 50],
                 opacity: [null, 0]
               }}
               transition={{
-                duration: Math.random() * 10 + 10,
+                duration: Math.random() * 15 + 10,
                 repeat: Infinity,
                 ease: "linear"
               }}
@@ -147,62 +147,68 @@ function WelcomePageContent() {
       )}
 
       <div className="container mx-auto px-4 py-12 relative z-10 flex flex-col min-h-screen">
-        <header className="flex justify-between items-center py-4">
-          <div className="flex items-center">
-            <div className="relative w-10 h-10 mr-2">
-              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-lg"></div>
-              <div className="absolute inset-[2px] bg-black rounded-[6px] flex items-center justify-center text-white font-bold text-xl">V</div>
-            </div>
-            <h1 className="font-bold text-2xl bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300">VIBE</h1>
-          </div>
+        <header className="py-4">
+          <h1 className="font-bold text-3xl bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 tracking-tight">VIBE</h1>
         </header>
 
-        <main className="flex-1 flex flex-col md:flex-row items-center justify-center gap-12 py-8 md:py-12">
+        <main className="flex-1 flex flex-col md:flex-row items-center justify-center gap-12 py-8 md:py-0">
           {/* Left side - Hero content */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
             className="flex-1 max-w-2xl"
           >
-            <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
+            <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight tracking-tight">
               Connect through{" "}
               <span className="relative">
                 <span className="relative z-10 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
                   live audio
                 </span>
                 <motion.span
-                  className="absolute -bottom-2 left-0 right-0 h-3 bg-gradient-to-r from-indigo-500/30 via-purple-500/30 to-pink-500/30 rounded-full z-0"
+                  className="absolute -bottom-2 left-0 right-0 h-2 bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full z-0"
                   initial={{ scaleX: 0, opacity: 0 }}
                   animate={{ scaleX: 1, opacity: 1 }}
-                  transition={{ delay: 0.5, duration: 0.6 }}
+                  transition={{ delay: 0.6, duration: 0.8 }}
                 ></motion.span>
               </span>{" "}
-              rooms with spatial sound
+              rooms
             </h2>
-            <p className="text-gray-300 text-lg mb-8 max-w-lg">
-              Join live conversations, meet new people, and share ideas in immersive audio spaces.
+            <p className="text-zinc-300 text-lg mb-10 max-w-lg leading-relaxed">
+              Join immersive conversations with spatial audio, meet new people, and share ideas in a space designed for connection.
             </p>
             
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button 
-                onClick={handleGuestAccess}
-                className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-6 py-3 rounded-full font-medium text-lg flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20 transition-all duration-300"
-                data-testid="guest-access-button"
+            <div className="flex flex-col sm:flex-row gap-4 mb-4">
+              <motion.div
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 400, damping: 17 }}
               >
-                <Sparkles className="h-5 w-5" />
-                Continue as Guest
-              </Button>
-              
-              <Link href="/auth/login" className="inline-block">
                 <Button 
-                  variant="outline" 
-                  className="border-gray-700 hover:border-indigo-500 text-gray-300 hover:text-white px-6 py-3 rounded-full font-medium text-lg flex items-center justify-center gap-2 transition-all duration-300"
+                  onClick={handleGuestAccess}
+                  className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-6 py-3 rounded-full font-medium text-lg flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/10 transition-all duration-300 w-full"
+                  data-testid="guest-access-button"
                 >
-                  Sign In
-                  <ArrowRight className="h-5 w-5" />
+                  <Sparkles className="h-5 w-5" />
+                  Continue as Guest
                 </Button>
-              </Link>
+              </motion.div>
+              
+              <motion.div
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+              >
+                <Link href="/auth/login" className="inline-block w-full">
+                  <Button 
+                    variant="outline" 
+                    className="border-zinc-800 hover:border-indigo-500 text-zinc-300 hover:text-white px-6 py-3 rounded-full font-medium text-lg flex items-center justify-center gap-2 transition-all duration-300 w-full backdrop-blur-sm"
+                  >
+                    Sign In
+                    <ArrowRight className="h-5 w-5" />
+                  </Button>
+                </Link>
+              </motion.div>
             </div>
           </motion.div>
           
@@ -210,42 +216,43 @@ function WelcomePageContent() {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
+            transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
             className="w-full max-w-md"
           >
-            <div className="bg-gray-900/50 backdrop-blur-md border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
-              <div className="p-6">
+            <div className="bg-zinc-900/30 backdrop-blur-xl border border-zinc-800/50 rounded-2xl overflow-hidden shadow-xl">
+              <div className="p-8">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={currentFeature}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.5 }}
+                    transition={{ duration: 0.6 }}
                     className="flex flex-col items-center text-center"
                   >
-                    <div className="bg-gray-800/50 p-4 rounded-full mb-4">
+                    <div className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 p-5 rounded-full mb-6">
                       {features[currentFeature].icon}
                     </div>
-                    <h3 className="text-xl font-bold mb-2 text-white">
+                    <h3 className="text-2xl font-bold mb-3 text-white">
                       {features[currentFeature].title}
                     </h3>
-                    <p className="text-gray-400">
+                    <p className="text-zinc-400 leading-relaxed">
                       {features[currentFeature].description}
                     </p>
                   </motion.div>
                 </AnimatePresence>
                 
-                <div className="flex justify-center mt-6 gap-1">
+                <div className="flex justify-center mt-8 gap-1.5">
                   {features.map((_, index) => (
-                    <button
+                    <motion.button
                       key={index}
-                      className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                      className={`h-1.5 rounded-full transition-all duration-500 ${
                         index === currentFeature
-                          ? "bg-indigo-500 w-4"
-                          : "bg-gray-700"
+                          ? "bg-indigo-500 w-6"
+                          : "bg-zinc-700 w-1.5"
                       }`}
                       onClick={() => setCurrentFeature(index)}
+                      whileHover={{ scale: 1.2 }}
                       aria-label={`View feature ${index + 1}`}
                     />
                   ))}
@@ -255,7 +262,7 @@ function WelcomePageContent() {
           </motion.div>
         </main>
         
-        <footer className="py-6 text-center text-gray-500 text-sm">
+        <footer className="py-6 text-center text-zinc-600 text-sm">
           <p> 2025 Vibe. All rights reserved.</p>
         </footer>
       </div>

@@ -33,6 +33,52 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
     setIsClient(true);
   }, []);
 
+  useEffect(() => {
+    if (!isClient) return;
+
+    const fetchRooms = async () => {
+      try {
+        setIsSubscribing(true);
+        
+        const { data: roomsData, error } = await supabase
+          .from('rooms')
+          .select(`
+            *,
+            creator_profile:profiles!rooms_created_by_fkey (
+              username,
+              display_name,
+              avatar_url
+            ),
+            participants (
+              id
+            )
+          `)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching rooms:', error);
+          setError("Unable to load rooms. Please refresh the page.");
+          return;
+        }
+
+        const processedRooms = roomsData.map(room => ({
+          ...room,
+          participant_count: room.participants?.length || 0
+        }));
+
+        setRooms(processedRooms);
+      } catch (err) {
+        console.error('Error in fetchRooms:', err);
+        setError("Something went wrong. Please refresh the page.");
+      } finally {
+        setIsSubscribing(false);
+      }
+    };
+
+    fetchRooms();
+  }, [isClient]);
+
   const handleRoomSubscription = useCallback(async () => {
     if (!isClient) return;
     
@@ -72,8 +118,6 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
 
       const status = await channel.subscribe();
       
-      // The type of status is RealtimeChannel, not string, so we need to handle it differently
-      // Instead of comparing with a string, we'll check if the subscription was successful
       if (channel) {
         console.log("Successfully subscribed to rooms");
       } else {
@@ -121,16 +165,12 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
   const isLoading = !isClient || authLoading || guestLoading || participantsLoading;
 
   const handleJoinRoom = (roomId: string) => {
-    // Check if user is authenticated
     if (!user && !guestId) {
-      // Store intended destination
       sessionStorage.setItem('redirectAfterAuth', `/room/${roomId}`);
-      // Redirect to login
       router.push('/auth/login');
       return;
     }
     
-    // Navigate to room
     router.push(`/room/${roomId}`);
   };
 

@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 
@@ -38,6 +37,8 @@ export function Logo({
       className={`flex items-center gap-2 ${className}`}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
+      onClick={asLink ? () => router.push('/') : undefined}
+      style={asLink ? { cursor: 'pointer' } : {}}
     >
       <div className={`relative aspect-square ${sizeClasses[size]}`}>
         <img src="/logo.png" alt="Vibe Logo" className="h-full w-full" />
@@ -51,9 +52,9 @@ export function Logo({
   );
   
   return asLink ? (
-    <Link href="/" className={`no-underline ${linkClassName}`}>
+    <div className={linkClassName}>
       {logoContent}
-    </Link>
+    </div>
   ) : (
     logoContent
   );
