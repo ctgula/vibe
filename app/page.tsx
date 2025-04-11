@@ -42,7 +42,10 @@ function HomePageContent() {
     if (!isClient) return;
     
     if (!user && !guestId) {
+      console.log("No authenticated user or guest, redirecting to welcome page");
       router.push('/welcome');
+    } else {
+      console.log("User authenticated:", user ? "Regular user" : "Guest user");
     }
   }, [isClient, user, guestId, router]);
 

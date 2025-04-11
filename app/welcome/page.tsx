@@ -35,10 +35,12 @@ function WelcomePageContent() {
     setIsClient(true);
   }, []);
 
-  // Redirect if user is already authenticated
+  // Redirect if user is already authenticated - but only after client-side rendering
   useEffect(() => {
-    if (isClient && (isAuthenticated || guestId) && !authLoading) {
-      router.push("/");
+    if (isClient && !authLoading) {
+      if (isAuthenticated || guestId) {
+        router.push("/");
+      }
     }
   }, [isClient, isAuthenticated, guestId, authLoading, router]);
 

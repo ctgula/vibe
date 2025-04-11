@@ -80,22 +80,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof window !== 'undefined') {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
       const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-      setSupabase(createBrowserClient(supabaseUrl, supabaseAnonKey));
+      
+      const supabaseClient = createBrowserClient(supabaseUrl, supabaseAnonKey);
+      setSupabase(supabaseClient);
+      
+      // Immediately check for guest session
+      const guestProfileId = localStorage.getItem('guestProfileId');
+      if (guestProfileId) {
+        console.log("Found guest profile ID in localStorage:", guestProfileId);
+        setGuestId(guestProfileId);
+        setIsGuest(true);
+      }
+      
+      // Set loading state to false after a short delay if auth is taking too long
+      const timeoutId = setTimeout(() => {
+        if (authLoading) {
+          console.log("Auth loading timeout - forcing completion");
+          setAuthLoading(false);
+        }
+      }, 2000);
+      
+      return () => clearTimeout(timeoutId);
     }
   }, []);
-
-  // Check for guest session
-  useEffect(() => {
-    if (!isClient) return;
-
-    const getLocalGuestId = () => {
-      const guestProfileId = localStorage.getItem('guestProfileId');
-      setGuestId(guestProfileId);
-      setAuthLoading(false);
-    };
-
-    getLocalGuestId();
-  }, [isClient]);
 
   // Set up Supabase auth listener
   useEffect(() => {
@@ -103,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const getUser = async () => {
       try {
+        console.log("Checking for existing session...");
         const { data, error } = await supabase.auth.getSession();
         if (error) {
           console.error('Error getting session:', error);
@@ -113,9 +121,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const session = data.session;
         
         if (session) {
+          console.log("Found existing session for user:", session.user.email);
           setUser(session.user);
           await fetchProfile(session.user.id);
         } else {
+          console.log("No existing session found");
           setAuthLoading(false);
         }
       } catch (error) {
@@ -129,39 +139,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: string, session: any) => {
+        console.log("Auth state change:", event);
         if (session) {
           setUser(session.user);
           
           // Fetch profile and create if needed
           await fetchProfile(session.user.id);
-          
-          if (event === 'SIGNED_IN') {
-            toast({
-              title: "Success",
-              description: "You've been signed in successfully.",
-              variant: "default"
-            });
-          }
         } else {
           setUser(null);
           setProfile(null);
           setAuthLoading(false);
-          
-          if (event === 'SIGNED_OUT') {
-            toast({
-              title: "Success",
-              description: "You've been signed out successfully.",
-              variant: "default"
-            });
-          }
         }
       }
     );
 
     return () => {
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
-  }, [isClient, supabase, toast]);
+  }, [isClient, supabase]);
 
   /**
    * Fetch user profile from the database
@@ -171,38 +166,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!supabase) return;
     
     try {
-      const { data, error } = await supabase
+      console.log("Fetching profile for user:", userId);
+      
+      // Check if profile exists
+      const { data: existingProfile, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
-
-      if (error) {
-        console.error('Error fetching profile:', error);
-        
-        // Try to create profile if it doesn't exist
-        try {
-          const response = await fetch('/api/auth/create-profile', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ userId }),
-          });
-          
-          if (response.ok) {
-            const newProfile = await response.json();
-            setProfile(newProfile);
-          } else {
-            console.error('Failed to create profile via API');
-          }
-        } catch (createError) {
-          console.error('Error creating profile:', createError);
-        }
-      } else {
-        setProfile(data);
+      
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error fetching profile:', fetchError);
+        setAuthLoading(false);
+        return;
       }
       
+      if (existingProfile) {
+        console.log("Found existing profile:", existingProfile.username);
+        setProfile(existingProfile);
+        setIsGuest(!!existingProfile.is_guest);
+        setAuthLoading(false);
+        return;
+      }
+      
+      console.log("No profile found, creating new profile");
+      
+      // Create new profile if it doesn't exist
+      const newProfile: UserProfile = {
+        id: userId,
+        username: user?.email?.split('@')[0] || `user_${Math.floor(Math.random() * 10000)}`,
+        display_name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'New User',
+        avatar_url: user?.user_metadata?.avatar_url || '',
+        is_guest: false,
+        bio: '',
+        theme_color: 'default',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert([newProfile]);
+      
+      if (insertError) {
+        console.error('Error creating profile:', insertError);
+        setAuthLoading(false);
+        return;
+      }
+      
+      setProfile(newProfile);
       setAuthLoading(false);
     } catch (error) {
       console.error('Error in fetchProfile:', error);
