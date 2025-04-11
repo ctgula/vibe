@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { useToast } from "@/components/ui/use-toast";
-import { Logo } from "@/components/ui/logo";
 
 export default function RoomDirectory() {
   const [rooms, setRooms] = useState<any[]>([]);
@@ -274,7 +273,9 @@ export default function RoomDirectory() {
       <div className="min-h-screen bg-zinc-950 text-white">
         {/* Header with Vibe Logo and Home Button */}
         <div className="sticky top-0 z-40 w-full bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-800/50 px-4 py-3 flex justify-between items-center">
-          <Logo size="md" withText={true} />
+          <div className="font-bold text-xl bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 tracking-tight cursor-pointer" onClick={() => router.push('/')}>
+            VIBE
+          </div>
           
           <Button 
             variant="ghost" 
