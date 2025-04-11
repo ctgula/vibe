@@ -19,8 +19,8 @@ function ErrorFallback({ error, resetErrorBoundary }: { error: Error, resetError
       <Button onClick={resetErrorBoundary} variant="default">
         Try again
       </Button>
-      <Link href="/welcome" className="mt-4 text-blue-400 hover:underline">
-        Return to welcome page
+      <Link href="/" className="mt-4 text-blue-400 hover:underline">
+        Return to home page
       </Link>
     </div>
   );

@@ -58,7 +58,7 @@ export function Profile() {
         
         if (!currentUserId) {
           toast.error('Please sign in or continue as guest to view your profile');
-          router.push('/welcome');
+          router.push('/');
           return;
         }
         
@@ -225,7 +225,7 @@ export function Profile() {
       
       toast.dismiss(logoutToast);
       toast.success(isGuest ? 'Exited guest mode' : 'Signed out successfully');
-      router.push('/welcome');
+      router.push('/');
     } catch (error) {
       toast.dismiss(logoutToast);
       toast.error('Failed to sign out');

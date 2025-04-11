@@ -109,7 +109,9 @@ export function NavBar() {
           className="flex items-center gap-2 cursor-pointer"
           onClick={() => router.push('/')}
         >
-          <div className="font-bold text-xl bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 tracking-tight">VIBE</div>
+          <div className="font-bold text-xl bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 tracking-tight">
+            VIBE
+          </div>
         </div>
 
         <div className="flex items-center gap-4">

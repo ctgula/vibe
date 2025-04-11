@@ -32,8 +32,8 @@ export default function CreateRoom() {
   // Redirect if neither authenticated user nor guest
   useEffect(() => {
     if (mounted && !authLoading && !user && !guestId) {
-      console.log("No authentication found, redirecting to welcome");
-      router.replace('/welcome');
+      console.log("No authentication found, redirecting to home");
+      router.replace('/');
     }
   }, [mounted, authLoading, user, guestId, router]);
 
