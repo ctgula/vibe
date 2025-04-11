@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle, Users, Headphones, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-hot-toast';
+import ClientHome from './components/ClientHome';
 
 type Room = {
   id: string;
@@ -32,7 +34,7 @@ function HomePageContent() {
   const [loading, setLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
   const router = useRouter();
-  const { user, authLoading, profile, guestId } = useAuth(); 
+  const { user, authLoading, profile, guestId, createGuestSession } = useAuth(); 
 
   useEffect(() => {
     setIsClient(true);
@@ -41,12 +43,7 @@ function HomePageContent() {
   useEffect(() => {
     if (!isClient) return;
     
-    if (!user && !guestId) {
-      console.log("No authenticated user or guest, redirecting to welcome page");
-      router.push('/welcome');
-    } else {
-      console.log("User authenticated:", user ? "Regular user" : "Guest user");
-    }
+    console.log("Home page loaded, user status:", user ? "Authenticated" : guestId ? "Guest" : "Not authenticated");
   }, [isClient, user, guestId, router]);
 
   useEffect(() => {
@@ -205,5 +202,97 @@ function HomePageContent() {
 }
 
 export default function Home() {
-  return <HomePageContent />;
+  const { user, guestId, authLoading, createGuestSession } = useAuth();
+  const router = useRouter();
+  const [isClient, setIsClient] = useState(false);
+  const [isCreatingGuest, setIsCreatingGuest] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isClient) return;
+    
+    console.log("Home page loaded, user status:", user ? "Authenticated" : guestId ? "Guest" : "Not authenticated");
+  }, [isClient, user, guestId, router]);
+
+  const handleGuestAccess = async () => {
+    try {
+      setIsCreatingGuest(true);
+      toast.loading('Creating guest session...', { id: 'guest-login' });
+      
+      const guestId = await createGuestSession();
+      
+      if (guestId) {
+        toast.success('Guest session created!', { id: 'guest-login' });
+        // No need to redirect, the user is already on the home page
+      } else {
+        toast.error('Failed to create guest session', { id: 'guest-login' });
+      }
+    } catch (error) {
+      console.error('Error creating guest session:', error);
+      toast.error('Something went wrong. Please try again.', { id: 'guest-login' });
+    } finally {
+      setIsCreatingGuest(false);
+    }
+  };
+
+  if (!isClient) {
+    return null; // Don't render anything on the server
+  }
+
+  // If user is authenticated (either as regular user or guest), show the home page
+  if (user || guestId) {
+    return <HomePageContent />;
+  }
+
+  // Otherwise, show a simplified welcome page directly on the home page
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white flex flex-col">
+      <main className="flex-1 flex flex-col items-center justify-center p-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="text-center max-w-3xl mx-auto"
+        >
+          <h1 className="text-4xl md:text-6xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300">
+            Welcome to VIBE
+          </h1>
+          <p className="text-lg md:text-xl text-zinc-300 mb-8">
+            Connect with others in real-time audio and video rooms
+          </p>
+          
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button 
+              onClick={handleGuestAccess}
+              disabled={isCreatingGuest || authLoading}
+              className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-8 py-6 rounded-lg text-lg font-medium"
+            >
+              {isCreatingGuest ? 'Creating Guest Session...' : 'Continue as Guest'}
+            </Button>
+            
+            <Button 
+              onClick={() => router.push('/auth/signup')}
+              variant="outline"
+              className="border-zinc-700 hover:bg-zinc-800 text-white px-8 py-6 rounded-lg text-lg font-medium"
+            >
+              Create Account
+            </Button>
+          </div>
+          
+          <p className="mt-4 text-zinc-400">
+            Already have an account?{' '}
+            <span 
+              onClick={() => router.push('/auth/login')}
+              className="text-indigo-400 hover:text-indigo-300 cursor-pointer underline"
+            >
+              Log in
+            </span>
+          </p>
+        </motion.div>
+      </main>
+    </div>
+  );
 }

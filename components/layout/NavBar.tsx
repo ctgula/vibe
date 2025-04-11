@@ -19,8 +19,8 @@ import Image from 'next/image';
 export function NavBar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, profile, isLoading: authLoading, signOut, guestId } = useAuth();
-  const { guestProfile, logout: logoutGuest } = useGuestSession();
+  const { user, profile, isLoading: authLoading, signOut, guestId, clearGuestSession } = useAuth();
+  const { guestProfile } = useGuestSession();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
   // Determine if user is authenticated (either as regular user or guest)
@@ -48,7 +48,7 @@ export function NavBar() {
       await signOut();
     } else if (guestId) {
       // Log out guest user
-      logoutGuest();
+      clearGuestSession();
     }
     
     // Clear any redirection flags to prevent loops
@@ -76,7 +76,30 @@ export function NavBar() {
 
   // Hide navbar on certain pages
   if (pathname === '/' && !isAuthenticated) {
-    return null;
+    return (
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-b from-zinc-900/90 to-zinc-900/80 backdrop-blur-sm border-b border-zinc-800/30">
+        <div className="container mx-auto px-4 py-3 flex justify-between items-center">
+          <div className="font-bold text-xl bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 tracking-tight">
+            VIBE
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <div 
+              className="rounded-md px-3 py-1.5 text-sm font-medium text-white bg-zinc-800/80 hover:bg-zinc-700/90 transition-colors cursor-pointer"
+              onClick={() => router.push('/auth/login')}
+            >
+              Log in
+            </div>
+            <div 
+              className="rounded-md px-3 py-1.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 transition-colors shadow-lg shadow-indigo-500/20 cursor-pointer"
+              onClick={() => router.push('/auth/signup')}
+            >
+              Sign Up
+            </div>
+          </div>
+        </div>
+      </nav>
+    );
   }
 
   return (
