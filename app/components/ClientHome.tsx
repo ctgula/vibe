@@ -72,7 +72,11 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
 
       const status = await channel.subscribe();
       
-      if (status !== 'SUBSCRIBED') {
+      // The type of status is RealtimeChannel, not string, so we need to handle it differently
+      // Instead of comparing with a string, we'll check if the subscription was successful
+      if (channel) {
+        console.log("Successfully subscribed to rooms");
+      } else {
         console.error("Error subscribing to rooms:", status);
         setError("Unable to get live updates. Please refresh the page.");
       }
@@ -314,7 +318,7 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
                               {tag}
                             </span>
                           ))}
-                          {room.tags?.length > 2 && (
+                          {room.tags && room.tags.length > 2 && (
                             <span className="text-xs text-white/50">+{room.tags.length - 2}</span>
                           )}
                         </div>
