@@ -117,9 +117,12 @@ export async function POST(req: NextRequest) {
     if (error) {
       // If the rpc method fails, try a direct query as a last resort
       try {
-        const { data: directData, error: directError } = await supabase.from('_raw_sql')
-          .select()
-          .rpc('execute', { sql, params });
+        if (!sql) throw new Error('SQL string is required');
+        
+        const { data: directData, error: directError } = await supabase.rpc('execute', {
+          sql,
+          params: params || {},
+        });
           
         if (directError) throw directError;
         
