@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/use-supabase-auth';
+import { useAuth, useGuestSession } from '@/hooks/auth';
 import { Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useGuestSession } from '@/hooks/useGuestSession';
 
 interface RequireAuthProps {
   children: React.ReactNode;

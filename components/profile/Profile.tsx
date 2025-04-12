@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { useAuth } from "@/hooks/use-supabase-auth";
+import { useAuth } from "@/hooks/auth";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { 

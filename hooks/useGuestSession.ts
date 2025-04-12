@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { v4 as uuidv4 } from 'uuid';
-import { useAuth } from '@/hooks/use-supabase-auth';
+import { useAuth } from '@/hooks/auth';
 
 export interface GuestProfile {
   id: string;

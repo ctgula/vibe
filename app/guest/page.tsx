@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useGuestSession } from '@/hooks/useGuestSession';
+import { useGuestSession } from '@/hooks/auth';
 import { Loader2, LogIn, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';

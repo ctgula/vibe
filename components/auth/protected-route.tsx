@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { useAuth } from "@/hooks/use-supabase-auth";
+import { useAuth } from "@/hooks/auth";
 import { motion } from "framer-motion";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {

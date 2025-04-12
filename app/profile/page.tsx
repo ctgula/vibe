@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/use-supabase-auth';
+import { useAuth, useGuestSession } from '@/hooks/auth';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Save, Camera } from 'lucide-react';
 import Image from 'next/image';
 import { useToast } from '@/components/ui/use-toast';
-import { useGuestSession } from '@/hooks/useGuestSession';
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { AppHeader } from '@/components/app-header';
 

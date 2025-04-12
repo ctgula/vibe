@@ -18,7 +18,7 @@ import { Controls } from '@/components/room/Controls';
 import { RaisedHands } from '@/components/room/RaisedHands';
 import { MessageCircle, X, ChevronDown, Video, Bell, Users, FileUp, PenTool, Link } from 'lucide-react';
 import { PageTransition } from '@/components/transitions/PageTransition';
-import { useGuestSession } from '@/hooks/useGuestSession';
+import { useGuestSession, useAuth } from '@/hooks/auth';
 import { useNotifications } from '@/hooks/use-notifications';
 import { Notifications } from '@/components/Notifications';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
@@ -27,7 +27,6 @@ import { Poll } from '@/components/Poll';
 import { RoomThemeEditor } from '@/components/RoomThemeEditor';
 import { FileUploader } from '@/components/FileUploader';
 import { RoomHeader } from '@/components/room/RoomHeader';
-import { useAuth } from '@/hooks/use-supabase-auth';
 
 export default function Room({ params }: { params: { id: string } }) {
   const { user, profile, guestId, isGuest, isAuthenticated, ensureSessionToken } = useAuth();

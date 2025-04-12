@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { useTheme } from "next-themes"
 import { Badge } from "@/components/ui/badge"
-import { useAuth } from "@/hooks/use-supabase-auth"
+import { useAuth } from "@/hooks/auth"
 import { 
   DropdownMenu, 
   DropdownMenuContent, 

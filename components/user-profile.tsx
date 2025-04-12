@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Settings, Edit, Heart, MessageCircle, Share2, Clock, Music, Bookmark } from "lucide-react"
 import { motion, AnimatePresence, useInView } from "framer-motion"
 import { useProfile } from "@/hooks/use-profile"
-import { useAuth } from "@/hooks/use-supabase-auth"
+import { useAuth } from "@/hooks/auth"
 import { supabase, Profile } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 

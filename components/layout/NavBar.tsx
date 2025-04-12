@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { LogOut, Menu, User, Home, Grid, Settings, LayoutGrid, Bell, Star } from 'lucide-react';
-import { useAuth } from '@/hooks/use-supabase-auth';
-import { useGuestSession } from '@/hooks/useGuestSession';
+import { useAuth, useGuestSession } from '@/hooks/auth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
