@@ -931,7 +931,7 @@ export default function Room({ params }: { params: { id: string } }) {
             <>
               <Stage 
                 speakers={speakersWithCameraStatus} 
-                currentUserId={user?.id || guestId} 
+                currentUserId={id}
                 videoRef={videoRef as React.RefObject<HTMLVideoElement>}
                 videoStream={videoStream} 
                 isCameraOn={isCameraOn}
@@ -969,7 +969,7 @@ export default function Room({ params }: { params: { id: string } }) {
             
             <Audience 
               listeners={listenersWithFormattedProps}
-              currentUserId={user?.id || guestId}
+              currentUserId={id}
               promoteToSpeaker={handlePromoteToSpeaker}
               updateRoomActivity={updateRoomActivity}
               onRaiseHand={handleAudienceRaiseHand}
