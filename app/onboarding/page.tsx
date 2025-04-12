@@ -22,7 +22,7 @@ export default function OnboardingPage() {
     avatar_url: '',
     bio: '',
     theme_color: '#6366f1',
-    is_guest: true
+    is_guest: true,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,10 +58,12 @@ export default function OnboardingPage() {
       const currentUserId = user?.id || guestId;
       
       if (!currentUserId) {
-        // No user ID found, redirect to home
-        router.push('/');
+        setError('User ID not found');
+        console.error('No user ID found in checkProfile');
         return;
       }
+      
+      console.log('Checking profile for user ID:', currentUserId);
       
       // Fetch profile data
       const { data: profileData, error: profileError } = await supabase
@@ -69,6 +71,10 @@ export default function OnboardingPage() {
         .select('*')
         .eq('id', currentUserId)
         .single();
+        
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+      }
         
       if (!profileError && profileData) {
         // If profile exists and has username, redirect to home
@@ -96,6 +102,12 @@ export default function OnboardingPage() {
           theme_color: authProfile.theme_color || '#6366f1',
           is_guest: authProfile.is_guest || false
         });
+      } else {
+        // If no profile found, use the current user ID
+        setProfile(prev => ({
+          ...prev,
+          id: currentUserId
+        }));
       }
     } catch (err) {
       console.error('Error checking profile:', err);
@@ -136,32 +148,37 @@ export default function OnboardingPage() {
         return;
       }
       
-      // Update profile in database
+      console.log('Saving profile with data:', {
+        ...profile,
+        id: currentUserId
+      });
+      
+      // Update the profile in Supabase
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({
+        .upsert({
+          id: currentUserId,
           username: profile.username,
           avatar_url: profile.avatar_url,
           bio: profile.bio,
           theme_color: profile.theme_color,
+          is_guest: profile.is_guest,
           updated_at: new Date().toISOString()
-        })
-        .eq('id', currentUserId);
+        }, {
+          onConflict: 'id'
+        });
         
       if (updateError) {
         console.error('Error updating profile:', updateError);
-        setError(updateError.message);
+        setError(`Failed to save profile: ${updateError.message}`);
         return;
       }
-      
-      // Show success message
-      toast.success('Profile created successfully!');
       
       // Redirect to home page
       router.push('/');
     } catch (err) {
       console.error('Error saving profile:', err);
-      setError('Failed to save profile. Please try again.');
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -215,35 +232,28 @@ export default function OnboardingPage() {
         <AnimatePresence mode="wait" custom={direction}>
           {step === 0 && (
             <motion.div
-              key="welcome-screen"
-              className="flex-1 flex flex-col items-center justify-center p-6"
+              key="welcome"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.5 }}
+              className="flex-1 flex flex-col items-center justify-center text-center px-4 py-12 md:py-24"
             >
               <motion.div 
-                className="w-32 h-32 mb-12 relative"
-                animate={{ 
-                  scale: [1, 1.05, 1],
-                }}
-                transition={{ 
-                  duration: 3, 
-                  repeat: Infinity,
-                  repeatType: "reverse" 
-                }}
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.2 }}
+                className="mb-10"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full opacity-30 blur-xl" />
-                <div className="relative w-full h-full flex items-center justify-center">
-                  <Sparkles className="w-20 h-20 text-white" />
+                <div className="w-24 h-24 md:w-32 md:h-32 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-6">
+                  <Logo className="w-12 h-12 md:w-16 md:h-16 text-white" />
                 </div>
               </motion.div>
               
-              <h1 className="text-5xl md:text-6xl font-bold mb-8 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
+              <h1 className="text-4xl md:text-6xl font-bold mb-6 md:mb-8 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
                 Welcome to VIBE
               </h1>
               
-              <p className="text-xl text-zinc-300 mb-12 text-center max-w-lg">
+              <p className="text-lg md:text-xl text-zinc-300 mb-10 md:mb-12 text-center max-w-lg">
                 Let's set up your profile so you can start connecting with others in real-time.
               </p>
               
@@ -253,7 +263,7 @@ export default function OnboardingPage() {
               >
                 <Button
                   onClick={nextStep}
-                  className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-10 py-7 rounded-xl text-xl font-medium"
+                  className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-8 md:px-10 py-6 md:py-7 rounded-xl text-lg md:text-xl font-medium"
                 >
                   Get Started
                 </Button>
@@ -264,13 +274,13 @@ export default function OnboardingPage() {
           {step > 0 && (
             <motion.div
               key="onboarding-container"
-              className="flex-1 flex flex-col max-w-xl mx-auto w-full p-8"
+              className="flex-1 flex flex-col max-w-xl mx-auto w-full p-4 md:p-8"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
               {/* Progress bar */}
-              <div className="w-full h-1 bg-zinc-800/50 rounded-full overflow-hidden mb-12">
+              <div className="w-full h-1 bg-zinc-800/50 rounded-full overflow-hidden mb-8 md:mb-12">
                 <motion.div
                   initial={{ width: `${(step / (totalSteps + 1)) * 100}%` }}
                   animate={{ width: `${(step / (totalSteps + 1)) * 100}%` }}
@@ -382,7 +392,7 @@ export default function OnboardingPage() {
                         </Avatar>
                       </motion.div>
                       
-                      <div className="grid grid-cols-4 gap-4 w-full">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full">
                         {Array.from({ length: 8 }).map((_, i) => (
                           <motion.div 
                             key={i}
@@ -393,7 +403,11 @@ export default function OnboardingPage() {
                                 ? 'border-indigo-500 shadow-lg shadow-indigo-500/30' 
                                 : 'border-transparent hover:border-indigo-500/50'
                             }`}
-                            onClick={() => updateProfile({ avatar_url: `https://api.dicebear.com/6.x/avataaars/svg?seed=${i}` })}
+                            onClick={() => {
+                              const newAvatarUrl = `https://api.dicebear.com/6.x/avataaars/svg?seed=${i}`;
+                              console.log('Setting avatar URL to:', newAvatarUrl);
+                              updateProfile({ avatar_url: newAvatarUrl });
+                            }}
                           >
                             <img 
                               src={`https://api.dicebear.com/6.x/avataaars/svg?seed=${i}`} 
@@ -503,7 +517,7 @@ export default function OnboardingPage() {
                       Select a color that matches your vibe.
                     </p>
                     
-                    <div className="grid grid-cols-4 gap-5 mb-10">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-5 mb-10">
                       {themeColors.map((color) => (
                         <motion.div
                           key={color}
@@ -515,7 +529,11 @@ export default function OnboardingPage() {
                               : ''
                           }`}
                           style={{ backgroundColor: color }}
-                          onClick={() => updateProfile({ theme_color: color })}
+                          onClick={() => {
+                            console.log('Setting theme color to:', color);
+                            updateProfile({ theme_color: color });
+                          }}
+                          tabIndex={0}
                         />
                       ))}
                     </div>
