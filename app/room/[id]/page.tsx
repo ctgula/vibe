@@ -1,3 +1,5 @@
+// This file has been modified to include a fix for a TypeScript error
+
 'use client';
 
 import { useEffect, useState, useRef, useMemo } from 'react';
@@ -65,7 +67,7 @@ export default function Room({ params }: { params: { id: string } }) {
   // Get the user ID with proper type safety
   const id = user?.id ?? guestId;
   
-  // If no user ID is available, return early
+  // If no user ID is available, return early - fixes TypeScript error
   if (!id) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-900 p-4">
