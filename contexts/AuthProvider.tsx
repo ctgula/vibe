@@ -17,7 +17,7 @@ import {
   UserProfile, 
   AuthResultData, 
   ProfileUpdateResultData 
-} from '@/lib/auth';
+} from '@/types/auth';
 
 // Create a default context with all properties to avoid undefined errors
 const defaultContextValue: AuthContextType = {
