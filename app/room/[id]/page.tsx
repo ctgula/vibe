@@ -62,8 +62,29 @@ export default function Room({ params }: { params: { id: string } }) {
   const [showParticipants, setShowParticipants] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
   
-  // Use the participants hook
-  const { participants, userStatus, loading: participantsLoading } = useParticipants(params.id, user?.id || guestId);
+  // Get the user ID with proper type safety
+  const id = user?.id ?? guestId;
+  
+  // If no user ID is available, return early
+  if (!id) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-900 p-4">
+        <div className="bg-zinc-800 rounded-lg p-6 max-w-md w-full">
+          <h2 className="text-xl font-semibold text-white mb-4">Authentication Required</h2>
+          <p className="text-zinc-300 mb-6">You need to be signed in or have a guest session to join this room.</p>
+          <button
+            onClick={() => router.push('/')}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md"
+          >
+            Return to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  // Use the participants hook with type-safe ID
+  const { participants, userStatus, loading: participantsLoading } = useParticipants(params.id, id);
   
   // Get notification context
   const { addNotification } = useNotification();
