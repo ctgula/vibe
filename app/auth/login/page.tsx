@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SignInForm } from '@/components/auth/sign-in-form';
-import { useAuth } from '@/hooks/use-supabase-auth';
+import { useAuth } from '@/hooks/auth';
 import { Mail, ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

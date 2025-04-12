@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { RequireAuth } from '@/components/auth/RequireAuth';
-import { useAuth } from '@/hooks/use-supabase-auth';
+import { useAuth } from '@/hooks/auth';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
