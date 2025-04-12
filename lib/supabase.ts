@@ -1,5 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr';
-import type { Database, Participant } from './database.types';
+import type { Database, RoomParticipant } from './database.types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -84,4 +84,4 @@ export interface Message {
 }
 
 // Re-export the Participant type
-export type { Participant };
+export type Participant = RoomParticipant;
