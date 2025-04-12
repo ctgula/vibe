@@ -9,6 +9,7 @@ export interface GuestProfile {
   display_name?: string;
   name?: string;
   avatar_url?: string;
+  bio?: string;
   created_at: string;
   is_guest: boolean;
 }
@@ -20,6 +21,7 @@ export type GuestSession = {
   isLoading: boolean;
   error: Error | null;
   createGuestSession: (username?: string) => Promise<GuestProfile | null>;
+  updateGuestProfile: (updates: Partial<GuestProfile>) => Promise<{ success: boolean; error: string | null }>;
 };
 
 export function useGuestSession(): GuestSession {
@@ -46,17 +48,20 @@ export function useGuestSession(): GuestSession {
   useEffect(() => {
     setMounted(true);
     
-    try {
-      const { guestId, createGuestSession, profile, isGuest } = useAuth();
-      setAuthState({
-        guestId,
-        createGuestSession,
-        profile,
-        isGuest
-      });
-    } catch (err) {
-      console.error('Error accessing auth context:', err);
-      setError(err instanceof Error ? err : new Error('Failed to access auth context'));
+    // Only try to access auth context if we're in the browser
+    if (typeof window !== 'undefined') {
+      try {
+        const { guestId, createGuestSession, profile, isGuest } = useAuth();
+        setAuthState({
+          guestId,
+          createGuestSession,
+          profile,
+          isGuest
+        });
+      } catch (err) {
+        console.error('Error accessing auth context:', err);
+        setError(err instanceof Error ? err : new Error('Failed to access auth context'));
+      }
     }
   }, []);
 
@@ -161,12 +166,56 @@ export function useGuestSession(): GuestSession {
     }
   };
 
+  const updateGuestProfile = async (updates: Partial<GuestProfile>): Promise<{ success: boolean; error: string | null }> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      if (!guestProfile) {
+        throw new Error('Guest profile not found');
+      }
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', guestProfile.id)
+        .eq('is_guest', true);
+        
+      if (error) {
+        throw new Error(error.message || 'Failed to update guest profile');
+      }
+      
+      // Fetch the updated profile
+      const { data: updatedProfile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', guestProfile.id)
+        .eq('is_guest', true)
+        .single();
+        
+      if (fetchError || !updatedProfile) {
+        throw new Error(fetchError?.message || 'Failed to fetch updated guest profile');
+      }
+      
+      setGuestProfile(updatedProfile);
+      return { success: true, error: null };
+    } catch (err) {
+      console.error('Error updating guest profile:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error updating guest profile';
+      setError(err instanceof Error ? err : new Error(errorMessage));
+      return { success: false, error: errorMessage };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     guestId: authState.guestId || localStorage.getItem('guestProfileId'),
     guestProfile,
     isLoading,
     error,
-    createGuestSession
+    createGuestSession,
+    updateGuestProfile
   };
 }
 

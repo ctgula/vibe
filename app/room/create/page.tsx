@@ -113,7 +113,7 @@ export default function CreateRoom() {
             description: description.trim() || null,
             topics: tags.length > 0 ? tags : null,
             created_by: user ? user.id : null,
-            created_by_guest: user ? null : guestId,
+            created_by_guest: !user ? guestId : null,
             is_public: !isPrivate,
             is_active: true,
             created_at: new Date().toISOString()
@@ -125,24 +125,25 @@ export default function CreateRoom() {
           return;
         }
 
-        // 2. Add the creator as a participant/host
+        // 2. Add the creator as a participant (with is_active=true)
         const { error: participantError } = await supabase
           .from('room_participants')
           .insert({
             room_id: roomId,
             user_id: user ? user.id : null,
-            guest_id: user ? null : guestId,
-            is_speaker: true,
-            is_host: true,
-            is_muted: false,
-            has_raised_hand: false,
+            guest_id: !user ? guestId : null,
             is_active: true,
-            joined_at: new Date().toISOString()
+            joined_at: new Date().toISOString(),
+            is_speaker: true,
+            is_host: true
           });
 
         if (participantError) {
           console.error('Error adding participant:', participantError);
-          setError('Failed to join the created room. Please try again.');
+          setError('Failed to join the room. Please try again.');
+          
+          // Try to clean up the room if participant creation fails
+          await supabase.from('rooms').delete().eq('id', roomId);
           return;
         }
 

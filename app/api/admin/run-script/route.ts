@@ -5,7 +5,14 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 
 // Map of script names to their file paths and parameters
-const SCRIPTS = {
+type ScriptConfig = {
+  path: string;
+  params: string[];
+  description: string;
+  isCommand?: boolean;
+};
+
+const SCRIPTS: Record<string, ScriptConfig> = {
   'cleanup-old-messages': {
     path: 'scripts/cleanup-old-messages.js',
     params: ['--force'],
@@ -34,6 +41,7 @@ const SCRIPTS = {
   'stop-simulation': {
     path: 'pkill -f "node scripts/simulate-room-activity.js"',
     isCommand: true,
+    params: [],
     description: 'Stops all running simulations'
   },
   'update-room-analytics': {
@@ -72,7 +80,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Get the script name from the request
-    const { script } = await req.json();
+    const { script }: { script: keyof typeof SCRIPTS } = await req.json();
     
     if (!script || !SCRIPTS[script]) {
       return NextResponse.json(
@@ -109,10 +117,10 @@ export async function POST(req: NextRequest) {
         message: `${scriptConfig.description} completed successfully`,
         output: stdout.substring(0, 1000) // Limit output size
       });
-    } catch (execError) {
-      console.error(`Error executing script: ${execError.message}`);
+    } catch (execError: unknown) {
+      console.error(`Error executing script: ${execError instanceof Error ? execError.message : String(execError)}`);
       return NextResponse.json(
-        { error: `Script execution failed: ${execError.message}` },
+        { error: `Script execution failed: ${execError instanceof Error ? execError.message : String(execError)}` },
         { status: 500 }
       );
     }
