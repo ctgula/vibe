@@ -31,7 +31,7 @@ async function updateSchema() {
         SELECT column_name 
         FROM information_schema.columns 
         WHERE table_name = 'profiles' 
-        AND column_name IN ('avatar_url', 'theme_color');
+        AND column_name IN ('avatar_url', 'theme_color', 'is_guest');
       `
     });
     
@@ -78,6 +78,25 @@ async function updateSchema() {
       console.log('✅ theme_color column added successfully');
     } else {
       console.log('✅ theme_color column already exists');
+    }
+    
+    // Add is_guest column if it doesn't exist
+    if (!existingColumns.includes('is_guest')) {
+      console.log('➕ Adding is_guest column to profiles table...');
+      const { error: alterError } = await supabase.rpc('execute_sql', {
+        query: `
+          ALTER TABLE profiles 
+          ADD COLUMN is_guest BOOLEAN DEFAULT false;
+        `
+      });
+      
+      if (alterError) {
+        throw new Error(`Failed to add is_guest column: ${alterError.message}`);
+      }
+      
+      console.log('✅ is_guest column added successfully');
+    } else {
+      console.log('✅ is_guest column already exists');
     }
     
     console.log('🎉 Database schema update completed successfully!');
