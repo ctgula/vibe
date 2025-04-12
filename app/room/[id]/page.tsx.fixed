@@ -1,0 +1,90 @@
+'use client';
+
+import { useEffect, useState, useRef, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { useParticipants } from '@/hooks/useParticipants';
+import { supabase } from '@/lib/supabase';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useRoomNotifications } from '@/hooks/useNotifications';
+import { useNotification } from '@/contexts/NotificationContext';
+import { useSwipeGesture } from '@/hooks/useSwipeGesture';
+import { RequireAuth } from '@/components/auth/RequireAuth';
+import { Stage } from '@/components/room/Stage';
+import { Audience } from '@/components/room/Audience';
+import { Controls } from '@/components/room/Controls';
+import { RaisedHands } from '@/components/room/RaisedHands';
+import { MessageCircle, X, ChevronDown, Video, Bell, Users, FileUp, PenTool, Link } from 'lucide-react';
+import { PageTransition } from '@/components/transitions/PageTransition';
+import { useGuestSession } from '@/hooks/useGuestSession';
+import { useNotifications } from '@/hooks/use-notifications';
+import { Notifications } from '@/components/Notifications';
+import { NotificationsPanel } from '@/components/NotificationsPanel';
+import { ActivityLog } from '@/components/ActivityLog';
+import { Poll } from '@/components/Poll';
+import { RoomThemeEditor } from '@/components/RoomThemeEditor';
+import { FileUploader } from '@/components/FileUploader';
+import { RoomHeader } from '@/components/room/RoomHeader';
+import { useAuth } from '@/hooks/use-supabase-auth';
+
+export default function Room({ params }: { params: { id: string } }) {
+  const { user, profile, guestId, isGuest, isAuthenticated, ensureSessionToken } = useAuth();
+  const router = useRouter();
+  const [room, setRoom] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [messageText, setMessageText] = useState('');
+  const [isSpeaker, setIsSpeaker] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [hasRaisedHand, setHasRaisedHand] = useState(false);
+  const [isCameraOn, setIsCameraOn] = useState(false);
+  const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
+  const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
+  const [showMessages, setShowMessages] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isJoining, setIsJoining] = useState(true);
+  const [roomHasVideoEnabled, setRoomHasVideoEnabled] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [speakers, setSpeakers] = useState<any[]>([]);
+  const [audience, setAudience] = useState<any[]>([]);
+  const [activeParticipants, setActiveParticipants] = useState<string[]>([]);
+  
+  // State for new features
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showActivityLog, setShowActivityLog] = useState(false);
+  const [showPoll, setShowPoll] = useState(false);
+  const [showThemeEditor, setShowThemeEditor] = useState(false);
+  const [showFileUploader, setShowFileUploader] = useState(false);
+  const [showInviteLink, setShowInviteLink] = useState(false);
+  const [showParticipants, setShowParticipants] = useState(false);
+  const [inviteLink, setInviteLink] = useState('');
+  
+  // Get the user ID with proper type safety
+  const id = user?.id ?? guestId;
+  
+  // If no user ID is available, return early - fixes TypeScript error
+  if (!id) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-900 p-4">
+        <div className="bg-zinc-800 rounded-lg p-6 max-w-md w-full">
+          <h2 className="text-xl font-semibold text-white mb-4">Authentication Required</h2>
+          <p className="text-zinc-300 mb-6">You need to be signed in or have a guest session to join this room.</p>
+          <button
+            onClick={() => router.push('/')}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md"
+          >
+            Return to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  // Use the participants hook with type-safe ID
+  const { participants, userStatus, loading: participantsLoading } = useParticipants(params.id, id);
+  
+  // Get notification context
+  const { addNotification } = useNotification();
