@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase, Room, Participant, Profile } from "@/lib/supabase";
-import { useAuth } from "./useAuth";
+import { useAuth } from "@/hooks/auth";
 import { addParticipant } from "@/utils/participants";
 
 export type RoomWithParticipants = Room & {
