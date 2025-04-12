@@ -315,7 +315,7 @@ export default function Room({ params }: { params: { id: string } }) {
       user_id: user?.id || guestId,
       content: messageText,
       created_at: new Date().toISOString(),
-      profiles: { name: user?.name || 'Guest' },
+      profiles: { name: profile?.display_name || profile?.username || 'Guest' },
       is_optimistic: true
     };
 
