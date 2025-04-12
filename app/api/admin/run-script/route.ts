@@ -80,9 +80,9 @@ export async function POST(req: NextRequest) {
     }
     
     // Get the script name from the request
-    const { script }: { script: keyof typeof SCRIPTS } = await req.json();
-    
-    if (!script || !SCRIPTS[script]) {
+    const { script } = await req.json() as { script?: string };
+
+    if (typeof script !== 'string' || !(script in SCRIPTS)) {
       return NextResponse.json(
         { error: 'Invalid script name' },
         { status: 400 }
