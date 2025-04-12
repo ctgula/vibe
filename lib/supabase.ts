@@ -67,14 +67,6 @@ export interface Room {
   created_at: string;
 }
 
-export interface RoomParticipant {
-  room_id: string;
-  user_id: string;
-  is_speaker: boolean;
-  has_raised_hand: boolean;
-  is_muted: boolean;
-}
-
 export interface Message {
   id: string;
   room_id: string;
