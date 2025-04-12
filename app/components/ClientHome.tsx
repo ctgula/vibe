@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PlusIcon } from '@heroicons/react/24/solid';
@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase';
 import { Room } from '@/types/Room';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface ClientHomeProps {
   initialRooms: Room[];
@@ -28,11 +29,13 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
   const { participantCounts, isLoading: participantsLoading } = useRoomParticipants();
   const [isClient, setIsClient] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(true);
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
+  // Fetch rooms when client is ready
   useEffect(() => {
     if (!isClient) return;
 
@@ -79,90 +82,85 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
     fetchRooms();
   }, [isClient]);
 
-  const handleRoomSubscription = useCallback(async () => {
+  // Set up realtime subscription
+  useEffect(() => {
     if (!isClient) return;
-    
-    setIsSubscribing(true);
-    
-    try {
-      const channel = supabase
-        .channel("rooms")
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "rooms" },
+
+    // Setup Supabase realtime subscription
+    const setupSubscription = () => {
+      try {
+        const channel = supabase.channel('public:rooms');
+        
+        // Handle room inserts
+        channel.on(
+          'postgres_changes',
+          { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'rooms' 
+          },
           (payload) => {
             const newRoom = payload.new as Room;
             if (newRoom.is_active) {
-              setRooms((prev: Room[]) => [newRoom, ...prev]);
+              setRooms((prev) => [newRoom, ...prev]);
               toast.success(`"${newRoom.name}" has been created`);
             }
           }
-        )
-        .on(
-          "postgres_changes",
-          { event: "UPDATE", schema: "public", table: "rooms" },
+        );
+        
+        // Handle room updates
+        channel.on(
+          'postgres_changes',
+          { 
+            event: 'UPDATE', 
+            schema: 'public', 
+            table: 'rooms' 
+          },
           (payload) => {
             const updatedRoom = payload.new as Room;
-            setRooms((prev: Room[]) =>
-              prev.map((room: Room) => (room.id === updatedRoom.id ? updatedRoom : room))
+            setRooms((prev) => 
+              prev.map((room) => (room.id === updatedRoom.id ? updatedRoom : room))
             );
           }
-        )
-        .on(
-          "postgres_changes",
-          { event: "DELETE", schema: "public", table: "rooms" },
+        );
+        
+        // Handle room deletions
+        channel.on(
+          'postgres_changes',
+          { 
+            event: 'DELETE', 
+            schema: 'public', 
+            table: 'rooms' 
+          },
           (payload) => {
-            setRooms((prev: Room[]) => prev.filter((room: Room) => room.id !== payload.old.id));
+            setRooms((prev) => 
+              prev.filter((room) => room.id !== payload.old.id)
+            );
           }
         );
-
-      const status = await channel.subscribe();
-      
-      if (channel) {
-        console.log("Successfully subscribed to rooms");
-      } else {
-        console.error("Error subscribing to rooms:", status);
-        setError("Unable to get live updates. Please refresh the page.");
+        
+        // Subscribe to the channel
+        channel.subscribe();
+        console.log('Subscribed to room changes');
+        
+        // Store channel reference for cleanup
+        channelRef.current = channel;
+      } catch (err) {
+        console.error('Error setting up subscription:', err);
+        setError('Unable to get live updates. Please refresh the page.');
       }
-      
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    } catch (err) {
-      console.error("Error setting up subscription:", err);
-      setError("Unable to get live updates. Please refresh the page.");
-    } finally {
-      setIsSubscribing(false);
-    }
-  }, [isClient]);
-
-  useEffect(() => {
-    const cleanup = handleRoomSubscription();
-    return () => {
-      cleanup?.then(unsubscribe => unsubscribe?.());
     };
-  }, [handleRoomSubscription]);
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: prefersReducedMotion ? 0 : 0.05,
+    
+    setupSubscription();
+    
+    // Cleanup function for subscription
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        console.log('Unsubscribed from room changes');
       }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 10 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: prefersReducedMotion ? 0 : 0.2 }
-    }
-  };
-
-  const isLoading = !isClient || authLoading || guestLoading || participantsLoading;
+    };
+  }, [isClient]);
 
   const handleJoinRoom = (roomId: string) => {
     if (!user && !guestId) {
@@ -174,42 +172,33 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
     router.push(`/room/${roomId}`);
   };
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        when: "beforeChildren",
+        staggerChildren: 0.1,
+      },
+    },
+    exit: { opacity: 0 },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -10 },
+  };
+
+  const isLoading = !isClient || authLoading || guestLoading || participantsLoading;
+
   if (isLoading) {
     return (
       <div className="container max-w-6xl mx-auto px-4 py-8 relative">
-        <div className="fixed inset-0 bg-gradient-to-br from-indigo-950/20 via-purple-950/15 to-zinc-950/25 backdrop-blur-xl pointer-events-none" />
-        <div className="relative">
-          <div className="flex justify-between items-center mb-8 backdrop-blur-sm bg-black/50 p-5 rounded-2xl border border-white/10 shadow-xl animate-pulse">
-            <div>
-              <div className="h-8 w-64 bg-white/10 rounded-lg mb-2"></div>
-              <div className="h-5 w-48 bg-white/5 rounded-lg"></div>
-            </div>
-            <div className="h-10 w-32 bg-white/10 rounded-lg"></div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="backdrop-blur-md bg-black/50 rounded-2xl border border-white/10 shadow-xl overflow-hidden animate-pulse">
-                <div className="p-5">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <div className="h-6 w-48 bg-white/10 rounded-lg mb-2"></div>
-                      <div className="h-4 w-32 bg-white/5 rounded-lg"></div>
-                    </div>
-                    <div className="h-6 w-16 bg-white/10 rounded-full"></div>
-                  </div>
-                  <div className="h-4 w-full bg-white/5 rounded-lg mb-2"></div>
-                  <div className="h-4 w-3/4 bg-white/5 rounded-lg mb-4"></div>
-                  <div className="flex items-center justify-between mt-4">
-                    <div className="flex items-center gap-2">
-                      <div className="h-6 w-16 bg-white/10 rounded-full"></div>
-                      <div className="h-6 w-16 bg-white/10 rounded-full"></div>
-                    </div>
-                    <div className="h-8 w-24 bg-white/10 rounded-lg"></div>
-                  </div>
-                </div>
-              </div>
-            ))}
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="flex flex-col items-center">
+            <Loader2 className="h-10 w-10 text-indigo-500 animate-spin mb-4" />
+            <p className="text-zinc-400">Loading rooms...</p>
           </div>
         </div>
       </div>
@@ -218,99 +207,75 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
 
   return (
     <div className="container max-w-6xl mx-auto px-4 py-8 relative">
-      <div className="fixed inset-0 bg-gradient-to-br from-indigo-950/20 via-purple-950/15 to-zinc-950/25 backdrop-blur-xl pointer-events-none" />
-      
-      <motion.div 
-        className="relative"
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-md p-4 mb-6 text-red-500">
+          {error}
+        </div>
+      )}
+
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-white">Available Rooms</h1>
+        <Link href="/room/create" className="inline-block">
+          <Button className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-purple-500/20">
+            <PlusIcon className="h-5 w-5" />
+            <span>Create Room</span>
+          </Button>
+        </Link>
+      </div>
+
+      <motion.div
+        variants={containerVariants}
         initial="hidden"
         animate="visible"
-        variants={containerVariants}
+        exit="exit"
+        className="relative z-10"
       >
-        <motion.div
-          variants={itemVariants}
-          className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 backdrop-blur-sm bg-black/50 p-5 rounded-2xl border border-white/10 shadow-xl"
-        >
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 mb-2">
-              Live Conversations
-            </h1>
-            <p className="text-white/80 text-base sm:text-lg">Join a room or create your own</p>
-          </div>
-          <Link href="/room/create">
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Button className="relative overflow-hidden group bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 text-white font-medium shadow-lg shadow-indigo-500/25 w-full sm:w-auto">
-                <span className="absolute inset-0 bg-white/10 group-hover:bg-white/20 transition-all duration-300" />
-                <PlusIcon className="h-5 w-5 mr-2" />
-                New Room
-              </Button>
-            </motion.div>
-          </Link>
-        </motion.div>
-
-        {error && (
-          <motion.div
-            variants={itemVariants}
-            className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-white"
-          >
-            <p>{error}</p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="mt-2 bg-transparent border-red-500/50 text-white hover:bg-red-500/20"
-              onClick={() => window.location.reload()}
-            >
-              Refresh Page
-            </Button>
-          </motion.div>
-        )}
-
-        {isSubscribing && (
-          <motion.div
-            variants={itemVariants}
-            className="mb-6 p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-xl text-white flex items-center"
-          >
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            <p>Connecting to live updates...</p>
-          </motion.div>
-        )}
-
         {rooms.length === 0 ? (
-          <motion.div 
-            variants={itemVariants}
-            className="text-center py-12 backdrop-blur-sm bg-black/50 rounded-2xl border border-white/10"
-          >
-            <p className="text-white/90 text-xl mb-4">No rooms available</p>
-            <p className="text-white/70 mb-6">Create one to get started!</p>
-            <Link href="/room/create">
-              <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                <PlusIcon className="h-5 w-5 mr-2" />
-                Create Room
+          <div className="bg-zinc-900/80 backdrop-blur-lg border border-zinc-800/50 rounded-2xl p-12 text-center">
+            <div className="w-20 h-20 rounded-full bg-zinc-800/50 flex items-center justify-center mx-auto mb-6">
+              <motion.svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-10 w-10 text-zinc-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                animate={{ rotate: [0, -10, 10, 0] }}
+                transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
+              </motion.svg>
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-3">No Rooms Available</h3>
+            <p className="text-zinc-400 mb-8 max-w-md mx-auto">
+              Be the first to create a room and start the conversation!
+            </p>
+            <Link href="/room/create" className="inline-block">
+              <Button variant="secondary" className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white">
+                Create Your First Room
               </Button>
             </Link>
-          </motion.div>
+          </div>
         ) : (
-          <motion.div 
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-            variants={containerVariants}
-          >
+          <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <AnimatePresence mode="popLayout">
               {rooms.map((room) => {
-                const participantCount =
-                  participantCounts.find((count) => count.roomId === room.id)?.participantCount || 0;
+                const participantCount = participantCounts.find(
+                  count => count.roomId === room.id
+                )?.participantCount || room.participant_count || 0;
+                
                 return (
                   <motion.div
                     key={room.id}
                     variants={itemVariants}
-                    layout
-                    layoutId={room.id}
-                    exit={{ 
-                      opacity: 0, 
-                      y: -10, 
-                      scale: 0.98,
-                      transition: { duration: 0.15 } 
+                    exit={{ opacity: 0, y: 20 }}
+                    layout={!prefersReducedMotion}
+                    transition={{
+                      layout: { duration: 0.3, ease: "easeOut" },
                     }}
                     className="group relative backdrop-blur-md bg-black/50 rounded-2xl border border-white/10 shadow-xl overflow-hidden hover:border-white/20 transition-all duration-300"
                   >

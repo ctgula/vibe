@@ -25,38 +25,49 @@ export function PWAHandler() {
     // Register service worker with better error handling and update detection
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(registration => {
-            console.log('Service Worker registered with scope:', registration.scope);
-            
-            // Check for updates on page load
-            registration.update();
-            
-            // Setup update detection
-            registration.addEventListener('updatefound', () => {
-              const newWorker = registration.installing;
-              if (newWorker) {
-                newWorker.addEventListener('statechange', () => {
-                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    // New content is available, show update notification
-                    setUpdateAvailable(true);
-                    setWaitingWorker(newWorker);
-                  }
-                });
-              }
-            });
-            
-            // Check for updates every 30 minutes while app is open
-            const updateInterval = setInterval(() => {
-              registration.update();
-              console.log('Checking for service worker updates...');
-            }, 30 * 60 * 1000);
-            
-            return () => clearInterval(updateInterval);
-          })
-          .catch(error => {
-            console.error('Service Worker registration failed:', error);
+        // Unregister any existing service workers to prevent conflicts
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          registrations.forEach(registration => {
+            registration.unregister();
+            console.log('Service Worker unregistered');
           });
+        });
+        
+        // Don't try to register service worker in development environment
+        if (process.env.NODE_ENV === 'production') {
+          navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+              console.log('Service Worker registered with scope:', registration.scope);
+              
+              // Check for updates on page load
+              registration.update();
+              
+              // Setup update detection
+              registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                if (newWorker) {
+                  newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      // New content is available, show update notification
+                      setUpdateAvailable(true);
+                      setWaitingWorker(newWorker);
+                    }
+                  });
+                }
+              });
+              
+              // Check for updates every 30 minutes while app is open
+              const updateInterval = setInterval(() => {
+                registration.update();
+                console.log('Checking for service worker updates...');
+              }, 30 * 60 * 1000);
+              
+              return () => clearInterval(updateInterval);
+            })
+            .catch(error => {
+              console.error('Service Worker registration failed:', error);
+            });
+        }
       });
 
       // Handle communication from the service worker

@@ -5,10 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SignInForm } from '@/components/auth/sign-in-form';
-import { useAuth } from '@/contexts/AuthProvider';
+import { useAuth } from '@/hooks/use-supabase-auth';
 import { Mail, ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Logo } from '@/components/ui/logo';
 
 export default function LoginPage() {
   const [view, setView] = useState<'options' | 'password' | 'magic-link'>('options');
@@ -19,8 +20,15 @@ export default function LoginPage() {
   const router = useRouter();
   // Use type assertion to ensure TypeScript doesn't complain during build
   const auth = useAuth() as any;
-  const signInWithGoogle = auth.signInWithGoogle;
-  const signInWithMagicLink = auth.signInWithMagicLink;
+  // Add safety checks for auth functions
+  const signInWithGoogle = auth.signInWithGoogle || (async () => ({ data: null, error: { message: 'Authentication service not available' } }));
+  const signInWithMagicLink = auth.signInWithMagicLink || (async () => ({ data: null, error: { message: 'Authentication service not available' } }));
+
+  // Add console log to debug mounting
+  useEffect(() => {
+    console.log('LoginPage component mounted');
+    return () => console.log('LoginPage component unmounted');
+  }, []);
 
   // Set a flag to indicate we're in the login process
   useEffect(() => {
@@ -106,6 +114,7 @@ export default function LoginPage() {
         transition={{ duration: 0.5 }}
         className="max-w-md w-full p-6 rounded-2xl bg-gradient-to-br from-zinc-800/70 to-zinc-900/70 backdrop-blur-xl border border-zinc-700/30 shadow-xl"
       >
+        <Logo className="mx-auto mb-8" />
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white">Welcome to Vibe</h1>
           <p className="text-zinc-400 mt-2">Sign in to join the conversation</p>

@@ -58,6 +58,39 @@ export default function CallbackPage() {
             // Set flag for successful login
             sessionStorage.setItem('justLoggedIn', 'true');
             
+            // Check if we have pending profile data from sign-up
+            const pendingUsername = localStorage.getItem('pendingUsername');
+            const pendingDisplayName = localStorage.getItem('pendingDisplayName');
+            
+            // If we have pending profile data, update the user's profile
+            if (pendingUsername) {
+              try {
+                setMessage('Finalizing your account...');
+                
+                // Update the user's profile in the profiles table
+                const { error: profileError } = await supabase
+                  .from('profiles')
+                  .update({
+                    username: pendingUsername,
+                    display_name: pendingDisplayName || pendingUsername,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', data.session.user.id);
+                
+                if (profileError) {
+                  console.error('Error updating profile:', profileError);
+                  // Don't fail the auth process if profile update fails
+                }
+                
+                // Clear the pending profile data
+                localStorage.removeItem('pendingUsername');
+                localStorage.removeItem('pendingDisplayName');
+              } catch (profileErr) {
+                console.error('Error updating profile:', profileErr);
+                // Don't fail the auth process if profile update fails
+              }
+            }
+            
             // Clear any login-related flags
             sessionStorage.removeItem('redirectedToLogin');
             sessionStorage.removeItem('loggingIn');

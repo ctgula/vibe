@@ -35,26 +35,14 @@ function SignupContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
-  const [authState, setAuthState] = useState({
-    signUp: null as ((email: string, password: string, username: string, displayName?: string) => Promise<{ data?: any; error?: any }>) | null,
-  });
+  // Use the auth hook directly
+  const auth = useAuth();
   
   // Mount safely
   useEffect(() => {
     setMounted(true);
+    console.log("SignupContent mounted, auth available:", !!auth);
   }, []);
-  
-  // Access auth safely
-  useEffect(() => {
-    if (!mounted) return;
-    
-    try {
-      const { signUp } = useAuth();
-      setAuthState({ signUp });
-    } catch (err) {
-      console.error("Error accessing auth context:", err);
-    }
-  }, [mounted]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +50,7 @@ function SignupContent() {
     setIsLoading(true);
 
     try {
-      if (!authState.signUp) {
+      if (!auth || !auth.signUp) {
         throw new Error("Authentication system not initialized");
       }
       
@@ -71,10 +59,19 @@ function SignupContent() {
         throw new Error("Username can only contain lowercase letters, numbers, and underscores");
       }
 
-      const { error: signUpError } = await authState.signUp(email, password, username, displayName || username);
+      // First sign up with email and password only
+      const { data: signUpData, error: signUpError } = await auth.signUp(email, password);
       
       if (signUpError) {
         throw signUpError;
+      }
+      
+      // If signup successful and we have a user, we'll update the profile with username and displayName
+      // This will happen when the user confirms their email
+      // Store the username and displayName in localStorage to use after confirmation
+      if (signUpData?.user) {
+        localStorage.setItem('pendingUsername', username);
+        localStorage.setItem('pendingDisplayName', displayName || username);
       }
       
       // Add haptic feedback on successful sign up

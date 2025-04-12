@@ -7,16 +7,14 @@ interface LogoProps {
   size?: 'sm' | 'md' | 'lg';
   withText?: boolean;
   className?: string;
-  linkClassName?: string;
-  asLink?: boolean;
+  onClick?: () => void;
 }
 
 export function Logo({ 
   size = 'md', 
   withText = true, 
   className = '',
-  linkClassName = '',
-  asLink = true 
+  onClick
 }: LogoProps) {
   const router = useRouter();
   
@@ -32,30 +30,31 @@ export function Logo({
     lg: 'text-2xl'
   };
   
-  const logoContent = (
-    <motion.div
-      className={`flex items-center gap-2 ${className}`}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={asLink ? () => router.push('/') : undefined}
-      style={asLink ? { cursor: 'pointer' } : {}}
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent default behavior that could cause nested link issues
+    if (onClick) {
+      onClick();
+    } else {
+      router.push('/');
+    }
+  };
+  
+  return (
+    <motion.div 
+      className={`flex items-center space-x-2 cursor-pointer ${className}`} 
+      onClick={handleClick}
+      whileHover={{ scale: 1.05 }} 
+      whileTap={{ scale: 0.95 }}
     >
-      <div className={`relative aspect-square ${sizeClasses[size]}`}>
-        <img src="/logo.png" alt="Vibe Logo" className="h-full w-full" />
-      </div>
+      {/* Removed Image component entirely */}
+      {/* You can add a placeholder SVG or simple text here if needed */}
+      {/* Example: <div className={`w-8 h-8 bg-indigo-500 rounded ${sizeClasses[size]}`}></div> */}
+      
       {withText && (
-        <span className={`font-bold ${textSizes[size]}`}>
-          Vibe
+        <span className={`font-bold ${textSizes[size]} bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400`}>
+          VIBE
         </span>
       )}
     </motion.div>
-  );
-  
-  return asLink ? (
-    <div className={linkClassName}>
-      {logoContent}
-    </div>
-  ) : (
-    logoContent
   );
 }

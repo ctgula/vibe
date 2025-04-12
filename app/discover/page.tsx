@@ -113,41 +113,33 @@ function DiscoverContent() {
           };
         });
         
-        // Get participant counts in a single efficient query
+        // Get participant counts in a simpler way
         if (transformedRooms.length > 0) {
-          const roomIds = transformedRooms.map(room => room.id);
-          
-          // First try the room_participants table
-          const { data: participantData, error: participantError } = await supabase
-            .from('room_participants')
-            .select('room_id, count(*)', { count: 'exact' })
-            .in('room_id', roomIds)
-            .group('room_id');
+          try {
+            // Get all room IDs
+            const roomIds = transformedRooms.map(room => room.id);
             
-          if (!participantError && participantData) {
-            // Update participant counts in transformed rooms
-            participantData.forEach(item => {
-              const room = transformedRooms.find(r => r.id === item.room_id);
-              if (room) {
-                room.participants_count = item.count;
-              }
-            });
-          } else {
-            // Fallback to participants table if room_participants fails
-            const { data: fallbackData, error: fallbackError } = await supabase
-              .from('participants')
-              .select('room_id, count(*)', { count: 'exact' })
-              .in('room_id', roomIds)
-              .group('room_id');
+            // Fetch all participants for these rooms in a single query
+            const { data: rawParticipantData, error: participantError } = await supabase
+              .from('room_participants')
+              .select('room_id')
+              .in('room_id', roomIds);
+            
+            if (!participantError && rawParticipantData) {
+              // Process the data client-side to count participants per room
+              const participantData = rawParticipantData.reduce((acc, { room_id }) => {
+                acc[room_id] = (acc[room_id] || 0) + 1;
+                return acc;
+              }, {} as Record<string, number>);
               
-            if (!fallbackError && fallbackData) {
-              fallbackData.forEach(item => {
-                const room = transformedRooms.find(r => r.id === item.room_id);
-                if (room) {
-                  room.participants_count = item.count;
-                }
+              // Update the room objects with participant counts
+              transformedRooms.forEach(room => {
+                room.participants_count = participantData[room.id] || 0;
               });
             }
+          } catch (err) {
+            console.error('Error fetching participant counts:', err);
+            // Continue with default participant counts of 0
           }
         }
         

@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Logo } from '@/components/ui/logo';
 
 export default function OnboardingPage() {
   const [step, setStep] = useState(0);
@@ -210,6 +211,7 @@ export default function OnboardingPage() {
       </div>
 
       <div className="relative z-10 flex-1 flex flex-col">
+        <Logo className="mb-6" />
         <AnimatePresence mode="wait" custom={direction}>
           {step === 0 && (
             <motion.div
