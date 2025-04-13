@@ -6,7 +6,10 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "check": "tsc --noEmit && eslint .",
+    "typecheck": "tsc --noEmit",
+    "prebuild": "npm run typecheck"
   },
   "keywords": [],
   "author": "",
