@@ -10,6 +10,7 @@ export interface UserProfile {
   theme_color: string | null;
   created_at: string;
   updated_at: string;
+  name?: string; // Added for backward compatibility
 }
 
 // For backward compatibility
@@ -18,11 +19,16 @@ export type ProfileType = UserProfile;
 export interface AuthResultData<T = any> {
   data: T | null;
   error: Error | null;
+  access_token?: string;
+  user?: UserProfile;
 }
 
 export interface ProfileUpdateResultData {
   success: boolean;
   error: string | null;
+  id?: string;
+  name?: string;
+  updated_at?: string;
 }
 
 export interface AuthContextType {
