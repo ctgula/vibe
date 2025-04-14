@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { LogOut, Menu, User, Home, Grid, Settings, LayoutGrid, Bell, Star } from 'lucide-react';
-import { useAuth, useGuestSession } from '@/hooks/auth';
+import { useAuth } from '@/contexts/AuthProvider'; // Use AuthProvider context for all guest/user state and logout logic
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -19,8 +19,7 @@ import { motion } from 'framer-motion';
 export function NavBar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, profile, isLoading: authLoading, signOut, guestId, clearGuestSession } = useAuth();
-  const { guestProfile } = useGuestSession();
+  const { user, profile, isLoading: authLoading, signOut } = useAuth(); // Use context-driven signOut for logout
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
   
@@ -29,36 +28,27 @@ export function NavBar() {
   }, []);
   
   // Determine if user is authenticated (either as regular user or guest)
-  const isAuthenticated = !!user || !!guestId;
-  const isGuest = !user && !!guestId;
+  const isAuthenticated = !!user;
+  const isGuest = !user;
 
   // Get user display name and avatar
   const displayName = profile?.display_name || 
                      user?.user_metadata?.full_name || 
                      user?.email?.split('@')[0] || 
-                     guestProfile?.name || 
                      'User';
   
   const avatarUrl = profile?.avatar_url || 
                    user?.user_metadata?.avatar_url || 
-                   guestProfile?.avatar_url || 
                    '';
 
   // Initial of the display name for avatar fallback
   const initials = displayName?.substring(0, 2).toUpperCase() || 'U';
 
   const handleLogout = async () => {
-    if (user) {
-      // Log out regular user
-      await signOut();
-    } else if (guestId) {
-      // Log out guest user
-      clearGuestSession();
-    }
-    
+    // Use context-driven logout for both user and guest
+    await signOut();
     // Clear any redirection flags to prevent loops
     sessionStorage.removeItem('justLoggedIn');
-    
     // Redirect to home page
     router.push('/');
   };

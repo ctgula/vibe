@@ -96,6 +96,9 @@ export function useRooms() {
     };
   }, [user?.id, guestId]);
 
+  // Remove all direct localStorage usage for room creator info. Use context for user/guest info.
+  // If you need to persist isHost/roomId for UI, use context or a dedicated state manager, not localStorage.
+
   // Create a new room
   const createRoom = async (name: string, description: string, topics: string[] = []) => {
     if (!user && !guestId) throw new Error("You must be logged in or in guest mode to create a room");
@@ -133,10 +136,7 @@ export function useRooms() {
         is_muted: false
       });
       
-      // Store room creator info in localStorage
-      localStorage.setItem("isHost", "true");
-      localStorage.setItem("roomId", room.id);
-      
+      // Instead, return this info so the UI can use it via state/context if needed
       return room.id;
     } catch (error) {
       console.error("Error creating room:", error);

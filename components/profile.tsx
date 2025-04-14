@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Check, User, LogOut, Camera, X, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useAuth } from '@/hooks/auth';
+import { useAuth } from '@/contexts/AuthProvider';
 
 // Define room type for better type safety
 type RoomType = {
@@ -41,7 +41,7 @@ export function Profile() {
   const [isClient, setIsClient] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const { user, guestId, isGuest, profile } = useAuth();
+  const { user, guestId, isGuest, profile, signOut } = useAuth();
 
   // Set isClient to true once component mounts
   useEffect(() => {
@@ -211,18 +211,10 @@ export function Profile() {
     if (isClient && window.navigator && window.navigator.vibrate) {
       window.navigator.vibrate(10);
     }
-    
     const logoutToast = toast.loading(isGuest ? 'Exiting guest mode...' : 'Signing out...');
-    
     try {
-      await supabase.auth.signOut();
-      
-      // Clear guest session if applicable
-      if (isGuest && isClient) {
-        localStorage.removeItem('guestId');
-        localStorage.removeItem('guestProfileId');
-      }
-      
+      // Use context-driven logout for both user and guest
+      await signOut();
       toast.dismiss(logoutToast);
       toast.success(isGuest ? 'Exited guest mode' : 'Signed out successfully');
       router.push('/');
