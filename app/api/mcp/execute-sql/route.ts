@@ -8,7 +8,7 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const mcpUrl = process.env.SUPABASE_MCP_URL || 'http://localhost:8000';
 
 // Whitelist of allowed operations for security
-const ALLOWED_OPERATIONS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE POLICY'];
+const ALLOWED_OPERATIONS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
 
 // Check if a SQL query is potentially dangerous
 function isSafeSql(sql: string): boolean {
@@ -18,17 +18,22 @@ function isSafeSql(sql: string): boolean {
   // Check if the query starts with an allowed operation
   const isAllowedOperation = ALLOWED_OPERATIONS.some(op => upperSql.trim().startsWith(op));
   
+  // Special case for CREATE POLICY which is allowed
+  if (upperSql.trim().startsWith('CREATE POLICY')) {
+    return true;
+  }
+  
   // Check for potentially dangerous operations
   const hasDangerousOperations = [
     'DROP', 
     'TRUNCATE', 
     'ALTER', 
-    'CREATE', 
     'GRANT', 
     'REVOKE',
     'VACUUM',
     'REINDEX',
-    'CLUSTER'
+    'CLUSTER',
+    'CREATE'
   ].some(op => upperSql.includes(op));
   
   return isAllowedOperation && !hasDangerousOperations;
