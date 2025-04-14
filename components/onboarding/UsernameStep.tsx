@@ -149,8 +149,13 @@ export function UsernameStep({ username, onUpdate, onNext }: UsernameStepProps) 
       borderColor: "rgba(239, 68, 68, 0.8)",
       transition: { duration: 0.2 }
     },
-    idle: {
-      boxShadow: "0 0 0 0px transparent",
+    available: {
+      boxShadow: "0 0 0 2px rgba(16, 185, 129, 0.3)",
+      borderColor: "rgba(16, 185, 129, 0.8)",
+      transition: { duration: 0.2 }
+    },
+    default: {
+      boxShadow: "none",
       borderColor: "rgba(63, 63, 70, 0.8)",
       transition: { duration: 0.2 }
     }
@@ -160,29 +165,24 @@ export function UsernameStep({ username, onUpdate, onNext }: UsernameStepProps) 
   const getInputVariant = () => {
     if (error) return "error";
     if (isFocused) return "focused";
-    return "idle";
+    if (isAvailable && value && value.length >= 3 && !isChecking) return "available";
+    return "default";
   };
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.3, type: "spring", stiffness: 300, damping: 25 }}
-      className="w-full"
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.4 }}
+      className="w-full px-dynamic-sm md:px-0"
     >
-      <div className="text-center mb-8">
+      <div className="text-center mb-dynamic-lg">
         <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }}
+          initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ 
-            delay: 0.1,
-            duration: 0.4, 
-            type: "spring", 
-            stiffness: 300, 
-            damping: 20 
-          }}
-          className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500/30 to-purple-600/30 backdrop-blur-sm flex items-center justify-center mx-auto mb-5"
+          transition={{ delay: 0.1, duration: 0.5, type: "spring" }}
+          className="w-16 h-16 rounded-full bg-indigo-500/20 flex items-center justify-center mx-auto mb-dynamic-md"
         >
           <User className="w-10 h-10 text-indigo-400" />
         </motion.div>
@@ -190,7 +190,7 @@ export function UsernameStep({ username, onUpdate, onNext }: UsernameStepProps) 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.4 }}
-          className="text-2xl font-bold text-white mb-2"
+          className="text-adaptive-2xl font-bold text-white mb-2"
         >
           Choose a username
         </motion.h2>
@@ -198,13 +198,13 @@ export function UsernameStep({ username, onUpdate, onNext }: UsernameStepProps) 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.4 }}
-          className="text-zinc-400"
+          className="text-adaptive-base text-zinc-400"
         >
           This is how others will see you in rooms and chats
         </motion.p>
       </div>
       
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-dynamic-md">
         <div>
           <motion.div 
             className="relative"
@@ -219,12 +219,12 @@ export function UsernameStep({ username, onUpdate, onNext }: UsernameStepProps) 
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
               placeholder="Enter a username"
-              className="w-full p-3.5 pl-4 pr-10 bg-zinc-800/50 border border-zinc-700 rounded-lg focus:outline-none text-white transition-all"
+              className="w-full p-4 pl-4 pr-10 bg-zinc-800/50 border border-zinc-700 rounded-xl focus:outline-none text-white transition-all text-adaptive-base min-h-touch"
               autoComplete="off"
               spellCheck="false"
               autoFocus
             />
-            <div className="absolute right-3 top-3.5">
+            <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
               <AnimatePresence mode="wait">
                 {isChecking && (
                   <motion.div
@@ -265,7 +265,7 @@ export function UsernameStep({ username, onUpdate, onNext }: UsernameStepProps) 
                 animate={{ opacity: 1, y: 0, height: 'auto' }}
                 exit={{ opacity: 0, y: -10, height: 0 }}
                 transition={{ duration: 0.2 }}
-                className="mt-2 text-sm text-red-500"
+                className="mt-2 text-adaptive-sm text-red-500 px-1"
               >
                 {error}
               </motion.p>
@@ -279,7 +279,7 @@ export function UsernameStep({ username, onUpdate, onNext }: UsernameStepProps) 
           type="submit"
           disabled={!isAvailable || isChecking || !value || value.length < 3}
           className={`
-            w-full py-3.5 px-4 rounded-lg font-medium transition-all
+            w-full py-4 px-4 rounded-xl font-medium transition-all text-adaptive-base min-h-touch-lg
             ${(!isAvailable || isChecking || !value || value.length < 3) 
               ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed' 
               : 'bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-700 text-white shadow-lg shadow-indigo-600/20'}

@@ -94,20 +94,47 @@ export function AvatarStep({ avatarUrl, onUpdate, onNext, onBack }: AvatarStepPr
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
       transition={{ duration: 0.3 }}
+      className="w-full px-dynamic-sm md:px-0"
     >
-      <div className="text-center mb-6">
-        <div className="w-16 h-16 rounded-full bg-indigo-500/20 flex items-center justify-center mx-auto mb-4">
+      <div className="text-center mb-dynamic-lg">
+        <motion.div 
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.1, duration: 0.5, type: "spring" }}
+          className="w-16 h-16 rounded-full bg-indigo-500/20 flex items-center justify-center mx-auto mb-dynamic-md"
+        >
           <Camera className="w-8 h-8 text-indigo-400" />
-        </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Add a profile picture</h2>
-        <p className="text-zinc-400">Show your personality with a profile picture</p>
+        </motion.div>
+        <motion.h2 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.4 }}
+          className="text-adaptive-2xl font-bold text-white mb-2"
+        >
+          Add a profile picture
+        </motion.h2>
+        <motion.p 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.4 }}
+          className="text-adaptive-base text-zinc-400"
+        >
+          Show your personality with a profile picture
+        </motion.p>
       </div>
       
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex flex-col items-center">
-          <div 
-            className="w-32 h-32 rounded-full relative overflow-hidden border-2 border-indigo-500/50 mb-4 bg-zinc-800"
+      <form onSubmit={handleSubmit} className="space-y-dynamic-md">
+        <motion.div 
+          className="flex flex-col items-center"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.4 }}
+        >
+          <motion.div 
+            className="w-36 h-36 rounded-full relative overflow-hidden border-2 border-indigo-500/50 mb-4 bg-zinc-800 shadow-lg shadow-indigo-500/20"
             onClick={triggerFileInput}
+            whileHover={{ scale: 1.05, boxShadow: "0 10px 25px -5px rgba(99, 102, 241, 0.4)" }}
+            whileTap={{ scale: 0.98 }}
           >
             {preview ? (
               <img 
@@ -117,16 +144,16 @@ export function AvatarStep({ avatarUrl, onUpdate, onNext, onBack }: AvatarStepPr
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-indigo-500/20">
-                <Upload className="w-8 h-8 text-indigo-400" />
+                <Upload className="w-10 h-10 text-indigo-400" />
               </div>
             )}
             
             {uploading && (
               <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                <RefreshCw className="w-8 h-8 text-white animate-spin" />
+                <RefreshCw className="w-10 h-10 text-white animate-spin" />
               </div>
             )}
-          </div>
+          </motion.div>
           
           <input
             type="file"
@@ -136,25 +163,35 @@ export function AvatarStep({ avatarUrl, onUpdate, onNext, onBack }: AvatarStepPr
             className="hidden"
           />
           
-          <button
+          <motion.button
             type="button"
             onClick={triggerFileInput}
             disabled={uploading}
-            className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
+            className="text-adaptive-sm text-indigo-400 hover:text-indigo-300 transition-colors py-2 px-4"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
           >
             {preview ? 'Change picture' : 'Upload picture'}
-          </button>
+          </motion.button>
           
-          {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
-        </div>
+          {error && (
+            <motion.p 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-2 text-adaptive-sm text-red-500 text-center"
+            >
+              {error}
+            </motion.p>
+          )}
+        </motion.div>
         
-        <div className="flex gap-3">
+        <div className="flex gap-dynamic-sm">
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             type="button"
             onClick={onBack}
-            className="flex-1 py-3 px-4 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-white font-medium flex items-center justify-center gap-2 transition-colors"
+            className="flex-1 py-4 px-4 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-white font-medium flex items-center justify-center gap-2 transition-colors min-h-touch-lg text-adaptive-base"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
@@ -165,21 +202,28 @@ export function AvatarStep({ avatarUrl, onUpdate, onNext, onBack }: AvatarStepPr
             whileTap={{ scale: 0.98 }}
             type="submit"
             disabled={uploading}
-            className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white font-medium transition-colors"
+            className="flex-1 py-4 px-4 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-white font-medium transition-colors min-h-touch-lg text-adaptive-base"
           >
             Continue
           </motion.button>
         </div>
         
-        <div className="text-center">
-          <button
+        <motion.div 
+          className="text-center pt-dynamic-xs"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.4 }}
+        >
+          <motion.button
             type="button"
             onClick={handleSkip}
-            className="text-sm text-zinc-500 hover:text-zinc-400 transition-colors"
+            className="text-adaptive-sm text-zinc-500 hover:text-zinc-400 transition-colors py-3 px-4 inline-block"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
           >
             Skip for now
-          </button>
-        </div>
+          </motion.button>
+        </motion.div>
       </form>
     </motion.div>
   );

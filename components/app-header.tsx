@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Search, Bell, User, LogOut, Settings, Home } from "lucide-react"
+import { Search, Bell, User, LogOut, Settings, Home, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -23,7 +23,12 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu"
 
-export function AppHeader() {
+interface AppHeaderProps {
+  title?: string;
+  showBackButton?: boolean;
+}
+
+export function AppHeader({ title, showBackButton }: AppHeaderProps) {
   const [scrolled, setScrolled] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [notificationCount, setNotificationCount] = useState(3)
@@ -112,16 +117,32 @@ export function AppHeader() {
     >
       <div className="container max-w-6xl mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          {/* Logo/Brand */}
-          <Link href="/" className="flex items-center group">
-            <div className="relative w-8 h-8 mr-2">
-              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-lg group-hover:shadow-lg group-hover:shadow-indigo-500/25 transition-all duration-300"></div>
-              <div className="absolute inset-[2px] bg-black rounded-[6px] flex items-center justify-center text-white font-bold text-lg">V</div>
-            </div>
-            <h1 className="font-bold text-xl bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 group-hover:from-indigo-200 group-hover:via-purple-200 group-hover:to-pink-200 transition-all duration-300">VIBE</h1>
-          </Link>
+          {/* Logo/Brand or Back Button + Title */}
+          <div className="flex items-center">
+            {showBackButton ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="mr-2 text-zinc-400 hover:text-white hover:bg-white/10 rounded-full"
+                onClick={() => router.back()}
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            ) : (
+              <Link href="/" className="flex items-center group">
+                <div className="relative w-8 h-8 mr-2">
+                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-lg group-hover:shadow-lg group-hover:shadow-indigo-500/25 transition-all duration-300"></div>
+                  <div className="absolute inset-[2px] bg-black rounded-[6px] flex items-center justify-center text-white font-bold text-lg">V</div>
+                </div>
+              </Link>
+            )}
+            
+            {title && (
+              <h1 className="text-xl font-semibold text-white">{title}</h1>
+            )}
+          </div>
 
-          {/* Actions */}
+          {/* Right side controls */}
           <div className="flex items-center space-x-1">
             {/* Search */}
             <Sheet open={searchOpen} onOpenChange={setSearchOpen}>
@@ -160,14 +181,16 @@ export function AppHeader() {
             </Sheet>
 
             {/* Home */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-zinc-400 hover:text-white hover:bg-white/10 rounded-full"
-              onClick={() => router.push('/')}
-            >
-              <Home className="h-5 w-5" />
-            </Button>
+            {!showBackButton && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-zinc-400 hover:text-white hover:bg-white/10 rounded-full"
+                onClick={() => router.push('/')}
+              >
+                <Home className="h-5 w-5" />
+              </Button>
+            )}
 
             {/* Notifications */}
             <Button

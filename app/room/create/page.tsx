@@ -73,6 +73,7 @@ export default function CreateRoom() {
     try {
       if (!name.trim()) {
         setError('Room name is required');
+        setIsCreating(false);
         return;
       }
 
@@ -81,93 +82,133 @@ export default function CreateRoom() {
       
       if (!userId) {
         setError('Authentication required to create a room');
+        setIsCreating(false);
         return;
       }
 
+      console.log('Creating room with auth state:', { 
+        hasUser: !!user, 
+        userId: user?.id, 
+        hasGuestId: !!guestId, 
+        guestId 
+      });
+
       // If this is a guest user, ensure we have their profile
       if (!user && guestId) {
-        const { data: guestProfile } = await supabase
+        console.log('Checking guest profile for ID:', guestId);
+        const { data: guestProfile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', guestId)
           .eq('is_guest', true)
           .single();
           
-        if (!guestProfile) {
-          setError('Guest profile not found. Please try again.');
+        if (profileError) {
+          console.error('Error fetching guest profile:', profileError);
+          setError(`Guest profile error: ${profileError.message}`);
+          setIsCreating(false);
           return;
         }
+          
+        if (!guestProfile) {
+          console.error('Guest profile not found for ID:', guestId);
+          setError('Guest profile not found. Please try again.');
+          setIsCreating(false);
+          return;
+        }
+        
+        console.log('Found guest profile:', guestProfile);
       }
 
       // Create room with transaction to ensure all related records are created
       const roomId = uuidv4();
       
+      // Prepare room data
+      const roomData = {
+        id: roomId,
+        name: name.trim(),
+        description: description.trim() || null,
+        topics: tags.length > 0 ? tags : null,
+        created_by: user ? user.id : null,
+        created_by_guest: !user ? guestId : null,
+        is_public: !isPrivate,
+        is_active: true,
+        created_at: new Date().toISOString()
+      };
+      
+      console.log('Attempting to create room with data:', roomData);
+      
       // Start a transaction manually instead of using a stored procedure
       try {
         // 1. Create the room record
-        const { error: roomError } = await supabase
+        const { data: insertedRoom, error: roomError } = await supabase
           .from('rooms')
-          .insert({
-            id: roomId,
-            name: name.trim(),
-            description: description.trim() || null,
-            topics: tags.length > 0 ? tags : null,
-            created_by: user ? user.id : null,
-            created_by_guest: !user ? guestId : null,
-            is_public: !isPrivate,
-            is_active: true,
-            created_at: new Date().toISOString()
-          });
+          .insert(roomData)
+          .select();
 
         if (roomError) {
           console.error('Error creating room:', roomError);
-          setError('Failed to create room. Please try again.');
+          setError(`Failed to create room: ${roomError.message}`);
+          setIsCreating(false);
           return;
         }
+        
+        console.log('Room created successfully:', insertedRoom);
 
         // 2. Add the creator as a participant (with is_active=true)
-        const { error: participantError } = await supabase
+        const participantData = {
+          room_id: roomId,
+          user_id: user ? user.id : null,
+          guest_id: !user ? guestId : null,
+          is_active: true,
+          joined_at: new Date().toISOString(),
+          is_speaker: true,
+          is_host: true
+        };
+        
+        console.log('Adding participant with data:', participantData);
+        
+        const { data: insertedParticipant, error: participantError } = await supabase
           .from('room_participants')
-          .insert({
-            room_id: roomId,
-            user_id: user ? user.id : null,
-            guest_id: !user ? guestId : null,
-            is_active: true,
-            joined_at: new Date().toISOString(),
-            is_speaker: true,
-            is_host: true
-          });
+          .insert(participantData)
+          .select();
 
         if (participantError) {
           console.error('Error adding participant:', participantError);
-          setError('Failed to join the room. Please try again.');
+          setError(`Failed to join the room: ${participantError.message}`);
           
           // Try to clean up the room if participant creation fails
+          console.log('Cleaning up room after participant error');
           await supabase.from('rooms').delete().eq('id', roomId);
+          setIsCreating(false);
           return;
         }
+        
+        console.log('Participant added successfully:', insertedParticipant);
 
         // Store room creator info in localStorage
         localStorage.setItem("isHost", "true");
         localStorage.setItem("roomId", roomId);
-      } catch (transactionError) {
-        console.error('Error in room creation:', transactionError);
-        setError('Failed to create room. Please try again.');
+        
+        console.log('Room creation completed, redirecting to room:', roomId);
+      } catch (transactionError: any) {
+        console.error('Error in room creation transaction:', transactionError);
+        setError(`Transaction error: ${transactionError.message || 'Unknown error'}`);
+        setIsCreating(false);
         return;
       }
 
       // Navigate to the new room
       router.push(`/room/${roomId}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating room:', error);
-      setError('An unexpected error occurred. Please try again.');
-    } finally {
+      setError(`An unexpected error occurred: ${error.message || 'Please try again'}`);
       setIsCreating(false);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && currentTag) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       addTag();
     }
@@ -175,12 +216,13 @@ export default function CreateRoom() {
 
   return (
     <PageTransition>
-      <div className="flex flex-col min-h-screen bg-background">
-        <AppHeader />
-        <main className="flex-1 container max-w-2xl mx-auto px-4 py-8">
+      <div className="min-h-screen bg-black text-white">
+        <AppHeader title="Create Room" showBackButton />
+        
+        <main className="container max-w-md mx-auto pt-16 pb-20 px-4">
           <div className="space-y-6">
             <div>
-              <h1 className="text-3xl font-bold">Create a Room</h1>
+              <h1 className="text-2xl font-bold">Create a Room</h1>
               <p className="text-muted-foreground mt-2">
                 Start a new conversation space for people to join and vibe together.
               </p>

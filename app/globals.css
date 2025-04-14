@@ -181,26 +181,16 @@
     border: 1px solid rgba(255, 255, 255, 0.05);
   }
   
-  .cosmic-blob {
-    @apply absolute rounded-full bg-gradient-to-r from-indigo-600/20 via-purple-500/20 to-blue-400/20;
-    filter: blur(40px);
+  .ripple-effect {
+    @apply relative overflow-hidden;
   }
   
-  .dark .cosmic-blob {
-    @apply bg-gradient-to-r from-indigo-600/30 via-purple-500/30 to-blue-400/30;
-  }
-  
-  .cosmic-glow {
-    position: relative;
-    overflow: hidden;
-  }
-  
-  .cosmic-glow:active::after {
+  .ripple-effect::after {
     content: "";
     position: absolute;
-    top: 50%;
     left: 50%;
-    width: 100%;
+    top: 50%;
+    width: 150%;
     height: 100%;
     transform: translate(-50%, -50%) scale(0);
     background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
@@ -259,6 +249,42 @@
   
   .audience-area {
     @apply rounded-xl bg-gradient-to-b from-blue-800/20 to-indigo-800/20 backdrop-blur-md;
+  }
+  
+  /* 2025 Modern Mobile Optimizations */
+  .touch-target {
+    @apply min-h-touch min-w-[44px] flex items-center justify-center;
+  }
+  
+  .touch-target-lg {
+    @apply min-h-touch-lg min-w-[54px] flex items-center justify-center;
+  }
+  
+  .ios-btn {
+    @apply rounded-xl py-4 px-4 font-medium transition-all duration-200 active:scale-[0.97] active:opacity-90;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  .ios-input {
+    @apply rounded-xl py-4 px-4 bg-zinc-800/50 border border-zinc-700 text-white transition-all;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  .adaptive-card {
+    @apply rounded-xl bg-zinc-900/80 backdrop-blur-md border border-zinc-800/50 p-dynamic-md;
+    box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.2);
+  }
+  
+  .glass-card-2025 {
+    @apply rounded-xl backdrop-blur-lg p-dynamic-md border border-white/10;
+    background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  }
+  
+  .neumorphic-dark {
+    @apply bg-zinc-900 rounded-xl;
+    box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.3),
+                -5px -5px 10px rgba(255, 255, 255, 0.05);
   }
 }
 
@@ -319,6 +345,42 @@
   /* Prevent unwanted scrolling when interacting with elements */
   .prevent-scroll {
     overscroll-behavior: contain;
+  }
+  
+  /* Improved spacing for mobile */
+  .container {
+    padding-left: clamp(1rem, 5vw, 1.5rem);
+    padding-right: clamp(1rem, 5vw, 1.5rem);
+  }
+  
+  /* Adjust font sizes for better readability on mobile */
+  h1 {
+    font-size: clamp(1.5rem, 8vw, 2.25rem);
+  }
+  
+  h2 {
+    font-size: clamp(1.25rem, 6vw, 1.75rem);
+  }
+  
+  p {
+    font-size: clamp(0.875rem, 4vw, 1rem);
+  }
+  
+  /* Ensure buttons are large enough for touch */
+  button, .btn, a.btn {
+    min-height: 44px;
+    padding: 0.75rem 1rem;
+  }
+  
+  /* Adjust form elements for touch */
+  input, select, textarea {
+    font-size: 16px; /* Prevents iOS zoom on focus */
+    min-height: 44px;
+  }
+  
+  /* Improve spacing between elements */
+  .stack > * + * {
+    margin-top: clamp(0.5rem, 3vw, 1rem);
   }
 }
 
@@ -383,4 +445,78 @@
 
 .safe-area-top {
   padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Modern 2025 animations */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Smooth fade in animation for content loading */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fade-in-up 0.5s ease-out forwards;
+}
+
+/* iOS-style button press effect */
+.ios-press {
+  transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              opacity 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.ios-press:active {
+  transform: scale(0.96);
+  opacity: 0.9;
+}
+
+/* Prevent iOS text selection on double tap */
+.no-text-select {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* iOS-style momentum scrolling */
+.ios-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+}
+
+/* Improved touch feedback */
+.touch-feedback {
+  position: relative;
+  overflow: hidden;
+}
+
+.touch-feedback::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.1);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.touch-feedback:active::after {
+  opacity: 1;
 }
