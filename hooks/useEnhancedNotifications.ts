@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "./use-supabase-auth";
+import { useAuth } from "@/contexts/AuthProvider";
 
 export type Notification = {
   id: string;
@@ -17,31 +17,19 @@ export type Notification = {
 export function useEnhancedNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const { user } = useAuth();
+  const { guestId, user, isGuest } = useAuth();
 
   useEffect(() => {
     const fetchNotifications = async () => {
-      let userId = null;
-      
-      // Check for authenticated user first
-      if (user?.id) {
-        userId = user.id;
-      } 
-      // Fall back to guest profile ID from localStorage
-      else {
-        const guestProfileId = localStorage.getItem('guestProfileId');
-        if (guestProfileId) {
-          userId = guestProfileId;
-        }
-      }
+      const profileId = user?.id || guestId;
 
-      if (!userId) return;
+      if (!profileId) return;
       
       // Fetch notifications for the user (authenticated or guest)
       const { data } = await supabase
         .from("notifications")
         .select("*")
-        .eq("user_id", userId)
+        .eq("user_id", profileId)
         .order("created_at", { ascending: false })
         .limit(20);
       
@@ -53,31 +41,19 @@ export function useEnhancedNotifications() {
     fetchNotifications();
 
     const subscribeToNotifications = async () => {
-      let userId = null;
-      
-      // Check for authenticated user first
-      if (user?.id) {
-        userId = user.id;
-      } 
-      // Fall back to guest profile ID from localStorage
-      else {
-        const guestProfileId = localStorage.getItem('guestProfileId');
-        if (guestProfileId) {
-          userId = guestProfileId;
-        }
-      }
+      const profileId = user?.id || guestId;
 
-      if (!userId) return null;
+      if (!profileId) return null;
 
       const subscription = supabase
-        .channel(`notifications-${userId}`)
+        .channel(`notifications-${profileId}`)
         .on(
           "postgres_changes",
           {
             event: "*",
             schema: "public",
             table: "notifications",
-            filter: `user_id=eq.${userId}`,
+            filter: `user_id=eq.${profileId}`,
           },
           (payload) => {
             if (payload.eventType === 'INSERT') {
@@ -134,30 +110,18 @@ export function useEnhancedNotifications() {
         subscription.then(sub => sub?.unsubscribe());
       }
     };
-  }, [user]);
+  }, [user, guestId]);
 
   // Create a notification for the current user
   const createNotification = async (message: string, type = 'info', data?: any) => {
-    let userId = null;
-    
-    // Check for authenticated user first
-    if (user?.id) {
-      userId = user.id;
-    } 
-    // Fall back to guest profile ID
-    else {
-      const guestProfileId = localStorage.getItem('guestProfileId');
-      if (guestProfileId) {
-        userId = guestProfileId;
-      }
-    }
+    const profileId = user?.id || guestId;
 
-    if (!userId) return;
+    if (!profileId) return;
 
     await supabase
       .from("notifications")
       .insert({
-        user_id: userId,
+        user_id: profileId,
         content: { type, message, data },
         is_read: false,
         created_at: new Date().toISOString()
@@ -178,26 +142,14 @@ export function useEnhancedNotifications() {
   };
 
   const markAllAsRead = async () => {
-    let userId = null;
-    
-    // Check for authenticated user first
-    if (user?.id) {
-      userId = user.id;
-    } 
-    // Fall back to guest profile ID
-    else {
-      const guestProfileId = localStorage.getItem('guestProfileId');
-      if (guestProfileId) {
-        userId = guestProfileId;
-      }
-    }
+    const profileId = user?.id || guestId;
 
-    if (!userId) return;
+    if (!profileId) return;
 
     await supabase
       .from("notifications")
       .update({ is_read: true })
-      .eq("user_id", userId)
+      .eq("user_id", profileId)
       .eq("is_read", false);
     
     setNotifications(prev => 
