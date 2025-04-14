@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { PageTransition } from "@/components/transitions/PageTransition";
 import { Search, Users, Tag, Clock, ArrowRight, Plus, Home } from "lucide-react";
-import { useAuth, useGuestSession } from '@/hooks/auth';
+import { useAuth } from '@/contexts/AuthProvider';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RequireAuth } from "@/components/auth/RequireAuth";
@@ -21,7 +21,6 @@ export default function RoomDirectory() {
   const [joiningRoom, setJoiningRoom] = useState<string | null>(null);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
   const { user, guestId } = useAuth();
-  const { guestProfile } = useGuestSession();
   const router = useRouter();
   const { toast } = useToast();
   

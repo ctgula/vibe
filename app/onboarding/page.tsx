@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/hooks/auth';
+import { useAuth } from '@/contexts/AuthProvider';
 import { ArrowRight, Check, User, Palette, MessageSquare, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Input } from '@/components/ui/input';
@@ -27,7 +27,6 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [direction, setDirection] = useState<'forward' | 'back'>('forward');
-  const [isClient, setIsClient] = useState(false);
   const router = useRouter();
   const { user, profile: authProfile, guestId } = useAuth();
 
@@ -45,15 +44,12 @@ export default function OnboardingPage() {
 
   // Handle client-side initialization
   useEffect(() => {
-    setIsClient(true);
     checkProfile();
   }, []);
 
   // Check if user already has a profile
   const checkProfile = async () => {
     try {
-      if (!isClient) return;
-      
       // Determine the user ID (authenticated or guest)
       const currentUserId = user?.id || guestId;
       
@@ -141,7 +137,7 @@ export default function OnboardingPage() {
       }
       
       // Get current user ID
-      const currentUserId = user?.id || guestId || profile.id;
+      const currentUserId = user?.id || guestId;
       
       if (!currentUserId) {
         setError('User ID not found');
@@ -207,15 +203,6 @@ export default function OnboardingPage() {
       }
     })
   };
-
-  // Render loading state if not on client yet
-  if (!isClient) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="animate-pulse text-indigo-400">Loading...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
@@ -597,7 +584,7 @@ export default function OnboardingPage() {
                         
                         <div>
                           <h3 className="text-2xl font-bold">{profile.username}</h3>
-                          <p className="text-zinc-400 text-sm">{profile.is_guest ? 'Guest User' : 'Member'}</p>
+                          <p className="text-zinc-400 text-sm">{user ? 'Member' : 'Guest User'}</p>
                         </div>
                       </div>
                       
