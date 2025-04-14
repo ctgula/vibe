@@ -3,12 +3,12 @@ import { getServerSession } from 'next-auth';
 import { createClient } from '@supabase/supabase-js';
 
 // Environment variables
-const supabaseUrl = `https://${process.env.SUPABASE_PROJECT_REF}.supabase.co`;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || `https://${process.env.SUPABASE_PROJECT_REF}.supabase.co`;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const mcpUrl = process.env.SUPABASE_MCP_URL || 'http://localhost:8000';
 
 // Whitelist of allowed operations for security
-const ALLOWED_OPERATIONS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
+const ALLOWED_OPERATIONS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE POLICY'];
 
 // Check if a SQL query is potentially dangerous
 function isSafeSql(sql: string): boolean {
@@ -119,6 +119,7 @@ export async function POST(req: NextRequest) {
       try {
         if (!sql) throw new Error('SQL string is required');
         
+        // Use direct RPC call with the correct parameters
         const { data: directData, error: directError } = await supabase.rpc('execute', {
           sql,
           params: params || {},
@@ -128,8 +129,9 @@ export async function POST(req: NextRequest) {
         
         return NextResponse.json({ data: directData });
       } catch (directError) {
+        console.error('Direct execution error:', directError);
         return NextResponse.json(
-          { error: error.message, details: error.details },
+          { error: error.message, details: error.details, directError: String(directError) },
           { status: 500 }
         );
       }
