@@ -113,40 +113,99 @@ export async function POST(req: NextRequest) {
     
     const supabase = createClient(supabaseUrl, supabaseKey);
     
-    // Execute the query using Supabase's rpc function
-    const { data, error } = await supabase.rpc('execute_sql', {
-      query: sql,
-      params: params
-    });
-    
-    if (error) {
-      // If the rpc method fails, try a direct query as a last resort
-      try {
-        if (!sql) throw new Error('SQL string is required');
+    // Execute the query directly using Supabase's client
+    try {
+      // For CREATE POLICY statements, we need to use the service role key
+      if (sql.trim().toUpperCase().startsWith('CREATE POLICY')) {
+        console.log('Executing CREATE POLICY statement...');
         
-        // Use direct RPC call with the correct parameters
-        const { data: directData, error: directError } = await supabase.rpc('execute', {
-          sql,
-          params: params || {},
-        });
+        // Use the raw query method directly
+        const { data: policyData, error: policyError } = await supabase
+          .from('_dummy_table_for_policy_creation_')
+          .select()
+          .limit(1)
+          .maybeSingle();
+        
+        // If we can't query, it's likely a permissions issue
+        if (policyError && !policyError.message.includes('does not exist')) {
+          console.error('Permission error:', policyError);
+          return NextResponse.json(
+            { error: 'Permission denied for SQL execution', details: policyError.message },
+            { status: 403 }
+          );
+        }
+        
+        // Try to execute the policy creation directly
+        try {
+          // Create a temporary table to execute the policy on if needed
+          if (sql.includes('public.rooms')) {
+            console.log('Policy targets the rooms table');
+            
+            // Check if the rooms table exists
+            const { data: roomsCheck, error: roomsError } = await supabase
+              .from('rooms')
+              .select('id')
+              .limit(1);
+              
+            if (roomsError && roomsError.message.includes('does not exist')) {
+              console.log('Creating rooms table for policy...');
+              
+              // Create the rooms table if it doesn't exist
+              await supabase.rpc('execute', {
+                sql: `
+                  CREATE TABLE IF NOT EXISTS public.rooms (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    created_by UUID,
+                    is_active BOOLEAN DEFAULT TRUE
+                  );
+                `,
+                params: {}
+              });
+            }
+          }
           
-        if (directError) throw directError;
-        
-        return NextResponse.json({ data: directData });
-      } catch (directError) {
-        console.error('Direct execution error:', directError);
-        return NextResponse.json(
-          { error: error.message, details: error.details, directError: String(directError) },
-          { status: 500 }
-        );
+          // Execute the policy creation
+          const { data: result, error: execError } = await supabase.rpc('execute', {
+            sql: sql,
+            params: params || {}
+          });
+          
+          if (execError) throw execError;
+          
+          return NextResponse.json({ 
+            data: result || { message: 'Policy created successfully' } 
+          });
+        } catch (policyExecError) {
+          console.error('Policy execution error:', policyExecError);
+          return NextResponse.json(
+            { error: 'Failed to create policy', details: String(policyExecError) },
+            { status: 500 }
+          );
+        }
       }
+      
+      // For other queries (SELECT, etc.)
+      const { data: queryResult, error: queryError } = await supabase.rpc('execute', {
+        sql: sql,
+        params: params || {}
+      });
+      
+      if (queryError) {
+        throw queryError;
+      }
+      
+      return NextResponse.json({ data: queryResult });
+    } catch (directError) {
+      console.error('SQL execution error:', directError);
+      return NextResponse.json(
+        { error: 'Failed to execute SQL', details: String(directError) },
+        { status: 500 }
+      );
     }
-    
-    // Log the successful query for auditing (in a real app, store this in a database)
-    console.log(`SQL executed: ${sql}`);
-    
-    // Return the results
-    return NextResponse.json({ data });
   } catch (error) {
     console.error('Error executing SQL:', error);
     return NextResponse.json(
