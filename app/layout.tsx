@@ -2,7 +2,6 @@ import "./globals.css"
 import { Inter } from "next/font/google"
 import { Providers } from "@/components/Providers"
 import Script from "next/script"
-import { useEffect } from 'react';
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
 
@@ -49,11 +48,6 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js');
-    }
-  }, []);
   return (
     <html lang="en" className="bg-black text-white" suppressHydrationWarning>
       <head>
@@ -83,7 +77,7 @@ export default function RootLayout({
             // Handle PWA installation and updates
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js').then(registration => {
+                navigator.serviceWorker.register('/service-worker.js').then(registration => {
                   console.log('PWA service worker registered:', registration.scope);
                   
                   // Check for updates
