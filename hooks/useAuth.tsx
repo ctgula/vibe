@@ -14,7 +14,7 @@ type AuthContextType = {
   guestId: string | null;
   signOut: () => Promise<void>;
   updateProfile: (profileData: any) => Promise<{ data?: any; error?: any }>;
-  createGuestSession: () => Promise<string | null>;
+  createGuestSession: (username?: string) => Promise<string | null>;
   signInWithMagicLink: (email: string) => Promise<{ data?: any; error?: any }>;
   signInWithGoogle: () => Promise<{ data?: any; error?: any }>;
   ensureSessionToken: () => Promise<void>;
@@ -43,14 +43,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsClient(true);
     
     // Check for existing guest session
-    const storedGuestId = localStorage.getItem('guestProfileId');
-    const storedGuestToken = localStorage.getItem('guestSessionToken');
-    
-    if (storedGuestId) {
-      setGuestId(storedGuestId);
-      if (storedGuestToken) {
-        setGuestSessionToken(storedGuestToken);
-        setSupabaseSessionToken(storedGuestToken);
+    if (typeof window !== 'undefined') {
+      const storedGuestId = localStorage.getItem('guestProfileId');
+      const storedGuestToken = localStorage.getItem('guestSessionToken');
+      
+      if (storedGuestId) {
+        console.log('Found stored guest ID in AuthProvider:', storedGuestId);
+        setGuestId(storedGuestId);
+        if (storedGuestToken) {
+          setGuestSessionToken(storedGuestToken);
+          setSupabaseSessionToken(storedGuestToken);
+        }
       }
     }
   }, []);
@@ -66,20 +69,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (session?.user) {
         setUser(session.user);
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-          
-        if (profileData) {
-          setProfile(profileData);
-          // Clear any guest session when logging in as a user
-          await clearGuestSession();
+        
+        try {
+          // Check if profile exists
+          const { data: profileData, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (profileData) {
+            console.log('✅ Found user profile:', session.user.id);
+            setProfile(profileData);
+            // Clear any guest session when logging in as a user
+            await clearGuestSession();
+          } else if (error) {
+            console.error('Error fetching user profile:', error);
+            // Create profile if it doesn't exist
+            const { data: newProfile, error: createError } = await supabase
+              .from('profiles')
+              .insert([
+                {
+                  id: session.user.id,
+                  username: session.user.email?.split('@')[0] || `user_${Math.random().toString(36).substring(2, 8)}`,
+                  email: session.user.email,
+                  is_guest: false,
+                  created_at: new Date().toISOString()
+                }
+              ])
+              .select()
+              .single();
+              
+            if (newProfile && !createError) {
+              console.log('✅ Created new user profile:', session.user.id);
+              setProfile(newProfile);
+            } else {
+              console.error('Error creating user profile:', createError);
+              toast({
+                title: "Error",
+                description: "Failed to create user profile",
+                variant: "destructive"
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error in profile check/creation:', error);
         }
       } else {
         setUser(null);
-        setProfile(null);
+        
+        // Don't clear profile if we have a guest session
+        if (!guestId) {
+          setProfile(null);
+        }
       }
       
       setAuthLoading(false);
@@ -88,7 +130,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [isClient, supabase]);
+  }, [isClient, supabase, guestId, toast]);
+
+  // Check for guest profile when guestId changes
+  useEffect(() => {
+    if (!isClient || !guestId || user) return;
+    
+    const checkGuestProfile = async () => {
+      try {
+        console.log('Checking guest profile in AuthProvider for ID:', guestId);
+        
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', guestId)
+          .eq('is_guest', true)
+          .single();
+          
+        if (data && !error) {
+          console.log('✅ Found guest profile in AuthProvider:', guestId);
+          setProfile(data);
+        } else {
+          console.log('❌ Guest profile not found or error in AuthProvider:', error);
+          // Don't clear guestId here, as it might still be valid
+          // Just log the error
+        }
+      } catch (error) {
+        console.error('Error checking guest profile in AuthProvider:', error);
+      }
+    };
+    
+    checkGuestProfile();
+  }, [isClient, guestId, user, supabase]);
 
   // Helper function to set the session token in Supabase
   const setSupabaseSessionToken = async (token: string | null) => {
@@ -105,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Create guest session
-  const createGuestSession = async () => {
+  const createGuestSession = async (username?: string) => {
     if (!isClient) {
       return null;
     }
@@ -125,7 +198,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Generate a new UUID for the guest
       const newGuestId = uuidv4();
-      const guestUsername = `guest_${Math.random().toString(36).substring(2, 8)}`;
+      const guestUsername = username || `guest_${Math.random().toString(36).substring(2, 8)}`;
+      
+      console.log('Creating guest profile with ID:', newGuestId);
       
       // Create guest profile
       const { data: profileData, error: profileError } = await supabase
@@ -192,6 +267,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('guestSessionToken');
       setGuestId(null);
       setGuestSessionToken(null);
+      setProfile(null);
       await setSupabaseSessionToken(null);
     } catch (error) {
       console.error('Error clearing guest session:', error);
@@ -241,9 +317,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const profileId = user?.id || guestId;
       
       if (!profileId) {
+        console.error('No user ID found in checkProfile');
         toast({
-          title: "No Guest Session",
-          description: "No guest session found",
+          title: "No Profile",
+          description: "No user or guest profile found",
           variant: "destructive"
         });
         return { error: new Error('No user or guest ID found') };

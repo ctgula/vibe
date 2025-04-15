@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { v4 as uuidv4 } from 'uuid';
-import { useAuth } from '@/hooks/auth';
 
 export interface GuestProfile {
   id: string;
@@ -28,134 +27,120 @@ export function useGuestSession(): GuestSession {
   const [isLoading, setIsLoading] = useState(true);
   const [guestProfile, setGuestProfile] = useState<GuestProfile | null>(null);
   const [error, setError] = useState<Error | null>(null);
+  const [guestId, setGuestId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const supabase = createClientComponentClient();
   
-  // Safely access auth context
-  const [authState, setAuthState] = useState<{
-    guestId: string | null;
-    createGuestSession: ((username?: string) => Promise<string | null>) | null;
-    profile: any;
-    isGuest: boolean;
-  }>({
-    guestId: null,
-    createGuestSession: null,
-    profile: null,
-    isGuest: false
-  });
-
-  // Handle mounting and safely access auth
+  // Handle mounting and safely access localStorage
   useEffect(() => {
     setMounted(true);
     
-    // Only try to access auth context if we're in the browser
+    // Only try to access localStorage if we're in the browser
     if (typeof window !== 'undefined') {
       try {
-        const { guestId, createGuestSession, profile, isGuest } = useAuth();
-        setAuthState({
-          guestId,
-          createGuestSession,
-          profile,
-          isGuest
-        });
+        // Check for stored guest ID
+        const storedGuestId = localStorage.getItem('guestProfileId');
+        if (storedGuestId) {
+          console.log('Found stored guest ID:', storedGuestId);
+          setGuestId(storedGuestId);
+        }
       } catch (err) {
-        console.error('Error accessing auth context:', err);
-        setError(err instanceof Error ? err : new Error('Failed to access auth context'));
+        console.error('Error accessing localStorage:', err);
+        setError(err instanceof Error ? err : new Error('Failed to access localStorage'));
       }
     }
   }, []);
 
+  // Load guest profile when guestId is available
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !guestId) return;
     
     const loadGuestProfile = async () => {
       try {
         setIsLoading(true);
         setError(null);
         
-        // If we already have a guest profile from the auth context, use it
-        if (authState.isGuest && authState.profile) {
-          setGuestProfile(authState.profile);
-          setIsLoading(false);
-          return;
-        }
+        console.log('Loading guest profile for ID:', guestId);
         
-        // Only proceed if we're in the browser
-        if (typeof window === 'undefined') {
-          setIsLoading(false);
-          return;
-        }
-        
-        // Check for stored guest ID
-        const storedGuestId = localStorage.getItem('guestProfileId');
-        
-        // If we have a guestId but no profile, try to fetch it
-        if (storedGuestId) {
-          try {
-            // Verify the profile still exists in the database
-            const { data, error } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', storedGuestId)
-              .eq('is_guest', true)
-              .single();
+        // Verify the profile exists in the database
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', guestId)
+          .eq('is_guest', true)
+          .single();
 
-            if (data && !error) {
-              console.log('✅ Found existing guest profile:', storedGuestId);
-              setGuestProfile(data);
-            } else {
-              console.log('❌ Guest profile not found or error:', error);
-              // Clear invalid guest session
-              localStorage.removeItem('guestProfileId');
-              localStorage.removeItem('guestSessionToken');
-              localStorage.removeItem('guestProfile');
-            }
-          } catch (err) {
-            console.error('Error fetching guest profile:', err);
-            setError(err instanceof Error ? err : new Error('Failed to fetch guest profile'));
-          }
+        if (data && !error) {
+          console.log('✅ Found existing guest profile:', guestId);
+          setGuestProfile(data);
+        } else {
+          console.log('❌ Guest profile not found or error:', error);
+          // Clear invalid guest session
+          localStorage.removeItem('guestProfileId');
+          localStorage.removeItem('guestSessionToken');
+          localStorage.removeItem('guestProfile');
+          setGuestId(null);
         }
       } catch (err) {
-        console.error('Unexpected error in loadGuestProfile:', err);
-        setError(err instanceof Error ? err : new Error('Unexpected error loading guest profile'));
+        console.error('Error fetching guest profile:', err);
+        setError(err instanceof Error ? err : new Error('Failed to fetch guest profile'));
       } finally {
         setIsLoading(false);
       }
     };
 
     loadGuestProfile();
-  }, [mounted, authState.isGuest, authState.profile]);
+  }, [mounted, guestId, supabase]);
 
   // Create a new guest session
   const createGuestSession = async (username?: string): Promise<GuestProfile | null> => {
     try {
-      if (!authState.createGuestSession) {
-        throw new Error('Auth system not initialized');
-      }
-      
       setIsLoading(true);
       setError(null);
       
-      // Use the createGuestSession from auth context
-      const guestId = await authState.createGuestSession(username);
+      // Generate a new UUID for the guest
+      const newGuestId = uuidv4();
+      const guestUsername = username || `guest_${Math.random().toString(36).substring(2, 8)}`;
       
-      if (!guestId) {
-        throw new Error('Failed to create guest session');
-      }
+      console.log('Creating new guest profile with ID:', newGuestId);
       
-      // Fetch the newly created profile
+      // Create guest profile
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
-        .eq('id', guestId)
-        .eq('is_guest', true)
+        .insert([
+          {
+            id: newGuestId,
+            username: guestUsername,
+            display_name: `Guest ${guestUsername.substring(6)}`,
+            avatar_url: generateAvatarUrl(newGuestId),
+            is_guest: true,
+            created_at: new Date().toISOString()
+          }
+        ])
+        .select()
         .single();
         
       if (error || !data) {
-        throw new Error(error?.message || 'Failed to fetch guest profile');
+        console.error('Error creating guest profile:', error);
+        throw new Error(error?.message || 'Failed to create guest profile');
       }
       
+      // Generate and store session token
+      const sessionToken = uuidv4();
+      localStorage.setItem('guestProfileId', newGuestId);
+      localStorage.setItem('guestSessionToken', sessionToken);
+      
+      // Store the token in Supabase session
+      try {
+        await supabase.rpc('set_config', { key: 'session_token', value: sessionToken });
+        console.log('✅ Guest session token set in Supabase');
+      } catch (err) {
+        console.warn('Could not set session token in Supabase:', err);
+      }
+      
+      setGuestId(newGuestId);
       setGuestProfile(data);
+      
       return data;
     } catch (err) {
       console.error('Error creating guest session:', err);
@@ -210,7 +195,7 @@ export function useGuestSession(): GuestSession {
   };
 
   return {
-    guestId: authState.guestId || localStorage.getItem('guestProfileId'),
+    guestId,
     guestProfile,
     isLoading,
     error,
