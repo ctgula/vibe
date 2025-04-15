@@ -21,6 +21,11 @@ export interface AuthResultData<T = any> {
   error: Error | null;
   access_token?: string;
   user?: UserProfile;
+  id?: string;
+  email?: string;
+  display_name?: string;
+  avatar_url?: string;
+  is_guest?: boolean;
 }
 
 export interface ProfileUpdateResultData {

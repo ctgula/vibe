@@ -136,42 +136,37 @@ export default function OnboardingPage() {
         return;
       }
       
-      // Get current user ID
-      const currentUserId = user?.id || guestId;
+      // Generate a new profile ID using crypto.randomUUID()
+      const profileId = crypto.randomUUID();
+      const guestId = localStorage.getItem('guestProfileId');
       
-      if (!currentUserId) {
-        setError('User ID not found');
-        return;
-      }
+      console.log('Creating profile with new ID:', profileId);
       
-      console.log('Saving profile with data:', {
-        ...profile,
-        id: currentUserId
-      });
-      
-      // Update the profile in Supabase
+      // Create the profile in Supabase
       const { error: updateError } = await supabase
         .from('profiles')
-        .upsert({
-          id: currentUserId,
+        .insert({
+          id: profileId,
           username: profile.username,
-          avatar_url: profile.avatar_url,
+          display_name: profile.username,
+          avatar_url: profile.avatar_url || `https://api.dicebear.com/6.x/avataaars/svg?seed=${profile.username}`,
           bio: profile.bio,
           theme_color: profile.theme_color,
-          is_guest: profile.is_guest,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'id'
+          is_guest: true,
+          created_at: new Date().toISOString()
         });
         
       if (updateError) {
-        console.error('Error updating profile:', updateError);
+        console.error('Error creating profile:', updateError);
         setError(`Failed to save profile: ${updateError.message}`);
         return;
       }
       
-      // Redirect to home page
-      router.push('/');
+      // Store the profile ID in localStorage
+      localStorage.setItem('profile_id', profileId);
+      
+      // Redirect to directory page
+      router.push('/directory');
     } catch (err) {
       console.error('Error saving profile:', err);
       setError('An unexpected error occurred. Please try again.');
