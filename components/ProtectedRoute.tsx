@@ -51,6 +51,7 @@ export function ProtectedRoute({
   // Handle basic authentication (user or guest required)
   if (!isAuthenticated) {
     // If no user and no guest ID
+    console.error("No user or guest ID available for protected route");
     console.log('No authentication found, redirecting to:', fallbackRoute);
     router.push(fallbackRoute);
     return null;

@@ -48,7 +48,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         // First check for authenticated user
         const checkAuthState = async () => {
-          const { data } = await supabase.auth.getSession();
+          const { data, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error("Supabase auth error:", error);
+          }
+          
           if (data.session?.user) {
             console.log('Found authenticated user:', data.session.user.id);
             // Auth state change listener will handle the rest
@@ -507,6 +512,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ensureSessionToken,
     clearGuestSession
   };
+
+  // Show loading state while initializing
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-black text-white">
+        <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <div>Checking authentication...</div>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider value={contextValue}>

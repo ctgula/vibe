@@ -28,7 +28,7 @@ function DirectoryContent() {
   const [allTags, setAllTags] = useState<string[]>([]);
   const [joiningRoom, setJoiningRoom] = useState<string | null>(null);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
-  const { user, guestId, profile } = useAuth();
+  const { user, guestId, profile, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   
@@ -37,8 +37,13 @@ function DirectoryContent() {
 
   // Log auth state for debugging
   useEffect(() => {
-    console.log({ user, guestId, profile, loading });
-  }, [user, guestId, profile, loading]);
+    console.log('Directory page auth state:', { 
+      user: user ? { id: user.id, email: user.email } : null, 
+      guestId, 
+      profile: profile ? { id: profile.id, is_guest: profile.is_guest } : null,
+      loading: authLoading
+    });
+  }, [user, guestId, profile, authLoading]);
 
   // Detect screen size for responsive design
   useEffect(() => {
@@ -46,83 +51,85 @@ function DirectoryContent() {
       setIsSmallScreen(window.innerWidth < 768);
     };
     
-    // Initial check
     checkScreenSize();
-    
-    // Add listener for resize events
     window.addEventListener('resize', checkScreenSize);
     
-    // Cleanup
     return () => {
       window.removeEventListener('resize', checkScreenSize);
     };
   }, []);
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       isMounted.current = false;
     };
   }, []);
 
+  // Fetch rooms
   useEffect(() => {
     const fetchRooms = async () => {
       try {
-        setLoading(true);
+        if (!isMounted.current) return;
         
-        // Log attempt to fetch rooms to debug
-        console.log("Fetching rooms from database...");
+        // Log user/guest state before query
+        if (!user && !guestId) {
+          console.error("No user or guest ID available for query in fetchRooms");
+          // Don't return early - continue with query to see what happens
+        }
         
-        // Simplified query to match the current database schema
+        // Fetch rooms from Supabase
         const { data, error } = await supabase
-          .from("rooms")
-          .select("*")
+          .from('rooms')
+          .select(`
+            *,
+            profiles:created_by(username, avatar_url),
+            room_participants:room_participants(id, profile_id, joined_at)
+          `)
           .eq('is_active', true)
-          .order("created_at", { ascending: false });
-          
+          .order('created_at', { ascending: false });
+        
         if (error) {
-          console.error("Error fetching rooms:", error);
+          console.error("Supabase error in fetchRooms:", error);
           toast({
-            title: "Error loading rooms",
-            description: "Please try again later",
+            title: "Error",
+            description: "Could not load rooms. Please try again later.",
             variant: "destructive"
           });
-          setRooms([]);
-          setLoading(false);
           return;
         }
         
-        console.log("Rooms fetched:", data?.length || 0, "results");
+        if (!isMounted.current) return;
         
-        // Transform the data to a consistent format and fetch creator profiles
-        const transformedData = data?.map(room => {
+        // Process rooms data
+        const processedRooms = data.map(room => {
+          // Extract topics from room data
+          const topics = room.topics || [];
+          
+          // Count participants
+          const participantsCount = room.room_participants ? room.room_participants.length : 0;
+          
           return {
             ...room,
-            name: room.name || `Room ${room.id.substring(0, 8)}`,
-            description: room.description || 'Join this room to chat with others!',
-            participants_count: 0, // Will be populated later
-            is_active: room.is_active !== false // Default to true if not set
+            topics,
+            participants_count: participantsCount
           };
-        }) || [];
+        });
         
-        // Set rooms data
-        if (isMounted.current) {
-          setRooms(transformedData);
-          
-          // Extract all unique tags from room topics
-          const tags = new Set<string>();
-          transformedData.forEach(room => {
-            if (room.topics && Array.isArray(room.topics)) {
-              room.topics.forEach((tag: string) => tags.add(tag));
-            }
-          });
-          setAllTags(Array.from(tags));
-        }
+        setRooms(processedRooms);
+        
+        // Extract all unique tags for filtering
+        const allTopics = Array.from(new Set(
+          processedRooms.flatMap(room => room.topics || [])
+        ));
+        
+        setAllTags(allTopics);
       } catch (err) {
-        console.error("Error in fetchRooms:", err);
+        console.error('Error fetching rooms:', err);
         if (isMounted.current) {
           toast({
-            title: "Error loading rooms",
-            description: "Please try again later",
+            title: "Error",
+            description: "Failed to load rooms. Please try again.",
             variant: "destructive"
           });
         }
@@ -134,7 +141,10 @@ function DirectoryContent() {
     };
     
     fetchRooms();
+  }, [supabase, toast, user, guestId]);
 
+  // Realtime updates
+  useEffect(() => {
     const channel = supabase
       .channel("public-rooms")
       .on(
@@ -172,7 +182,7 @@ function DirectoryContent() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, toast]);
+  }, [supabase]);
 
   const handleJoinRoom = async (roomId: string) => {
     if (joiningRoom) return; // Prevent multiple clicks
