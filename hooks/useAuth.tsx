@@ -41,19 +41,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Initialize client-side state
   useEffect(() => {
     setIsClient(true);
+    console.log('Initializing auth state...');
     
     // Check for existing guest session
     if (typeof window !== 'undefined') {
-      const storedGuestId = localStorage.getItem('guestProfileId');
-      const storedGuestToken = localStorage.getItem('guestSessionToken');
-      
-      if (storedGuestId) {
-        console.log('Found stored guest ID in AuthProvider:', storedGuestId);
-        setGuestId(storedGuestId);
-        if (storedGuestToken) {
-          setGuestSessionToken(storedGuestToken);
-          setSupabaseSessionToken(storedGuestToken);
-        }
+      try {
+        // First check for authenticated user
+        const checkAuthState = async () => {
+          const { data } = await supabase.auth.getSession();
+          if (data.session?.user) {
+            console.log('Found authenticated user:', data.session.user.id);
+            // Auth state change listener will handle the rest
+            return;
+          }
+          
+          // If no authenticated user, check for guest ID
+          const storedGuestId = localStorage.getItem('guestProfileId') || localStorage.getItem('guest_id');
+          
+          if (!storedGuestId) {
+            // Create a new guest ID if none exists
+            const newGuestId = crypto.randomUUID();
+            console.log('Creating new guest ID:', newGuestId);
+            localStorage.setItem('guestProfileId', newGuestId);
+            localStorage.setItem('guest_id', newGuestId); // For compatibility
+            setGuestId(newGuestId);
+          } else {
+            console.log('Found stored guest ID:', storedGuestId);
+            setGuestId(storedGuestId);
+            
+            // Check for session token
+            const storedGuestToken = localStorage.getItem('guestSessionToken');
+            if (storedGuestToken) {
+              setGuestSessionToken(storedGuestToken);
+              await setSupabaseSessionToken(storedGuestToken);
+            }
+          }
+          
+          // Always set loading to false after guest ID is handled
+          setIsLoading(false);
+          console.log('Auth initialization complete', { 
+            guestId: storedGuestId || 'new guest created', 
+            isLoading: false 
+          });
+        };
+        
+        checkAuthState();
+      } catch (error) {
+        console.error('Error during auth initialization:', error);
+        // Ensure loading is set to false even on error
+        setIsLoading(false);
       }
     }
   }, []);
