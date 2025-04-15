@@ -16,17 +16,12 @@ export interface UserProfile {
 // For backward compatibility
 export type ProfileType = UserProfile;
 
-export interface AuthResultData<T = any> {
-  data: T | null;
+export type AuthResultData = {
+  data: any | null;
   error: Error | null;
-  access_token?: string;
-  user?: UserProfile;
-  id?: string;
-  email?: string;
-  display_name?: string;
-  avatar_url?: string;
-  is_guest?: boolean;
-}
+  user?: UserProfile | null;
+  accessToken?: string;
+};
 
 export interface ProfileUpdateResultData {
   success: boolean;
@@ -47,10 +42,10 @@ export interface AuthContextType {
   signOut: () => Promise<void>;
   updateProfile: (profileData: Partial<UserProfile>) => Promise<ProfileUpdateResultData>;
   createGuestSession: () => Promise<string | null>;
-  signInWithMagicLink: (email: string) => Promise<AuthResultData<any>>;
-  signInWithGoogle: () => Promise<AuthResultData<any>>;
+  signInWithMagicLink: (email: string) => Promise<AuthResultData>;
+  signInWithGoogle: () => Promise<AuthResultData>;
   ensureSessionToken: () => Promise<boolean>;
   clearGuestSession: () => Promise<void>;
-  signUp: (email: string, password: string) => Promise<AuthResultData<any>>;
-  signIn: (email: string, password: string) => Promise<AuthResultData<any>>;
+  signUp: (email: string, password: string) => Promise<AuthResultData>;
+  signIn: (email: string, password: string) => Promise<AuthResultData>;
 }
