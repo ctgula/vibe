@@ -27,6 +27,7 @@ import { Poll } from '@/components/Poll';
 import { RoomThemeEditor } from '@/components/RoomThemeEditor';
 import { FileUploader } from '@/components/FileUploader';
 import { RoomHeader } from '@/components/room/RoomHeader';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function Room({ params }: { params: { id: string } }) {
   const { user, profile, guestId, isGuest, isAuthenticated, ensureSessionToken } = useAuth();
@@ -53,7 +54,8 @@ export default function Room({ params }: { params: { id: string } }) {
   const [speakers, setSpeakers] = useState<any[]>([]);
   const [audience, setAudience] = useState<any[]>([]);
   const [activeParticipants, setActiveParticipants] = useState<string[]>([]);
-  
+  const { toast } = useToast();
+
   // State for new features
   const [showNotifications, setShowNotifications] = useState(false);
   const [showActivityLog, setShowActivityLog] = useState(false);
@@ -63,34 +65,78 @@ export default function Room({ params }: { params: { id: string } }) {
   const [showInviteLink, setShowInviteLink] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
-  
+
   // Get the user ID with proper type safety
   const id = user?.id ?? guestId;
-  
+
   // If no user ID is available, return early - fixes TypeScript error
   if (!id) {
+    toast({
+      title: "Session required",
+      description: "Please login or use guest mode to join a room.",
+      variant: "destructive"
+    });
+    useEffect(() => {
+      router.replace('/');
+    }, [router]);
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-900 p-4">
         <div className="bg-zinc-800 rounded-lg p-6 max-w-md w-full">
           <h2 className="text-xl font-semibold text-white mb-4">Authentication Required</h2>
-          <p className="text-zinc-300 mb-6">You need to be signed in or have a guest session to join this room.</p>
+          <p className="text-zinc-300 mb-4">You must be logged in or in guest mode to join this room.</p>
           <button
-            onClick={() => router.push('/')}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md"
+            className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold"
+            onClick={() => router.replace('/')}
           >
-            Return to Home
+            Go Home
           </button>
         </div>
       </div>
     );
   }
-  
+
+  // Enhanced loading state
+  if (isJoining) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-900 p-4">
+        <div className="bg-zinc-800 rounded-lg p-6 max-w-md w-full flex flex-col items-center">
+          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
+          <h2 className="text-lg font-semibold text-white mb-2">Joining Room...</h2>
+          <p className="text-zinc-300">Please wait while we connect you to the vibe.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error toast for major failures
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: "Room Error",
+        description: error,
+        variant: "destructive"
+      });
+    }
+  }, [error, toast]);
+
+  // If participant is not active (real-time bug case)
+  useEffect(() => {
+    if (room && activeParticipants && id && !activeParticipants.includes(id)) {
+      toast({
+        title: "Inactive Participant",
+        description: "You are not an active participant in this room.",
+        variant: "destructive"
+      });
+      router.replace('/directory');
+    }
+  }, [room, activeParticipants, id, router, toast]);
+
   // Use the participants hook with type-safe ID
   const { participants, userStatus, loading: participantsLoading } = useParticipants(params.id, id);
-  
+
   // Get notification context
   const { addNotification } = useNotification();
-  
+
   // Initialize room notifications
   useRoomNotifications(params.id);
 
