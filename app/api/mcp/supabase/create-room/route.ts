@@ -1,4 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !serviceRoleKey) {
+  console.error('Supabase URL or Service Role Key is missing in environment variables.');
+}
+
+const supabaseAdmin = supabaseUrl && serviceRoleKey ? createClient(supabaseUrl, serviceRoleKey) : null;
 
 /**
  * Creates a new room in the Supabase database
@@ -6,50 +16,32 @@ import { NextRequest, NextResponse } from 'next/server';
  * @returns The created room data
  */
 export async function POST(req: NextRequest) {
+  if (!supabaseAdmin) {
+    return NextResponse.json(
+      { error: 'Supabase client could not be initialized. Check server environment variables.' },
+      { status: 500 }
+    );
+  }
+
   try {
     // Get room details from the request body
     const roomData = await req.json();
-    
-    // Forward the request to the MCP server
-    const mcp_url = process.env.SUPABASE_MCP_URL || 'http://localhost:8000';
-    const response = await fetch(`${mcp_url}/supabase/execute_sql`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        sql: `
-          INSERT INTO rooms (
-            name,
-            description,
-            created_by,
-            created_by_guest,
-            is_active,
-            is_public,
-            tags
-          )
-          VALUES (
-            $1, $2, $3, $4, $5, $6, $7
-          )
-          RETURNING *;
-        `,
-        params: [
-          roomData.name,
-          roomData.description || null,
-          roomData.created_by || null,
-          roomData.created_by_guest || null,
-          roomData.is_active !== undefined ? roomData.is_active : true,
-          roomData.is_public !== undefined ? roomData.is_public : true,
-          roomData.tags || null
-        ]
-      }),
-    });
 
-    // Get the response data
-    const data = await response.json();
+    // Insert the room into the rooms table
+    const { data, error } = await supabaseAdmin
+      .from('rooms')
+      .insert([roomData])
+      .select();
 
-    // Return the response
-    return NextResponse.json(data, { status: response.status });
+    if (error) {
+      console.error('Supabase error creating room:', error);
+      return NextResponse.json(
+        { error: 'Failed to create room', details: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(data && data[0] ? data[0] : {}, { status: 201 });
   } catch (error) {
     console.error('Error creating room:', error);
     return NextResponse.json(
