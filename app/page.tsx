@@ -94,6 +94,11 @@ export default function Home() {
         window.navigator.vibrate(3);
       }
 
+      // Ensure we have a valid session token if user exists
+      if (user) {
+        await ensureSessionToken();
+      }
+
       // If user is not authenticated and there's no guest ID, create a guest profile first
       if (!user && !guestId) {
         const newGuestId = crypto.randomUUID();
@@ -104,20 +109,27 @@ export default function Home() {
             is_guest: true,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
-          }]);
+          }])
+          .select()
+          .single();
 
-        if (createError) throw createError;
+        if (createError) {
+          console.error('Error creating guest profile:', createError);
+          throw createError;
+        }
 
         localStorage.setItem('guestProfileId', newGuestId);
         localStorage.setItem('guest_id', newGuestId); // For compatibility
       }
 
-      // Add a small timeout for better visual feedback before navigation
-      setTimeout(() => {
-        router.push(path);
-      }, 50);
+      // Navigate to the target path
+      router.push(path);
     } catch (error) {
       console.error('Error in handleContinue:', error);
+      // Add toast notification for error
+      if (window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate([10, 5, 10]); // Error vibration pattern
+      }
     }
   };
 

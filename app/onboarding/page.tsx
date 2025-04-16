@@ -26,66 +26,68 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { user, profile: authProfile, guestId } = useAuth();
 
-  useEffect(() => {
-    const initializeProfile = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  const initializeProfile = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        // First try to get the user ID from the authenticated user
-        let currentUserId = user?.id;
+      // First try to get the user ID from the authenticated user
+      let currentUserId = user?.id;
 
-        // If no authenticated user, try to get the guest ID
-        if (!currentUserId) {
-          const storedGuestId = localStorage.getItem('guestProfileId') || localStorage.getItem('guest_id');
-          if (storedGuestId) {
-            currentUserId = storedGuestId;
-          }
+      // If no authenticated user, try to get the guest ID
+      if (!currentUserId) {
+        const storedGuestId = localStorage.getItem('guestProfileId') || localStorage.getItem('guest_id');
+        if (storedGuestId) {
+          currentUserId = storedGuestId;
         }
+      }
 
-        if (!currentUserId) {
-          // No user ID found, redirect back to welcome page
-          router.push('/');
-          return;
-        }
+      if (!currentUserId) {
+        console.error('No user ID or guest ID found');
+        router.push('/');
+        return;
+      }
 
-        // Fetch profile data
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', currentUserId)
-          .single();
+      // Fetch profile data
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUserId)
+        .single();
 
-        if (profileError && profileError.code !== 'PGRST116') {
-          throw profileError;
-        }
-
-        if (profileData) {
-          setProfile({
-            id: profileData.id,
-            username: profileData.username || '',
-            display_name: profileData.display_name || '',
-            avatar_url: profileData.avatar_url || '',
-            bio: profileData.bio || '',
-            theme_color: profileData.theme_color || '#6366f1',
-            is_guest: profileData.is_guest || false,
-          });
-        } else {
-          // If no profile found, initialize with current user ID
+      if (profileError) {
+        if (profileError.code === 'PGRST116') {
+          // Profile not found, initialize with current user ID
           setProfile(prev => ({
             ...prev,
             id: currentUserId,
             is_guest: !user?.id,
           }));
+        } else {
+          console.error('Error fetching profile:', profileError);
+          throw profileError;
         }
-      } catch (err) {
-        console.error('Error initializing profile:', err);
-        setError('Error loading profile. Please try again.');
-      } finally {
-        setLoading(false);
+      } else if (profileData) {
+        setProfile({
+          id: profileData.id,
+          username: profileData.username || '',
+          display_name: profileData.display_name || '',
+          avatar_url: profileData.avatar_url || '',
+          bio: profileData.bio || '',
+          theme_color: profileData.theme_color || '#6366f1',
+          is_guest: profileData.is_guest || false,
+        });
       }
-    };
+    } catch (err) {
+      console.error('Error initializing profile:', err);
+      setError('Error loading profile. Please try again.');
+      router.push('/');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     initializeProfile();
   }, [user, guestId, router]);
 
