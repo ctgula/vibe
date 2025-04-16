@@ -265,17 +265,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Sign up with email and password
-  const signUp = async (email: string, password: string): Promise<{ data: any | null; error: any | null }> => {
+  // Sign up with email, password, username, and displayName
+  const signUp = async (
+    email: string,
+    password: string,
+    username: string,
+    displayName?: string
+  ): Promise<{ data: any | null; error: any | null }> => {
     if (!supabase) return { data: null, error: new Error("Supabase client not initialized") };
-    
     setIsLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
       });
-
       if (error) {
         console.error('Error signing up:', error);
         toast({
@@ -285,28 +288,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         return { data: null, error };
       }
-
-      // Call the create-profile API to create a profile for the new user
-      if (data?.user) {
+      // Only create profile if user exists and username is provided
+      if (data?.user && username) {
         try {
-          const response = await fetch('/api/auth/create-profile', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ user: data.user }),
-          });
-
-          if (!response.ok) {
-            console.warn('Error creating profile via API:', await response.text());
-            // Don't fail the signup if profile creation fails - we'll try again on next login
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert([
+              {
+                id: data.user.id,
+                email,
+                username,
+                display_name: displayName || username,
+                is_guest: false
+              }
+            ]);
+          if (profileError) {
+            console.error('Error creating profile:', profileError);
+            toast({
+              title: "Warning",
+              description: "Profile not fully created. You can update it later.",
+              variant: "destructive"
+            });
           }
         } catch (profileError) {
           console.error('Error calling create-profile API:', profileError);
           // Don't fail the signup if profile creation fails
         }
       }
-
       toast({
         title: "Success",
         description: "Check your email for the confirmation link",
@@ -576,7 +584,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updateProfile,
     ensureSessionToken,
     clearGuestSession,
-    signUp,
+    signUp: (email: string, password: string, username: string, displayName?: string) => signUp(email, password, username, displayName),
     signIn
   };
 

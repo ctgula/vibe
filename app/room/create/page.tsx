@@ -16,7 +16,7 @@ import { useToast } from '@/components/ui/use-toast';
 
 export default function CreateRoom() {
   const router = useRouter();
-  let user, guestId, authLoading, ensureSessionToken;
+  let user, profile, guestId, authLoading, ensureSessionToken;
   try {
     ({ user, profile, guestId, authLoading, ensureSessionToken } = useAuth());
   } catch {

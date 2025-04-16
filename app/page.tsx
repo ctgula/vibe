@@ -19,13 +19,12 @@ import { useAuth } from '@/hooks/useAuth';
 export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [activeSection, setActiveSection] = useState(0);
-  let user, guestId, isLoading;
+  let user, guestId, isLoading, profile, authLoading, ensureSessionToken;
   try {
-    ({ user, guestId, isLoading } = useAuth());
+    ({ user, guestId, isLoading, profile, authLoading, ensureSessionToken } = useAuth());
   } catch {
-    // If useAuth throws (e.g. not in AuthProvider), render nothing until mounted
-    user = guestId = null;
-    isLoading = true;
+    user = profile = guestId = ensureSessionToken = null;
+    isLoading = authLoading = true;
   }
   const router = useRouter();
 

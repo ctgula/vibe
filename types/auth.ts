@@ -46,6 +46,6 @@ export interface AuthContextType {
   signInWithGoogle: () => Promise<AuthResultData>;
   ensureSessionToken: () => Promise<boolean>;
   clearGuestSession: () => Promise<void>;
-  signUp: (email: string, password: string) => Promise<AuthResultData>;
+  signUp: (email: string, password: string, username: string, displayName?: string) => Promise<AuthResultData>;
   signIn: (email: string, password: string) => Promise<AuthResultData>;
 }

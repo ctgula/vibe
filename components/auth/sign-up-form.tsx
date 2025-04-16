@@ -23,14 +23,14 @@ export function SignUpForm() {
     setIsLoading(true);
 
     try {
-      // First sign up with email and password
-      const { data, error: signUpError } = await signUp(email, password);
+      // First sign up with email, password, username, and displayName
+      const { data, error: signUpError } = await signUp(email, password, username, displayName);
       
       if (signUpError) {
         throw signUpError;
       }
       
-      // Then update the profile with username and display name
+      // Then update the profile with username and display name (already handled in signUp)
       if (data?.user) {
         // Add haptic feedback on successful sign up
         if (window.navigator && window.navigator.vibrate) {

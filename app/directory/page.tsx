@@ -28,11 +28,11 @@ function DirectoryContent() {
   const [allTags, setAllTags] = useState<string[]>([]);
   const [joiningRoom, setJoiningRoom] = useState<string | null>(null);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
-  let user, guestId, profile, isLoading;
+  let user, profile, guestId, isLoading;
   try {
-    ({ user, guestId, profile, isLoading } = useAuth());
+    ({ user, profile, guestId, isLoading } = useAuth());
   } catch {
-    user = guestId = profile = null;
+    user = profile = guestId = null;
     isLoading = true;
   }
   const router = useRouter();
