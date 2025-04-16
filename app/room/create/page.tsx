@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { v4 as uuidv4 } from 'uuid';
 import { X, Music, Image, Tag as TagIcon } from 'lucide-react';
 import { AppHeader } from '@/components/app-header';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function CreateRoom() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function CreateRoom() {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
   const [mounted, setMounted] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     setMounted(true);
@@ -32,10 +34,14 @@ export default function CreateRoom() {
   // Redirect if neither authenticated user nor guest
   useEffect(() => {
     if (mounted && !authLoading && !user && !guestId) {
-      console.log("No authentication found, redirecting to home");
+      toast({
+        title: "No session found",
+        description: "Please refresh or re-login to create a room.",
+        variant: "destructive"
+      });
       router.replace('/');
     }
-  }, [mounted, authLoading, user, guestId, router]);
+  }, [mounted, authLoading, user, guestId, router, toast]);
 
   // Don't render anything while checking auth or before mounting
   if (!mounted || authLoading) {
@@ -73,6 +79,11 @@ export default function CreateRoom() {
     try {
       if (!name.trim()) {
         setError('Room name is required');
+        toast({
+          title: "Room name required",
+          description: "Please enter a name for your room.",
+          variant: "destructive"
+        });
         setIsCreating(false);
         return;
       }
@@ -82,127 +93,88 @@ export default function CreateRoom() {
       
       if (!userId) {
         setError('Authentication required to create a room');
+        toast({
+          title: "Authentication required",
+          description: "Please login or use guest mode to create a room.",
+          variant: "destructive"
+        });
         setIsCreating(false);
         return;
       }
 
-      console.log('Creating room with auth state:', { 
-        hasUser: !!user, 
-        userId: user?.id, 
-        hasGuestId: !!guestId, 
-        guestId 
-      });
-
       // If this is a guest user, ensure we have their profile
       if (!user && guestId) {
-        console.log('Checking guest profile for ID:', guestId);
         const { data: guestProfile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', guestId)
           .eq('is_guest', true)
           .single();
-          
-        if (profileError) {
-          console.error('Error fetching guest profile:', profileError);
-          setError(`Guest profile error: ${profileError.message}`);
-          setIsCreating(false);
-          return;
-        }
-          
-        if (!guestProfile) {
-          console.error('Guest profile not found for ID:', guestId);
-          setError('Guest profile not found. Please try again.');
-          setIsCreating(false);
-          return;
-        }
         
-        console.log('Found guest profile:', guestProfile);
+        if (profileError) {
+          setError(`Guest profile error: ${profileError.message}`);
+          toast({
+            title: "Guest profile error",
+            description: profileError.message,
+            variant: "destructive"
+          });
+          setIsCreating(false);
+          return;
+        }
+        if (!guestProfile) {
+          setError('Guest profile not found. Please try again.');
+          toast({
+            title: "Guest profile not found",
+            description: "Please try again or refresh the page.",
+            variant: "destructive"
+          });
+          setIsCreating(false);
+          return;
+        }
       }
 
       // Create room with transaction to ensure all related records are created
       const roomId = uuidv4();
-      
-      // Prepare room data
       const roomData = {
         id: roomId,
         name: name.trim(),
-        description: description.trim() || null,
-        topics: tags.length > 0 ? tags : null,
-        created_by: user ? user.id : null,
-        created_by_guest: !user ? guestId : null,
-        is_public: !isPrivate,
+        description: description.trim(),
+        topics: tags,
+        created_by: userId,
         is_active: true,
-        created_at: new Date().toISOString()
+        is_private: isPrivate,
       };
-      
-      console.log('Attempting to create room with data:', roomData);
-      
-      // Start a transaction manually instead of using a stored procedure
-      try {
-        // 1. Create the room record
-        const { data: insertedRoom, error: roomError } = await supabase
-          .from('rooms')
-          .insert(roomData)
-          .select();
 
-        if (roomError) {
-          console.error('Error creating room:', roomError);
-          setError(`Failed to create room: ${roomError.message}`);
-          setIsCreating(false);
-          return;
-        }
-        
-        console.log('Room created successfully:', insertedRoom);
+      const { data: room, error: roomError } = await supabase
+        .from('rooms')
+        .insert([roomData])
+        .single();
 
-        // 2. Add the creator as a participant (with is_active=true)
-        const participantData = {
-          room_id: roomId,
-          user_id: user ? user.id : null,
-          guest_id: !user ? guestId : null,
-          is_active: true,
-          joined_at: new Date().toISOString(),
-          is_speaker: true,
-          is_host: true
-        };
-        
-        console.log('Adding participant with data:', participantData);
-        
-        const { data: insertedParticipant, error: participantError } = await supabase
-          .from('room_participants')
-          .insert(participantData)
-          .select();
-
-        if (participantError) {
-          console.error('Error adding participant:', participantError);
-          setError(`Failed to join the room: ${participantError.message}`);
-          
-          // Try to clean up the room if participant creation fails
-          console.log('Cleaning up room after participant error');
-          await supabase.from('rooms').delete().eq('id', roomId);
-          setIsCreating(false);
-          return;
-        }
-        
-        console.log('Participant added successfully:', insertedParticipant);
-
-        // Store room creator info in localStorage
-        localStorage.setItem("isHost", "true");
-        localStorage.setItem("roomId", roomId);
-        
-        console.log('Room creation completed, redirecting to room:', roomId);
-      } catch (transactionError: any) {
-        console.error('Error in room creation transaction:', transactionError);
-        setError(`Transaction error: ${transactionError.message || 'Unknown error'}`);
+      if (roomError) {
+        setError(roomError.message);
+        toast({
+          title: "Error creating room",
+          description: roomError.message,
+          variant: "destructive"
+        });
         setIsCreating(false);
         return;
       }
 
-      // Navigate to the new room
-      router.push(`/room/${roomId}`);
-    } catch (error: any) {
-      console.error('Error creating room:', error);
-      setError(`An unexpected error occurred: ${error.message || 'Please try again'}`);
+      toast({
+        title: "Room created!",
+        description: `Welcome to ${roomData.name}`,
+        variant: "success"
+      });
+      router.replace(`/rooms/${roomId}`);
+    } catch (err: any) {
+      setError(err.message || 'Unknown error');
+      toast({
+        title: "Error",
+        description: err.message || 'Unknown error',
+        variant: "destructive"
+      });
+    } finally {
       setIsCreating(false);
     }
   };
@@ -320,7 +292,8 @@ export default function CreateRoom() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isCreating}>
+                <Button type="submit" disabled={isCreating} className="flex items-center">
+                  {isCreating && <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                   {isCreating ? 'Creating...' : 'Create Room'}
                 </Button>
               </div>

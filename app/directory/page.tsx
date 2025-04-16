@@ -186,16 +186,23 @@ function DirectoryContent() {
 
   const handleJoinRoom = async (roomId: string) => {
     if (joiningRoom) return; // Prevent multiple clicks
-     
+
+    // Block join if no user or guestId
+    if (!user && !guestId) {
+      toast({
+        title: "No session found",
+        description: "Please refresh or re-login to join a room.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       setJoiningRoom(roomId);
-       
-      // Optimistic UI update - navigate immediately for a snappy feel
+
+      // Optimistic navigation, but show spinner on button/card
       router.push(`/rooms/${roomId}`);
-       
-      // The actual room joining logic will happen in the room page
-      // This makes the UI feel faster while the backend processes
-       
+      // Actual join logic handled in room page
     } catch (error: any) {
       console.error("Error joining room:", error);
       if (isMounted.current) {
@@ -346,8 +353,9 @@ function DirectoryContent() {
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.98 }}
                   layout
-                  className="relative bg-zinc-900/60 backdrop-blur-xl border border-zinc-700/40 rounded-2xl shadow-xl overflow-hidden cursor-pointer transition-all group hover:shadow-2xl hover:border-sky-400"
+                  className={`relative bg-zinc-900/60 backdrop-blur-xl border border-zinc-700/40 rounded-2xl shadow-xl overflow-hidden cursor-pointer transition-all group hover:shadow-2xl hover:border-sky-400 ${joiningRoom === room.id ? 'opacity-70 pointer-events-none' : ''}`}
                   onClick={() => handleJoinRoom(room.id)}
+                  aria-disabled={joiningRoom === room.id}
                 >
                   {/* Animated color bar */}
                   <div className="absolute left-0 top-0 h-full w-2 bg-gradient-to-b from-sky-400 via-indigo-400 to-cyan-300 group-hover:from-pink-400 group-hover:to-indigo-400 transition-all" />
@@ -384,8 +392,17 @@ function DirectoryContent() {
                         <Users className="w-4 h-4 mr-1" />
                         {room.participants_count || 0} online
                       </div>
-                      <Button className="bg-gradient-to-r from-indigo-500 to-sky-400 hover:from-indigo-600 hover:to-sky-500 text-white py-2 px-4 rounded-lg shadow font-semibold">
-                        Join <ArrowRight className="w-4 h-4 ml-1" />
+                      <Button
+                        className="bg-gradient-to-r from-indigo-500 to-sky-400 hover:from-indigo-600 hover:to-sky-500 text-white py-2 px-4 rounded-lg shadow font-semibold flex items-center"
+                        onClick={e => { e.stopPropagation(); handleJoinRoom(room.id); }}
+                        disabled={joiningRoom === room.id}
+                        aria-disabled={joiningRoom === room.id}
+                      >
+                        {joiningRoom === room.id ? (
+                          <span className="flex items-center"><span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />Joining...</span>
+                        ) : (
+                          <><span>Join</span> <ArrowRight className="w-4 h-4 ml-1" /></>
+                        )}
                       </Button>
                     </div>
                   </div>
