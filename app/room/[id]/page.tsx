@@ -30,7 +30,14 @@ import { RoomHeader } from '@/components/room/RoomHeader';
 import { useToast } from '@/components/ui/use-toast';
 
 export default function Room({ params }: { params: { id: string } }) {
-  const { user, profile, guestId, isGuest, isAuthenticated, ensureSessionToken } = useAuth();
+  let user, profile, guestId, isGuest, isAuthenticated, ensureSessionToken;
+  try {
+    ({ user, profile, guestId, isGuest, isAuthenticated, ensureSessionToken } = useAuth());
+  } catch {
+    user = profile = guestId = ensureSessionToken = null;
+    isGuest = isAuthenticated = false;
+  }
+
   const router = useRouter();
   const [room, setRoom] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);

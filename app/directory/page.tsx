@@ -28,7 +28,13 @@ function DirectoryContent() {
   const [allTags, setAllTags] = useState<string[]>([]);
   const [joiningRoom, setJoiningRoom] = useState<string | null>(null);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
-  const { user, guestId, profile, isLoading: authLoading } = useAuth();
+  let user, guestId, profile, isLoading;
+  try {
+    ({ user, guestId, profile, isLoading } = useAuth());
+  } catch {
+    user = guestId = profile = null;
+    isLoading = true;
+  }
   const router = useRouter();
   const { toast } = useToast();
   
@@ -41,9 +47,9 @@ function DirectoryContent() {
       user: user ? { id: user.id, email: user.email } : null, 
       guestId, 
       profile: profile ? { id: profile.id, is_guest: profile.is_guest } : null,
-      loading: authLoading
+      loading: isLoading
     });
-  }, [user, guestId, profile, authLoading]);
+  }, [user, guestId, profile, isLoading]);
 
   // Detect screen size for responsive design
   useEffect(() => {
