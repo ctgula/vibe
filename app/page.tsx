@@ -19,7 +19,14 @@ import { useAuth } from '@/hooks/useAuth';
 export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [activeSection, setActiveSection] = useState(0);
-  const { user, guestId, isLoading } = useAuth();
+  let user, guestId, isLoading;
+  try {
+    ({ user, guestId, isLoading } = useAuth());
+  } catch {
+    // If useAuth throws (e.g. not in AuthProvider), render nothing until mounted
+    user = guestId = null;
+    isLoading = true;
+  }
   const router = useRouter();
 
   useEffect(() => {
