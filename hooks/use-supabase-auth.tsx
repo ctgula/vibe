@@ -45,6 +45,17 @@ export const useAuth = () => {
   return context;
 };
 
+// DEBUG: Add a global error boundary for AuthProvider
+function logErrorBoundary(fn: Function, label: string) {
+  try {
+    return fn();
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(`[AuthProvider ERROR - ${label}]`, err);
+    throw err;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   const [user, setUser] = useState<any>(null);
@@ -57,115 +68,104 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Flag to indicate client-side rendering
   useEffect(() => {
-    setIsClient(true);
-    
-    // Initialize Supabase client on the client side
-    if (typeof window !== 'undefined') {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-      setSupabase(createBrowserClient(supabaseUrl, supabaseAnonKey));
-    }
+    logErrorBoundary(() => {
+      setIsClient(true);
+      // Initialize Supabase client on the client side
+      if (typeof window !== 'undefined') {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        if (!supabaseUrl || !supabaseAnonKey) {
+          throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
+        }
+        setSupabase(createBrowserClient(supabaseUrl, supabaseAnonKey));
+      }
+    }, 'useEffect: init client & supabase');
   }, []);
 
-  // Check for guest session
   useEffect(() => {
-    if (!isClient) return;
-
-    const getLocalGuestId = () => {
-      const guestProfileId = localStorage.getItem('guestProfileId');
-      setGuestId(guestProfileId);
-      setAuthLoading(false);
-    };
-
-    getLocalGuestId();
+    logErrorBoundary(() => {
+      if (!isClient) return;
+      const getLocalGuestId = () => {
+        const guestProfileId = localStorage.getItem('guestProfileId');
+        setGuestId(guestProfileId);
+        setAuthLoading(false);
+      };
+      getLocalGuestId();
+    }, 'useEffect: getLocalGuestId');
   }, [isClient]);
 
-  // Set up Supabase auth listener
   useEffect(() => {
-    if (!isClient || !supabase) return;
-    
-    const getUser = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        if (error) {
-          console.error('Error getting session:', error);
-          setAuthLoading(false);
-          return;
-        }
-
-        const session = data.session;
-        
-        if (session) {
-          setUser(session.user);
-          await fetchProfile(session.user.id);
-        } else {
-          setAuthLoading(false);
-        }
-      } catch (error) {
-        console.error('Error in getUser:', error);
-        setAuthLoading(false);
-      }
-    };
-
-    getUser();
-    
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: string, session: any) => {
-        if (session) {
-          setUser(session.user);
-          
-          // Fetch profile and create if needed
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-          
-          if (profileError || !profileData) {
-            console.log('Profile not found, creating via API');
-            try {
-              const response = await fetch('/api/auth/create-profile', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ user: session.user }),
-              });
-
-              if (response.ok) {
-                // Refetch profile after creation
-                const { data: newProfile } = await supabase
-                  .from('profiles')
-                  .select('*')
-                  .eq('id', session.user.id)
-                  .single();
-                  
-                setProfile(newProfile || null);
-              } else {
-                console.error('Failed to create profile via API:', await response.text());
-              }
-            } catch (error) {
-              console.error('Error calling create-profile API:', error);
-            }
-          } else {
-            setProfile(profileData);
+    logErrorBoundary(() => {
+      if (!isClient || !supabase) return;
+      const getUser = async () => {
+        try {
+          const { data, error } = await supabase.auth.getSession();
+          if (error) {
+            console.error('Error getting session:', error);
+            setAuthLoading(false);
+            return;
           }
-          
-          setAuthLoading(false);
-        } else {
-          setUser(null);
-          setProfile(null);
+          const session = data.session;
+          if (session) {
+            setUser(session.user);
+            await fetchProfile(session.user.id);
+          } else {
+            setAuthLoading(false);
+          }
+        } catch (error) {
+          console.error('Error in getUser:', error);
           setAuthLoading(false);
         }
-      }
-    );
-
-    return () => {
-      if (subscription) {
-        subscription.unsubscribe();
-      }
-    };
+      };
+      getUser();
+      // Listen for auth changes
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event: string, session: any) => {
+          try {
+            if (session) {
+              setUser(session.user);
+              // Fetch profile and create if needed
+              const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single();
+              if (profileError || !profileData) {
+                console.log('Profile not found, creating via API');
+                try {
+                  const response = await fetch('/api/auth/create-profile', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ userId: session.user.id })
+                  });
+                  if (!response.ok) throw new Error('Failed to create profile');
+                  const profile = await response.json();
+                  setProfile(profile);
+                } catch (err) {
+                  console.error('Error creating profile:', err);
+                }
+              } else {
+                setProfile(profileData);
+              }
+            } else {
+              setUser(null);
+              setProfile(null);
+            }
+          } catch (err) {
+            console.error('Error in auth state change:', err);
+          }
+        }
+      );
+      return () => {
+        try {
+          subscription.unsubscribe();
+        } catch (err) {
+          console.error('Error unsubscribing from auth state:', err);
+        }
+      };
+    }, 'useEffect: getUser & auth listener');
   }, [isClient, supabase]);
 
   // Fetch user profile
