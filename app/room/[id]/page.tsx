@@ -7,7 +7,7 @@ import { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useParticipants } from '@/hooks/useParticipants';
 import { supabase } from '@/lib/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion';
 import { useRoomNotifications } from '@/hooks/useNotifications';
 import { useNotification } from '@/contexts/NotificationContext';
 import { useSwipeGesture } from '@/hooks/useSwipeGesture';
@@ -16,7 +16,7 @@ import { Stage } from '@/components/room/Stage';
 import { Audience } from '@/components/room/Audience';
 import { Controls } from '@/components/room/Controls';
 import { RaisedHands } from '@/components/room/RaisedHands';
-import { MessageCircle, X, ChevronDown, Video, Bell, Users, FileUp, PenTool, Link } from 'lucide-react';
+import { MessageCircle, X, ChevronDown, Video, Bell, Users, FileUp, PenTool, Link, Sparkles } from 'lucide-react';
 import { PageTransition } from '@/components/transitions/PageTransition';
 import { useGuestSession, useAuth } from '@/hooks/auth';
 import { useNotifications } from '@/hooks/use-notifications';
@@ -27,7 +27,7 @@ import { Poll } from '@/components/Poll';
 import { RoomThemeEditor } from '@/components/RoomThemeEditor';
 import { FileUploader } from '@/components/FileUploader';
 import { RoomHeader } from '@/components/room/RoomHeader';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Room({ params }: { params: { id: string } }) {
   let user, profile, guestId, isGuest, isAuthenticated, ensureSessionToken;
@@ -970,459 +970,402 @@ export default function Room({ params }: { params: { id: string } }) {
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-zinc-900 text-white">
-        {/* Room Header with Info */}
-        <RoomHeader 
-          roomName={room?.name || 'Room'} 
-          participantCount={speakers.length + audience.length} 
-          onShowParticipants={() => setShowParticipants(!showParticipants)} 
+      <div className="min-h-screen bg-gradient-to-br from-[#0f172a] via-[#18181b] to-[#0e7490] text-white relative overflow-hidden">
+        <motion.div 
+          className="absolute inset-0 opacity-50"
+          initial={false}
+          animate={{
+            background: [
+              "radial-gradient(circle at 0% 0%, #6366f1 0%, transparent 50%)",
+              "radial-gradient(circle at 100% 100%, #0ea5e9 0%, transparent 50%)",
+              "radial-gradient(circle at 50% 50%, #8b5cf6 0%, transparent 50%)",
+            ],
+          }}
+          transition={{
+            duration: 10,
+            repeat: Infinity,
+            repeatType: "reverse",
+          }}
         />
-        
-        <main className="max-w-4xl mx-auto px-4 py-6">
-          {/* Stage section - only rendered when there are speakers */}
-          {speakers.length > 0 && (
-            <>
-              <Stage 
-                speakers={speakersWithCameraStatus} 
-                currentUserId={id}
-                videoRef={videoRef as React.RefObject<HTMLVideoElement>}
-                videoStream={videoStream} 
-                isCameraOn={isCameraOn}
-                isHost={isHost}
-                onMuteSpeaker={handleMuteSpeaker}
-                onRemoveSpeaker={handleRemoveSpeaker}
-                onPromoteSpeaker={handlePromoteToSpeaker}
-                roomId={roomId}
-              />
-              
-              {/* Raised Hands Section (only visible to speakers) */}
-              {(isSpeaker || isHost) && participantsWithRaisedHands.length > 0 && (
-                <RaisedHands
-                  participants={participantsWithRaisedHands}
-                  onApprove={handlePromoteToSpeaker}
-                  onDismiss={handleDismissRaisedHand}
-                />
-              )}
-            </>
-          )}
 
-          {/* Audience Section - with proper spacing based on speakers presence */}
-          <div className={`${speakers.length === 0 ? 'pt-10' : ''}`}>
-            <div className="mb-4">
-              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                <span>In the Room</span>
-                <span className="text-sm font-normal text-zinc-400">({audience.length})</span>
-              </h2>
-              <p className="text-zinc-400 text-sm">
-                {speakers.length === 0 
-                  ? "No one is speaking yet. Join the stage to start the conversation!" 
-                  : "These people are listening to the conversation."}
-              </p>
-            </div>
-            
-            <Audience 
-              listeners={listenersWithFormattedProps}
-              currentUserId={id}
-              promoteToSpeaker={handlePromoteToSpeaker}
-              updateRoomActivity={updateRoomActivity}
-              onRaiseHand={handleAudienceRaiseHand}
-              roomId={roomId}
+        <div className="relative z-10">
+          {/* Room Header */}
+          <motion.div
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
+            <RoomHeader
+              room={room}
+              onBack={() => router.push('/directory')}
+              onShare={() => setShowInviteLink(true)}
             />
-          </div>
-        </main>
+          </motion.div>
 
-        {/* Room Controls */}
-        <Controls 
-          isMuted={isMuted} 
-          onToggleMute={handleToggleMute}
-          hasRaisedHand={hasRaisedHand}
-          onToggleRaiseHand={!isSpeaker ? handleRaiseHand : undefined}
-          isSpeaker={isSpeaker}
-          onLeaveRoom={handleLeaveRoom}
-          isCameraOn={isCameraOn}
-          onToggleCamera={handleToggleCamera}
-          showCameraButton={isSpeaker && roomHasVideoEnabled}
-        />
-
-        {/* Additional Feature Controls */}
-        <div className="fixed bottom-20 left-0 right-0 z-40 px-4 mb-2">
-          <div className="max-w-md mx-auto flex items-center justify-between bg-zinc-800/90 backdrop-blur-md border border-zinc-700/50 rounded-full px-4 py-2 shadow-lg">
-            {/* Notifications button */}
-            <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className={`relative p-2 rounded-full ${
-                showNotifications ? "bg-indigo-600" : "bg-zinc-700 hover:bg-zinc-600"
-              }`}
-            >
-              <Bell className="h-5 w-5 text-white" />
-              {unreadCount > 0 && !showMessages && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-            
-            {/* Activity Log button */}
-            <button
-              onClick={() => setShowActivityLog(!showActivityLog)}
-              className={`p-2 rounded-full ${
-                showActivityLog ? "bg-indigo-600" : "bg-zinc-700 hover:bg-zinc-600"
-              }`}
-            >
-              <Users className="h-5 w-5 text-white" />
-            </button>
-            
-            {/* Poll button */}
-            <button
-              onClick={() => setShowPoll(!showPoll)}
-              className={`p-2 rounded-full ${
-                showPoll ? "bg-indigo-600" : "bg-zinc-700 hover:bg-zinc-600"
-              }`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                <path d="M3 3v18h18"></path>
-                <path d="M18 17V9"></path>
-                <path d="M13 17V5"></path>
-                <path d="M8 17v-3"></path>
-              </svg>
-            </button>
-            
-            {/* File Uploader button */}
-            <button
-              onClick={() => setShowFileUploader(!showFileUploader)}
-              className={`p-2 rounded-full ${
-                showFileUploader ? "bg-indigo-600" : "bg-zinc-700 hover:bg-zinc-600"
-              }`}
-            >
-              <FileUp className="h-5 w-5 text-white" />
-            </button>
-            
-            {/* Room Theme Editor button - only for host */}
-            {isHost && (
-              <button
-                onClick={() => setShowThemeEditor(!showThemeEditor)}
-                className={`p-2 rounded-full ${
-                  showThemeEditor ? "bg-indigo-600" : "bg-zinc-700 hover:bg-zinc-600"
-                }`}
-              >
-                <PenTool className="h-5 w-5 text-white" />
-              </button>
-            )}
-            
-            {/* Invite Link button - only for host */}
-            {isHost && (
-              <button
-                onClick={generateInviteLink}
-                className={`p-2 rounded-full ${
-                  showInviteLink ? "bg-indigo-600" : "bg-zinc-700 hover:bg-zinc-600"
-                }`}
-              >
-                <Link className="h-5 w-5 text-white" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Messages Panel */}
-        <AnimatePresence>
-          {showMessages && (
+          {/* Main Content */}
+          <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+            {/* Stage Area */}
             <motion.div
-              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowMessages(false)}
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="mb-8"
             >
-              <motion.div
-                className="absolute bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 rounded-t-xl p-4 pb-20 max-h-[80vh] overflow-y-auto"
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "100%" }}
-                transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-xl font-semibold text-white">Chat</h3>
-                  <button
-                    onClick={() => setShowMessages(false)}
-                    className="p-1 rounded-full bg-zinc-800 hover:bg-zinc-700"
+              <Stage
+                speakers={speakers}
+                isSpeaker={isSpeaker}
+                isMuted={isMuted}
+                onMute={handleToggleMute}
+                onPromote={handlePromoteToSpeaker}
+                onDismiss={handleDismissRaisedHand}
+                videoRef={videoRef}
+                showVideo={showVideo}
+                isCameraOn={isCameraOn}
+              />
+            </motion.div>
+
+            {/* Audience Area */}
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="mb-8"
+            >
+              <Audience
+                audience={audience}
+                onPromote={handlePromoteToSpeaker}
+                onMute={handleMute}
+                onKick={handleKick}
+              />
+            </motion.div>
+
+            {/* Controls */}
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-xl border-t border-white/10 p-4"
+            >
+              <Controls
+                isSpeaker={isSpeaker}
+                isMuted={isMuted}
+                hasRaisedHand={hasRaisedHand}
+                isCameraOn={isCameraOn}
+                onToggleMute={handleToggleMute}
+                onToggleCamera={handleToggleCamera}
+                onRaiseHand={handleRaiseHand}
+                onLeave={handleLeaveRoom}
+                showMessages={showMessages}
+                onToggleMessages={toggleMessages}
+                unreadCount={unreadCount}
+              />
+            </motion.div>
+
+            {/* Messages Panel */}
+            <AnimatePresence mode="wait">
+              {showMessages && (
+                <motion.div
+                  className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowMessages(false)}
+                >
+                  <motion.div
+                    className="absolute bottom-0 left-0 right-0 bg-zinc-900/90 backdrop-blur-xl border-t border-white/10 rounded-t-2xl p-4 pb-24 max-h-[80vh] overflow-y-auto"
+                    initial={{ y: "100%" }}
+                    animate={{ y: 0 }}
+                    exit={{ y: "100%" }}
+                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <X className="h-5 w-5 text-zinc-400" />
-                  </button>
-                </div>
-                <div className="space-y-4 mb-4">
-                  {messages.map((message, index) => (
-                    <div
-                      key={index}
-                      className={`flex items-start ${
-                        message.userId === (user?.id || guestId) ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      {message.userId !== (user?.id || guestId) && (
-                        <div className="w-8 h-8 rounded-full bg-indigo-600 flex-shrink-0 mr-2 flex items-center justify-center overflow-hidden">
-                          {message.avatar ? (
-                            <img src={message.avatar} alt={message.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-xs font-medium text-white">
-                              {message.name?.charAt(0).toUpperCase()}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      <div
-                        className={`max-w-[75%] rounded-lg px-3 py-2 ${
-                          message.userId === (user?.id || guestId)
-                            ? "bg-indigo-600 text-white"
-                            : "bg-zinc-800 text-zinc-100"
-                        }`}
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                        Chat
+                        <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
+                      </h3>
+                      <button
+                        onClick={() => setShowMessages(false)}
+                        className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
                       >
-                        {message.userId !== (user?.id || guestId) && (
-                          <p className="text-xs font-medium mb-1 text-zinc-400">{message.name}</p>
-                        )}
-                        <p className="text-sm">{message.text}</p>
+                        <X className="w-5 h-5 text-zinc-400" />
+                      </button>
+                    </div>
+                    <div className="space-y-4 mb-4">
+                      {messages.map((message, index) => (
+                        <motion.div
+                          key={message.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          className="flex items-start gap-3"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center text-white font-medium text-sm">
+                            {message.user.name[0]}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-white">{message.user.name}</span>
+                              <span className="text-xs text-zinc-500">{new Date(message.created_at).toLocaleTimeString()}</span>
+                            </div>
+                            <p className="text-zinc-300">{message.content}</p>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                    <form onSubmit={handleSendMessage} className="relative">
+                      <input
+                        type="text"
+                        value={messageText}
+                        onChange={(e) => setMessageText(e.target.value)}
+                        placeholder="Type a message..."
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <button
+                        type="submit"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg transition-colors"
+                      >
+                        <MessageCircle className="w-5 h-5 text-white" />
+                      </button>
+                    </form>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Notifications Panel */}
+            <AnimatePresence mode="wait">
+              {showNotifications && (
+                <motion.div
+                  className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowNotifications(false)}
+                >
+                  <motion.div
+                    className="absolute bottom-0 left-0 right-0 bg-zinc-900/90 backdrop-blur-xl border-t border-white/10 rounded-t-2xl p-4 pb-24 max-h-[80vh] overflow-y-auto"
+                    initial={{ y: "100%" }}
+                    animate={{ y: 0 }}
+                    exit={{ y: "100%" }}
+                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                        Notifications
+                        <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
+                      </h3>
+                      <button
+                        onClick={() => setShowNotifications(false)}
+                        className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
+                      >
+                        <X className="w-5 h-5 text-zinc-400" />
+                      </button>
+                    </div>
+                    <NotificationsPanel />
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Activity Log Panel */}
+            <AnimatePresence mode="wait">
+              {showActivityLog && (
+                <motion.div
+                  className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowActivityLog(false)}
+                >
+                  <motion.div
+                    className="absolute bottom-0 left-0 right-0 bg-zinc-900/90 backdrop-blur-xl border-t border-white/10 rounded-t-2xl p-4 pb-24 max-h-[80vh] overflow-y-auto"
+                    initial={{ y: "100%" }}
+                    animate={{ y: 0 }}
+                    exit={{ y: "100%" }}
+                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                        Activity Log
+                        <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
+                      </h3>
+                      <button
+                        onClick={() => setShowActivityLog(false)}
+                        className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
+                      >
+                        <X className="w-5 h-5 text-zinc-400" />
+                      </button>
+                    </div>
+                    <ActivityLog roomId={roomId} />
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Poll Panel */}
+            <AnimatePresence mode="wait">
+              {showPoll && (
+                <motion.div
+                  className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowPoll(false)}
+                >
+                  <motion.div
+                    className="absolute bottom-0 left-0 right-0 bg-zinc-900/90 backdrop-blur-xl border-t border-white/10 rounded-t-2xl p-4 pb-24 max-h-[80vh] overflow-y-auto"
+                    initial={{ y: "100%" }}
+                    animate={{ y: 0 }}
+                    exit={{ y: "100%" }}
+                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                        Polls
+                        <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
+                      </h3>
+                      <button
+                        onClick={() => setShowPoll(false)}
+                        className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
+                      >
+                        <X className="w-5 h-5 text-zinc-400" />
+                      </button>
+                    </div>
+                    <Poll roomId={roomId} isHost={isHost} />
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* File Uploader Panel */}
+            <AnimatePresence mode="wait">
+              {showFileUploader && (
+                <motion.div
+                  className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowFileUploader(false)}
+                >
+                  <motion.div
+                    className="absolute bottom-0 left-0 right-0 bg-zinc-900/90 backdrop-blur-xl border-t border-white/10 rounded-t-2xl p-4 pb-24 max-h-[80vh] overflow-y-auto"
+                    initial={{ y: "100%" }}
+                    animate={{ y: 0 }}
+                    exit={{ y: "100%" }}
+                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                        Share Files
+                        <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
+                      </h3>
+                      <button
+                        onClick={() => setShowFileUploader(false)}
+                        className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
+                      >
+                        <X className="w-5 h-5 text-zinc-400" />
+                      </button>
+                    </div>
+                    <FileUploader roomId={roomId} />
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Room Theme Editor Panel */}
+            <AnimatePresence mode="wait">
+              {showThemeEditor && (
+                <motion.div
+                  className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowThemeEditor(false)}
+                >
+                  <motion.div
+                    className="absolute bottom-0 left-0 right-0 bg-zinc-900/90 backdrop-blur-xl border-t border-white/10 rounded-t-2xl p-4 pb-24 max-h-[80vh] overflow-y-auto"
+                    initial={{ y: "100%" }}
+                    animate={{ y: 0 }}
+                    exit={{ y: "100%" }}
+                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                        Room Theme
+                        <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
+                      </h3>
+                      <button
+                        onClick={() => setShowThemeEditor(false)}
+                        className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
+                      >
+                        <X className="w-5 h-5 text-zinc-400" />
+                      </button>
+                    </div>
+                    <RoomThemeEditor roomId={roomId} />
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Invite Link Panel */}
+            <AnimatePresence mode="wait">
+              {showInviteLink && (
+                <motion.div
+                  className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowInviteLink(false)}
+                >
+                  <motion.div
+                    className="absolute bottom-0 left-0 right-0 bg-zinc-900/90 backdrop-blur-xl border-t border-white/10 rounded-t-2xl p-4 pb-24 max-h-[80vh] overflow-y-auto"
+                    initial={{ y: "100%" }}
+                    animate={{ y: 0 }}
+                    exit={{ y: "100%" }}
+                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                        Invite Others
+                        <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
+                      </h3>
+                      <button
+                        onClick={() => setShowInviteLink(false)}
+                        className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
+                      >
+                        <X className="w-5 h-5 text-zinc-400" />
+                      </button>
+                    </div>
+                    <div className="bg-white/5 p-4 rounded-lg mb-4">
+                      <p className="text-zinc-300 mb-2">Share this link to invite others to join this room:</p>
+                      <div className="flex items-center">
+                        <input
+                          type="text"
+                          value={inviteLink}
+                          readOnly
+                          className="flex-1 bg-white/5 border border-white/10 rounded-l-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <button
+                          onClick={copyInviteLink}
+                          className="px-4 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-r-lg transition-colors"
+                        >
+                          Copy
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-                <div className="flex items-center">
-                  <input
-                    type="text"
-                    value={messageText}
-                    onChange={(e) => setMessageText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && messageText.trim()) {
-                        handleSendMessage(e);
-                      }
-                    }}
-                    placeholder="Type a message..."
-                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-l-lg px-4 py-2 text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                  <button
-                    onClick={(e) => handleSendMessage(e)}
-                    disabled={!messageText.trim()}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-r-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Send
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Notifications Panel */}
-        <AnimatePresence>
-          {showNotifications && (
-            <motion.div
-              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowNotifications(false)}
-            >
-              <motion.div
-                className="absolute bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 rounded-t-xl p-4 pb-20 max-h-[80vh] overflow-y-auto"
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "100%" }}
-                transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-xl font-semibold text-white">Notifications</h3>
-                  <button
-                    onClick={() => setShowNotifications(false)}
-                    className="p-1 rounded-full bg-zinc-800 hover:bg-zinc-700"
-                  >
-                    <X className="h-5 w-5 text-zinc-400" />
-                  </button>
-                </div>
-                <NotificationsPanel />
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Activity Log Panel */}
-        <AnimatePresence>
-          {showActivityLog && (
-            <motion.div
-              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowActivityLog(false)}
-            >
-              <motion.div
-                className="absolute bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 rounded-t-xl p-4 pb-20 max-h-[80vh] overflow-y-auto"
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "100%" }}
-                transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-xl font-semibold text-white">Activity Log</h3>
-                  <button
-                    onClick={() => setShowActivityLog(false)}
-                    className="p-1 rounded-full bg-zinc-800 hover:bg-zinc-700"
-                  >
-                    <X className="h-5 w-5 text-zinc-400" />
-                  </button>
-                </div>
-                <ActivityLog roomId={roomId} />
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Poll Panel */}
-        <AnimatePresence>
-          {showPoll && (
-            <motion.div
-              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowPoll(false)}
-            >
-              <motion.div
-                className="absolute bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 rounded-t-xl p-4 pb-20 max-h-[80vh] overflow-y-auto"
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "100%" }}
-                transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-xl font-semibold text-white">Polls</h3>
-                  <button
-                    onClick={() => setShowPoll(false)}
-                    className="p-1 rounded-full bg-zinc-800 hover:bg-zinc-700"
-                  >
-                    <X className="h-5 w-5 text-zinc-400" />
-                  </button>
-                </div>
-                <Poll roomId={roomId} isHost={isHost} />
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* File Uploader Panel */}
-        <AnimatePresence>
-          {showFileUploader && (
-            <motion.div
-              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowFileUploader(false)}
-            >
-              <motion.div
-                className="absolute bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 rounded-t-xl p-4 pb-20 max-h-[80vh] overflow-y-auto"
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "100%" }}
-                transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-xl font-semibold text-white">Share Files</h3>
-                  <button
-                    onClick={() => setShowFileUploader(false)}
-                    className="p-1 rounded-full bg-zinc-800 hover:bg-zinc-700"
-                  >
-                    <X className="h-5 w-5 text-zinc-400" />
-                  </button>
-                </div>
-                <FileUploader roomId={roomId} />
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Room Theme Editor Panel */}
-        <AnimatePresence>
-          {showThemeEditor && (
-            <motion.div
-              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowThemeEditor(false)}
-            >
-              <motion.div
-                className="absolute bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 rounded-t-xl p-4 pb-20 max-h-[80vh] overflow-y-auto"
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "100%" }}
-                transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-xl font-semibold text-white">Room Theme</h3>
-                  <button
-                    onClick={() => setShowThemeEditor(false)}
-                    className="p-1 rounded-full bg-zinc-800 hover:bg-zinc-700"
-                  >
-                    <X className="h-5 w-5 text-zinc-400" />
-                  </button>
-                </div>
-                <RoomThemeEditor roomId={roomId} />
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Invite Link Panel */}
-        <AnimatePresence>
-          {showInviteLink && (
-            <motion.div
-              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowInviteLink(false)}
-            >
-              <motion.div
-                className="absolute bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 rounded-t-xl p-4 pb-20 max-h-[80vh] overflow-y-auto"
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "100%" }}
-                transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-xl font-semibold text-white">Invite Others</h3>
-                  <button
-                    onClick={() => setShowInviteLink(false)}
-                    className="p-1 rounded-full bg-zinc-800 hover:bg-zinc-700"
-                  >
-                    <X className="h-5 w-5 text-zinc-400" />
-                  </button>
-                </div>
-                <div className="bg-zinc-800 p-4 rounded-lg mb-4">
-                  <p className="text-zinc-300 mb-2">Share this link to invite others to join this room:</p>
-                  <div className="flex items-center">
-                    <input
-                      type="text"
-                      value={inviteLink}
-                      readOnly
-                      className="flex-1 bg-zinc-700 border border-zinc-600 rounded-l-lg px-3 py-2 text-white focus:outline-none"
-                    />
-                    <button
-                      onClick={copyInviteLink}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-r-lg"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
       </div>
     </PageTransition>
   );

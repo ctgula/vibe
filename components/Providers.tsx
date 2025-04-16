@@ -3,7 +3,7 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { ToastProvider } from "@/components/ui/toast-provider"
 import { ErrorBoundary } from 'react-error-boundary';
-import { AuthProvider } from '@/hooks/auth';
+import { AuthProvider } from '@/hooks/use-supabase-auth';
 
 function ErrorFallback({ error, resetErrorBoundary }: { error: Error, resetErrorBoundary: () => void }) {
   return (
@@ -21,12 +21,22 @@ export function Providers({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    // Small delay to ensure smooth hydration
+    const timer = setTimeout(() => {
+      setMounted(true);
+    }, 50);
+    return () => clearTimeout(timer);
   }, []);
 
+  // During server-side rendering or hydration
   if (!mounted) {
-    // Minimal placeholder during hydration check
-    return <div className="min-h-screen bg-black"></div>;
+    return (
+      <div className="min-h-screen bg-black">
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      </div>
+    );
   }
 
   return (
