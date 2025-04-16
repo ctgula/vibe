@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthProvider';
+import { useAuth } from '@/hooks/auth';
 import { ArrowRight, Check, User, Palette, MessageSquare, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Input } from '@/components/ui/input';

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { LogOut, Menu, User, Home, Grid, Settings, LayoutGrid, Bell, Star } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthProvider'; // Use AuthProvider context for all guest/user state and logout logic
+import { useAuth } from '@/hooks/auth'; // Use AuthProvider context for all guest/user state and logout logic
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {

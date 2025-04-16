@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Check, User, LogOut, Camera, X, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useAuth } from '@/contexts/AuthProvider';
+import { useAuth } from '@/hooks/auth';
 
 // Define room type for better type safety
 type RoomType = {

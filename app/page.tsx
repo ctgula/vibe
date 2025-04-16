@@ -14,7 +14,7 @@ import {
   ArrowRight,
   Zap
 } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks/auth';
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
