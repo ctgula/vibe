@@ -164,7 +164,7 @@ export default function CreateRoom() {
       toast({
         title: "Room created!",
         description: `Welcome to ${roomData.name}`,
-        variant: "success"
+        variant: "default"
       });
       router.replace(`/rooms/${roomId}`);
     } catch (err: any) {
