@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import Link from 'next/link';
 import { LogIn } from 'lucide-react';
 
@@ -8,7 +8,7 @@ export default function AuthHeader() {
   return (
     <div className="mb-8">
       <Link href="/" passHref>
-        <motion.div
+        <m.div
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className="flex items-center justify-center"
@@ -17,7 +17,7 @@ export default function AuthHeader() {
             <LogIn className="w-6 h-6 text-white" />
           </div>
           <h1 className="ml-3 text-3xl font-bold text-white">Vibe</h1>
-        </motion.div>
+        </m.div>
       </Link>
     </div>
   );
