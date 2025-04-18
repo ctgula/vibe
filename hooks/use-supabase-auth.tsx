@@ -2,10 +2,11 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClientComponentClient, Session } from '@supabase/auth-helpers-nextjs';
 import { toast } from 'sonner';
 import type { Provider } from '@supabase/supabase-js'; 
 import type { Route } from 'next'; 
+import { AuthResponse } from '@supabase/supabase-js'; 
 
 export interface Profile {
   id: string;
@@ -23,7 +24,7 @@ interface AuthContextType {
   guestId: string | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<AuthResponse>;
   signInWithOAuth: (provider: Provider) => Promise<void>; 
   signOut: () => Promise<void>;
   setProfile: (profile: Profile | null) => void; 
@@ -186,37 +187,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string): Promise<AuthResponse> => {
     setIsLoading(true);
     try {
-      console.log('Signing up...', { email });
-      const { data, error } = await supabase.auth.signUp({
+      console.log('Attempting Supabase sign up...', { email });
+      const response = await supabase.auth.signUp({
         email,
         password,
       });
+      console.log('Supabase signUp response:', response);
 
-      if (error) throw error;
+      if (response.error) {
+        console.error('Supabase Sign Up Error:', response.error);
+        throw response.error;
+      }
 
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert([
-          {
-            id: data.user!.id,
-            email,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-        ])
-        .select()
-        .single();
-
-      if (profileError) throw profileError;
-
-      toast.success('Account created successfully! Please check your email to verify your account.');
-      router.push('/auth/verify' as Route); 
+      return response;
 
     } catch (error: any) {
-      console.error('Error signing up:', error);
+      console.error('Error during signUp process in hook:', error);
       toast.error(error.message || 'Error creating account');
       throw error;
     } finally {
