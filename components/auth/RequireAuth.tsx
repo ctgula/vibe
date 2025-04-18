@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-supabase-auth';
 import { Loader2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
+import type { Route } from 'next';
 
 interface RequireAuthProps {
   children: React.ReactNode;
@@ -23,36 +24,42 @@ export function RequireAuth({
   const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkAuth = () => {
       try {
-        // Wait for auth to load
-        if (authLoading) return;
+        if (authLoading) {
+          setIsCheckingAuth(true);
+          return;
+        }
+
+        setIsCheckingAuth(true);
 
         const currentPath = window.location.pathname;
-        const isAuthPath = currentPath.startsWith('/auth/');
-        const isGuestPath = currentPath.startsWith('/guest');
-        const isHomePath = currentPath === '/';
-        const isPublicPath = isAuthPath || isGuestPath || isHomePath;
+        const isLoginPage = currentPath.startsWith('/auth/login');
+        const isSignupPage = currentPath.startsWith('/auth/signup');
+        const isVerifyPage = currentPath.startsWith('/auth/verify');
+        const isCallbackPage = currentPath.startsWith('/auth/callback');
+        const isOnAuthFlowPage = isLoginPage || isSignupPage || isVerifyPage || isCallbackPage;
 
-        // Check if user is authorized
         const hasAuth = user !== null;
         const hasGuestAccess = allowGuest && guestId !== null;
         const isAllowed = hasAuth || hasGuestAccess;
 
-        if (!isAllowed && !isPublicPath) {
-          // Store current path for redirect after auth
+        console.log('[RequireAuth]', { currentPath, hasAuth, hasGuestAccess, isAllowed, allowGuest, guestId, isOnAuthFlowPage });
+
+        if (!isAllowed && !isOnAuthFlowPage) {
+          console.log(`[RequireAuth] Not allowed on ${currentPath}, redirecting to ${redirectTo}`);
           if (currentPath !== redirectTo) {
             localStorage.setItem('redirectAfterAuth', currentPath);
           }
-          router.replace(redirectTo);
+          router.replace(redirectTo as Route);
           setIsAuthorized(false);
         } else {
-          setIsAuthorized(isAllowed);
+          setIsAuthorized(true);
         }
 
         setIsCheckingAuth(false);
       } catch (error) {
-        console.error('Error checking auth:', error);
+        console.error('[RequireAuth] Error checking auth:', error);
         setIsCheckingAuth(false);
         setIsAuthorized(false);
       }
@@ -61,25 +68,23 @@ export function RequireAuth({
     checkAuth();
   }, [user, guestId, authLoading, allowGuest, redirectTo, router]);
 
-  // Show loading state while checking auth
   if (isCheckingAuth || authLoading) {
     return (
-      <motion.div
+      <m.div
         className="flex flex-col items-center justify-center min-h-[200px] py-12"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
       >
         <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
-        <p className="mt-4 text-zinc-400">Checking authentication...</p>
-      </motion.div>
+        <p className="mt-4 text-zinc-400">Checking access...</p>
+      </m.div>
     );
   }
 
-  // Show auth required message if not authorized
   if (!isAuthorized) {
     return (
-      <motion.div 
+      <m.div
         className="flex flex-col items-center justify-center min-h-[300px] text-center p-6"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -91,7 +96,7 @@ export function RequireAuth({
           <button
             onClick={() => {
               localStorage.setItem('redirectAfterAuth', window.location.pathname);
-              router.push(redirectTo);
+              router.push(redirectTo as Route);
             }}
             className="text-indigo-400 hover:text-indigo-300 underline focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-black rounded"
           >
@@ -99,18 +104,18 @@ export function RequireAuth({
           </button>
           {' '}to access this page.
         </p>
-      </motion.div>
+      </m.div>
     );
   }
 
-  // User is authorized, render children
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
+      className="w-full h-full"
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
