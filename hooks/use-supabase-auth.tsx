@@ -36,15 +36,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [guestId, setGuestId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Debug logs
+  console.log('AuthProvider render:', { user, profile, guestId, isLoading });
+
   useEffect(() => {
     const initializeAuth = async () => {
       try {
+        console.log('Initializing auth...');
+        
         // Get current session
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          throw sessionError;
+        }
+
+        console.log('Session loaded:', session);
         setUser(session?.user ?? null);
 
         // Set up auth state listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          console.log('Auth state change:', { event, session });
           setUser(session?.user ?? null);
           
           if (event === 'SIGNED_OUT') {
@@ -55,18 +68,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Check for guest ID in localStorage
         const storedGuestId = localStorage.getItem('guestProfileId');
+        console.log('Stored guest ID:', storedGuestId);
+
         if (storedGuestId) {
           setGuestId(storedGuestId);
           
           // If we have a guest ID but no profile, fetch the guest profile
           if (!profile) {
+            console.log('Fetching guest profile...');
             const { data: guestProfile, error: guestError } = await supabase
               .from('profiles')
               .select('*')
               .eq('id', storedGuestId)
               .single();
 
-            if (!guestError && guestProfile) {
+            if (guestError) {
+              console.error('Guest profile error:', guestError);
+              // Clear invalid guest ID
+              localStorage.removeItem('guestProfileId');
+              setGuestId(null);
+            } else if (guestProfile) {
+              console.log('Guest profile loaded:', guestProfile);
               setProfile(guestProfile);
             }
           }
@@ -74,13 +96,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // If we have a user but no profile, fetch their profile
         if (session?.user && !profile) {
+          console.log('Fetching user profile...');
           const { data: userProfile, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
             .single();
 
-          if (!profileError && userProfile) {
+          if (profileError) {
+            console.error('User profile error:', profileError);
+          } else if (userProfile) {
+            console.log('User profile loaded:', userProfile);
             setProfile(userProfile);
           }
         }
@@ -89,6 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         console.error('Error initializing auth:', error);
         setIsLoading(false);
+        toast.error('Error loading user data');
       }
     };
 
@@ -97,6 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
+      console.log('Signing in...', { email });
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -134,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string) => {
     try {
+      console.log('Signing up...', { email });
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -169,6 +198,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      console.log('Signing out...');
       await supabase.auth.signOut();
       setUser(null);
       setProfile(null);
