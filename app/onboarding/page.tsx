@@ -54,9 +54,15 @@ export default function OnboardingPage() {
   const router = useRouter()
   const { user, isLoading: authLoading } = useAuth()
 
+  // DEBUG LOGGING
+  useEffect(() => {
+    console.log('[Onboarding] loading:', loading, 'authLoading:', authLoading, 'user:', user)
+  }, [loading, authLoading, user])
+
   useEffect(() => {
     if (authLoading) return
     if (!user) {
+      console.warn('[Onboarding] No user found, redirecting to /auth/signin')
       router.push('/auth/signin')
       return
     }
@@ -83,7 +89,7 @@ export default function OnboardingPage() {
           })
         }
       } catch (error: any) {
-        console.error('Error loading profile:', error)
+        console.error('[Onboarding] Error loading profile:', error)
         toast.error('Failed to load profile')
       } finally {
         setLoading(false)
@@ -92,6 +98,34 @@ export default function OnboardingPage() {
 
     initializeProfile()
   }, [user, authLoading, router])
+
+  // FALLBACK UI if stuck loading
+  if ((loading || authLoading) && !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-center text-white/80">
+          <p>Loading your onboarding experience...</p>
+          <p className="text-xs mt-2">(If this persists, check the console for errors)</p>
+        </div>
+      </div>
+    )
+  }
+
+  // EXISTING fallback for loading
+  if (loading || authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center"
+        >
+          <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-white/70">Setting up your vibe...</p>
+        </motion.div>
+      </div>
+    )
+  }
 
   const paginate = (newDirection: number) => {
     if ((page + newDirection) >= 0 && (page + newDirection) < totalSteps) {
@@ -367,21 +401,6 @@ export default function OnboardingPage() {
           {content[page]}
         </motion.div>
       </AnimatePresence>
-    )
-  }
-
-  if (loading || authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center"
-        >
-          <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-white/70">Setting up your vibe...</p>
-        </motion.div>
-      </div>
     )
   }
 
