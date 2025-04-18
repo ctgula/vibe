@@ -206,12 +206,12 @@ export default function OnboardingPage() {
               <p className="text-white/70">Choose how others will know you.</p>
             </motion.div>
             <motion.div 
-              className="space-y-4"
+              className="space-y-6"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
             >
-              <div className="relative">
+              <div className="relative mb-8">
                 <input
                   type="text"
                   placeholder="Username"
@@ -219,9 +219,11 @@ export default function OnboardingPage() {
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 />
-                <p className="absolute -bottom-6 left-0 text-white/40 text-sm">This will be your unique identifier</p>
+                <p className="absolute top-full mt-2 text-white/60 text-sm">
+                  This will be your unique identifier
+                </p>
               </div>
-              <div className="relative mt-8">
+              <div className="relative">
                 <input
                   type="text"
                   placeholder="Display Name"
@@ -229,7 +231,9 @@ export default function OnboardingPage() {
                   onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 />
-                <p className="absolute -bottom-6 left-0 text-white/40 text-sm">This is how your name will appear to others</p>
+                <p className="absolute top-full mt-2 text-white/60 text-sm">
+                  This is how your name will appear to others
+                </p>
               </div>
             </motion.div>
           </div>
@@ -395,8 +399,8 @@ export default function OnboardingPage() {
             <Button
               onClick={handleBack}
               disabled={page === 0 || submitting}
-              variant="ghost"
-              className="text-white hover:bg-white/10"
+              variant="outline"
+              className="text-white hover:bg-white/10 border-white/20"
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
@@ -422,12 +426,12 @@ export default function OnboardingPage() {
             <Button
               onClick={page === totalSteps - 1 ? handleSubmit : handleNext}
               disabled={submitting || (page === 1 && !formData.username)}
+              variant={page === totalSteps - 1 ? "default" : "secondary"}
               className={cn(
                 "min-w-[100px] transition-all",
-                page === totalSteps - 1
-                  ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
-                  : "bg-purple-500 hover:bg-purple-600",
-                "text-white"
+                page === totalSteps - 1 
+                  ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
+                  : "bg-purple-500 hover:bg-purple-600 text-white"
               )}
             >
               {submitting ? (
