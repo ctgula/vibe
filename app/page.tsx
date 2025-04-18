@@ -93,34 +93,47 @@ export default function Home() {
       if (window.navigator && window.navigator.vibrate) {
         window.navigator.vibrate(3);
       }
+
+      // If user is authenticated, ensure session token
       if (user) {
         await ensureSessionToken();
+        router.push(path);
+        return;
       }
-      if (!user && !guestId) {
-        const newGuestId = crypto.randomUUID();
-        const { error: createError } = await supabase
-          .from('profiles')
-          .insert([{
-            id: newGuestId,
-            is_guest: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }])
-          .select()
-          .single();
-        if (createError) {
-          console.error('Error creating guest profile:', createError);
-          toast.error('Failed to create guest profile. Please try again.');
-          if (window.navigator && window.navigator.vibrate) {
-            window.navigator.vibrate([10, 5, 10]);
-          }
-          return;
+
+      // If guest ID exists, use it
+      if (guestId) {
+        router.push(path);
+        return;
+      }
+
+      // Create new guest profile if neither user nor guestId exists
+      const newGuestId = crypto.randomUUID();
+      const { error: createError } = await supabase
+        .from('profiles')
+        .insert([{
+          id: newGuestId,
+          is_guest: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Error creating guest profile:', createError);
+        toast.error('Failed to create guest profile. Please try again.');
+        if (window.navigator && window.navigator.vibrate) {
+          window.navigator.vibrate([10, 5, 10]);
         }
-        localStorage.setItem('guestProfileId', newGuestId);
-        localStorage.setItem('guest_id', newGuestId);
-        toast.success('Guest profile created successfully');
+        return;
       }
-      router.push(path || '/onboarding');
+
+      localStorage.setItem('guestProfileId', newGuestId);
+      localStorage.setItem('guest_id', newGuestId);
+      toast.success('Guest profile created successfully');
+      router.push(path);
+
     } catch (error) {
       console.error('Error in handleContinue:', error);
       toast.error('Something went wrong. Please try again.');
