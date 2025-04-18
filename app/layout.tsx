@@ -1,8 +1,7 @@
 import "./globals.css"
 import { Inter } from "next/font/google"
-import { Providers } from "@/components/Providers"
-import { ToastProvider } from '@/components/ui/toast-provider';
-import { AuthProvider } from '@/hooks/use-supabase-auth';
+import { ReactNode } from 'react'
+import Providers from './providers'
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -24,11 +23,7 @@ export const metadata = {
   },
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html 
       lang="en" 
@@ -41,14 +36,19 @@ export default function RootLayout({
     >
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Vibe" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="theme-color" content="#000000" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144x144.png" />
+        <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body 
-        className={`bg-black text-white ${inter.className} overflow-x-hidden overscroll-none`} 
+        className={`${inter.className} bg-black text-white overflow-x-hidden overscroll-none`} 
         suppressHydrationWarning
         style={{
           WebkitTapHighlightColor: "transparent",
@@ -63,13 +63,11 @@ export default function RootLayout({
           MozOsxFontSmoothing: "grayscale"
         }}
       >
-        <AuthProvider>
-          <ToastProvider>
-            <Providers>
-              {children}
-            </Providers>
-          </ToastProvider>
-        </AuthProvider>
+        <div id="root">
+          <Providers>
+            {children}
+          </Providers>
+        </div>
       </body>
     </html>
   )

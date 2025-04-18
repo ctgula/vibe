@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import toast from "react-hot-toast";
 import { ErrorBoundary } from "react-error-boundary";
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 function ErrorFallback({ error, resetErrorBoundary }: { error: Error, resetErrorBoundary: () => void }) {
   return (
@@ -27,6 +28,7 @@ function ErrorFallback({ error, resetErrorBoundary }: { error: Error, resetError
 }
 
 function SignupContent() {
+  const supabase = createClientComponentClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -49,45 +51,52 @@ function SignupContent() {
     setError("");
     setIsLoading(true);
 
-    try {
-      if (!auth || !auth.signUp) {
-        throw new Error("Authentication system not initialized");
-      }
-      
-      // Validate username format
-      if (!/^[a-z0-9_]+$/.test(username)) {
-        throw new Error("Username can only contain lowercase letters, numbers, and underscores");
-      }
-
-      // First sign up with email and password only
-      const { data: signUpData, error: signUpError } = await auth.signUp(email, password);
-      
-      if (signUpError) {
-        throw signUpError;
-      }
-      
-      // If signup successful and we have a user, we'll update the profile with username and displayName
-      // This will happen when the user confirms their email
-      // Store the username and displayName in localStorage to use after confirmation
-      if (signUpData?.user) {
-        localStorage.setItem('pendingUsername', username);
-        localStorage.setItem('pendingDisplayName', displayName || username);
-      }
-      
-      // Add haptic feedback on successful sign up
-      if (window.navigator && window.navigator.vibrate) {
-        window.navigator.vibrate([3, 30, 3]);
-      }
-      
-      toast.success("Account created successfully! Please check your email to confirm your account.");
-      router.push("/auth/confirm");
-    } catch (err: any) {
-      console.error("Sign up error:", err);
-      setError(err.message || "Failed to sign up");
-      toast.error(err.message || "Failed to sign up");
-    } finally {
+    // Validate username format
+    if (!/^[a-z0-9_]+$/.test(username)) {
+      const message = "Username can only contain lowercase letters, numbers, and underscores";
+      setError(message);
+      toast.error(message);
       setIsLoading(false);
+      return;
     }
+
+    const { data: signUpData, error: signUpError } = await auth.signUp(email, password);
+    if (signUpError || !signUpData?.user) {
+      const message = signUpError?.message || "Failed to sign up";
+      setError(message);
+      toast.error(message);
+      setIsLoading(false);
+      return;
+    }
+
+    // Store pending fields
+    localStorage.setItem('pendingUsername', username);
+    localStorage.setItem('pendingDisplayName', displayName || username);
+
+    // Create user profile row
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert([
+        {
+          id: signUpData.user.id,
+          username,
+          display_name: displayName || username,
+          is_guest: false,
+          created_at: new Date().toISOString(),
+        },
+      ]);
+    if (profileError) {
+      console.error("Error creating profile:", profileError);
+      toast.error("Failed to create user profile. Please contact support.");
+    }
+
+    // Add haptic feedback on successful sign up
+    if (window.navigator && window.navigator.vibrate) {
+      window.navigator.vibrate([3, 30, 3]);
+    }
+
+    toast.success("Account created successfully! Please check your email to confirm your account.");
+    router.push("/auth/confirm");
   };
 
   return (

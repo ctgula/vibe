@@ -9,102 +9,99 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
-      rooms: {
+      profiles: {
         Row: {
           id: string
+          email: string
+          display_name: string | null
+          is_guest: boolean
           created_at: string
-          name: string
-          description: string | null
-          host_id: string
-          is_private: boolean
-          last_active_at: string | null
-          has_camera: boolean
+          avatar_url: string | null
+          onboarding_completed: boolean
         }
         Insert: {
-          id?: string
+          id: string
+          email: string
+          display_name?: string | null
+          is_guest?: boolean
           created_at?: string
-          name: string
-          description?: string | null
-          host_id: string
-          is_private?: boolean
-          last_active_at?: string | null
-          has_camera?: boolean
+          avatar_url?: string | null
+          onboarding_completed?: boolean
         }
         Update: {
           id?: string
+          email?: string
+          display_name?: string | null
+          is_guest?: boolean
           created_at?: string
+          avatar_url?: string | null
+          onboarding_completed?: boolean
+        }
+      }
+      rooms: {
+        Row: {
+          id: string
+          name: string
+          created_by: string
+          is_active: boolean
+          is_public: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          created_by: string
+          is_active?: boolean
+          is_public?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
           name?: string
-          description?: string | null
-          host_id?: string
-          is_private?: boolean
-          last_active_at?: string | null
-          has_camera?: boolean
+          created_by?: string
+          is_active?: boolean
+          is_public?: boolean
+          created_at?: string
         }
       }
       room_participants: {
         Row: {
           id: string
           room_id: string
-          user_id: string
+          user_id: string | null
+          guest_id: string | null
           is_speaker: boolean
           is_muted: boolean
           has_raised_hand: boolean
           joined_at: string
+          is_active: boolean
           is_host: boolean
         }
         Insert: {
           id?: string
           room_id: string
-          user_id: string
+          user_id?: string | null
+          guest_id?: string | null
           is_speaker?: boolean
           is_muted?: boolean
           has_raised_hand?: boolean
           joined_at?: string
+          is_active?: boolean
           is_host?: boolean
         }
         Update: {
           id?: string
           room_id?: string
-          user_id?: string
+          user_id?: string | null
+          guest_id?: string | null
           is_speaker?: boolean
           is_muted?: boolean
           has_raised_hand?: boolean
           joined_at?: string
+          is_active?: boolean
           is_host?: boolean
         }
       }
-      profiles: {
-        Row: {
-          id: string
-          username: string
-          full_name: string | null
-          avatar_url: string | null
-          created_at: string
-        }
-        Insert: {
-          id: string
-          username: string
-          full_name?: string | null
-          avatar_url?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          username?: string
-          full_name?: string | null
-          avatar_url?: string | null
-          created_at?: string
-        }
-      }
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      [_ in never]: never
-    }
-    Enums: {
-      [_ in never]: never
     }
   }
 }

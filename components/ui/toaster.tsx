@@ -1,11 +1,12 @@
 'use client'
 
-import { Toaster as SonnerToaster } from 'sonner'
+import { Toaster } from 'sonner'
+import { ReactNode } from 'react'
 
-export function ToastProvider({ children }: { children: React.ReactNode }) {
+export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <>
-      <SonnerToaster 
+      <Toaster 
         position="top-right" 
         richColors 
         expand={false}
