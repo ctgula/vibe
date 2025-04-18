@@ -1,11 +1,9 @@
-'use client';
-
-import { RequireAuth } from '@/components/auth/RequireAuth';
+import RoomAuth from './components/room-auth';
 
 export default function RoomLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <RequireAuth allowGuest={true}>{children}</RequireAuth>;
+  return <RoomAuth>{children}</RoomAuth>;
 }
