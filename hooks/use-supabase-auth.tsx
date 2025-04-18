@@ -1,171 +1,175 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { toast } from 'sonner';
 
-type AuthContextType = {
+export interface Profile {
+  id: string;
+  email?: string;
+  full_name?: string;
+  avatar_url?: string;
+  created_at: string;
+  updated_at: string;
+  is_guest?: boolean;
+}
+
+interface AuthContextType {
   user: any;
+  profile: Profile | null;
   guestId: string | null;
-  profile: any;
   isLoading: boolean;
-  authLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ data: any; error: any }>;
-  signUp: (email: string, password: string) => Promise<{ data: any; error: any }>;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  ensureSessionToken: () => Promise<void>;
-};
+  setProfile: (profile: Profile) => void;
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<any>(null);
-  const [guestId, setGuestId] = useState<string | null>(null);
-  const [profile, setProfile] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [authLoading, setAuthLoading] = useState(false);
-  const router = useRouter();
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClientComponentClient();
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [guestId, setGuestId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const loadUser = async () => {
+    const initializeAuth = async () => {
       try {
-        setIsLoading(true);
+        // Get current session
         const { data: { session } } = await supabase.auth.getSession();
         setUser(session?.user ?? null);
 
-        // Check for guest ID in localStorage
-        const storedGuestId = localStorage.getItem('guestProfileId') || localStorage.getItem('guest_id');
-        if (storedGuestId) {
-          // Verify the guest profile exists
-          const { data: guestProfile, error: guestError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', storedGuestId)
-            .single();
+        // Set up auth state listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          setUser(session?.user ?? null);
+          
+          if (event === 'SIGNED_OUT') {
+            setProfile(null);
+            router.push('/');
+          }
+        });
 
-          if (guestError || !guestProfile) {
-            // Clean up invalid guest ID
-            localStorage.removeItem('guestProfileId');
-            localStorage.removeItem('guest_id');
-            setGuestId(null);
-          } else {
-            setGuestId(storedGuestId);
-            if (!session?.user) {
+        // Check for guest ID in localStorage
+        const storedGuestId = localStorage.getItem('guestProfileId');
+        if (storedGuestId) {
+          setGuestId(storedGuestId);
+          
+          // If we have a guest ID but no profile, fetch the guest profile
+          if (!profile) {
+            const { data: guestProfile, error: guestError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', storedGuestId)
+              .single();
+
+            if (!guestError && guestProfile) {
               setProfile(guestProfile);
             }
           }
         }
 
-        // If we have a user, load their profile
-        if (session?.user) {
+        // If we have a user but no profile, fetch their profile
+        if (session?.user && !profile) {
           const { data: userProfile, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
             .single();
 
-          if (profileError) {
-            console.error('Error loading user profile:', profileError);
-            toast.error('Error loading user profile');
-          } else {
+          if (!profileError && userProfile) {
             setProfile(userProfile);
           }
         }
+
+        setIsLoading(false);
       } catch (error) {
-        console.error('Error in loadUser:', error);
-        toast.error('Error loading user data');
-      } finally {
+        console.error('Error initializing auth:', error);
         setIsLoading(false);
       }
     };
 
-    loadUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        const { data: userProfile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        setProfile(userProfile);
-      } else {
-        setProfile(null);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    initializeAuth();
   }, [supabase, router]);
 
   const signIn = async (email: string, password: string) => {
     try {
-      setAuthLoading(true);
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      setAuthLoading(false);
-      return { data, error };
+
+      if (error) throw error;
+
+      // Fetch user profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      setProfile(profile);
+      toast.success('Signed in successfully');
+
+      // Clear any guest session
+      localStorage.removeItem('guestProfileId');
+      setGuestId(null);
+
+      // Get redirect path or default to home
+      const redirectPath = localStorage.getItem('redirectAfterAuth') || '/';
+      localStorage.removeItem('redirectAfterAuth');
+      router.push(redirectPath);
+
     } catch (error: any) {
       console.error('Error signing in:', error);
       toast.error(error.message || 'Error signing in');
-      // Ensure consistent return type
-      return { data: null, error };
-    } finally {
-      setAuthLoading(false);
+      throw error;
     }
   };
 
   const signUp = async (email: string, password: string) => {
     try {
-      setAuthLoading(true);
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      
-      if (error) {
-        toast.error(error.message || 'Error signing up');
-        return { data, error };
-      }
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
 
-      if (data.user) {
-        // Create profile for new user
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: data.user.id,
-            email: data.user.email,
+      if (error) throw error;
+
+      // Create profile for new user
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert([
+          {
+            id: data.user!.id,
+            email,
             created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
+            updated_at: new Date().toISOString(),
+          },
+        ])
+        .select()
+        .single();
 
-        if (profileError) {
-          console.error('Error creating profile:', profileError);
-          toast.error('Error creating profile');
-          return { data, error: profileError };
-        }
+      if (profileError) throw profileError;
 
-        toast.success('Account created successfully! Please check your email to confirm your account.');
-      }
+      toast.success('Account created successfully! Please check your email to verify your account.');
+      router.push('/auth/verify');
 
-      return { data, error };
     } catch (error: any) {
       console.error('Error signing up:', error);
-      toast.error(error.message || 'Error signing up');
-      return { data: null, error };
-    } finally {
-      setAuthLoading(false);
+      toast.error(error.message || 'Error creating account');
+      throw error;
     }
   };
 
   const signOut = async () => {
     try {
-      setAuthLoading(true);
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      await supabase.auth.signOut();
       setUser(null);
       setProfile(null);
       toast.success('Signed out successfully');
@@ -173,43 +177,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
       console.error('Error signing out:', error);
       toast.error(error.message || 'Error signing out');
-    } finally {
-      setAuthLoading(false);
     }
   };
 
-  const ensureSessionToken = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No session found');
-      }
-    } catch (error) {
-      console.error('Error ensuring session token:', error);
-      throw error;
-    }
+  const value = {
+    user,
+    profile,
+    guestId,
+    isLoading,
+    signIn,
+    signUp,
+    signOut,
+    setProfile,
   };
 
-  return (
-    <AuthContext.Provider value={{
-      user,
-      guestId,
-      profile,
-      isLoading,
-      authLoading,
-      signIn,
-      signUp,
-      signOut,
-      ensureSessionToken,
-    }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;

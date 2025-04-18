@@ -28,8 +28,7 @@ export default function Home() {
   const [activeSection, setActiveSection] = useState(0);
   const router = useRouter();
   const supabase = createClientComponentClient();
-
-  const { user, guestId, isLoading, profile, authLoading, ensureSessionToken } = useAuth();
+  const { user, guestId, isLoading, profile } = useAuth();
 
   useEffect(() => {
     setMounted(true);
@@ -39,7 +38,13 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  if (!mounted) return null;
+  if (!mounted || isLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   const features = [
     {
@@ -82,7 +87,7 @@ export default function Home() {
     {
       title: "Sign In",
       description: "Access your profile, saved rooms, and connect with your community.",
-      path: "/auth",
+      path: "/auth/login",
       icon: <Key className="w-9 h-9 text-white" />,
       color: "from-sky-500 via-cyan-500 to-blue-500"
     }
@@ -96,7 +101,7 @@ export default function Home() {
 
       // If user is authenticated, ensure session token
       if (user) {
-        await ensureSessionToken();
+        await supabase.auth.getSession();
         router.push(path);
         return;
       }
@@ -144,122 +149,75 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white overflow-hidden relative">
-      {/* Premium animated gradient background */}
-      <motion.div
-        className="absolute inset-0 z-0 overflow-hidden"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1 }}
-      >
-        <div 
-          className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(120,119,198,0.3),rgba(0,0,0,0))]"
-          style={{
-            willChange: "transform, opacity",
-            backfaceVisibility: "hidden",
-            WebkitBackfaceVisibility: "hidden",
-          }}
-        />
-      </motion.div>
-
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-        <motion.div 
-          className="w-full max-w-5xl mx-auto text-center mb-12"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ 
-            duration: 0.8,
-            ease: [0.16, 1, 0.3, 1],
-            delay: 0.2 
-          }}
-        >
-          <h1 className="text-4xl sm:text-6xl font-bold mb-6 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-fuchsia-400 to-sky-400">
-            Welcome to Vibe
-          </h1>
-          <p className="text-xl sm:text-2xl text-zinc-400 max-w-2xl mx-auto">
-            Next generation audio collaboration
-          </p>
-        </motion.div>
-
-        {/* Features grid with staggered animation */}
-        <motion.div 
-          className="w-full max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12 px-4"
-          initial="hidden"
-          animate="show"
-          variants={{
-            hidden: { opacity: 0 },
-            show: {
-              opacity: 1,
-              transition: {
-                staggerChildren: 0.1
-              }
-            }
-          }}
-        >
-          {features.map((feature, index) => (
+    <div className="min-h-screen bg-black">
+      {/* Hero Section */}
+      <div className="relative min-h-screen flex flex-col items-center justify-center px-4 py-12">
+        {/* Background gradient */}
+        <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/10 via-transparent to-black pointer-events-none" />
+        
+        {/* Main content */}
+        <div className="relative w-full max-w-xl mx-auto">
+          {/* Logo and Title */}
+          <div className="text-center mb-8">
             <motion.div
-              key={feature.title}
-              variants={{
-                hidden: { opacity: 0, y: 20 },
-                show: { 
-                  opacity: 1, 
-                  y: 0,
-                  transition: {
-                    type: "spring",
-                    stiffness: 400,
-                    damping: 30,
-                    mass: 0.8
-                  }
-                }
-              }}
-              className="flex items-start p-4 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10"
-              style={{
-                willChange: "transform, opacity",
-                backfaceVisibility: "hidden",
-                WebkitBackfaceVisibility: "hidden",
-              }}
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.5 }}
+              className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 mb-6 shadow-2xl"
             >
-              <div className="flex-shrink-0 mr-4">{feature.icon}</div>
-              <div>
-                <h3 className="text-lg font-semibold mb-1">{feature.title}</h3>
-                <p className="text-zinc-400 text-sm">{feature.description}</p>
-              </div>
+              <Headphones className="w-8 h-8 text-white" />
             </motion.div>
-          ))}
-        </motion.div>
+            <motion.h1
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+              className="text-4xl sm:text-5xl font-bold text-white mb-4"
+            >
+              Welcome to Vibe
+            </motion.h1>
+            <motion.p
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+              className="text-lg sm:text-xl text-zinc-400"
+            >
+              Next generation audio collaboration
+            </motion.p>
+          </div>
 
-        {/* Action cards */}
-        <div className="w-full max-w-5xl mx-auto">
-          <div className="relative w-full aspect-[16/9] sm:aspect-[21/9]">
+          {/* Feature cards */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.4, duration: 0.5 }}
+            className="grid grid-cols-2 gap-4 mb-12"
+          >
+            {features.map((feature, index) => (
+              <motion.div
+                key={feature.title}
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.5 + index * 0.1 }}
+                className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm"
+              >
+                <div className="mb-3">{feature.icon}</div>
+                <h3 className="font-semibold text-white mb-1">{feature.title}</h3>
+                <p className="text-sm text-zinc-400">{feature.description}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          {/* Action cards */}
+          <div className="relative h-[400px] sm:h-[450px]">
             <AnimatePresence mode="wait">
               {sections.map((section, index) => (
-                activeSection === index && (
+                index === activeSection && (
                   <motion.div
                     key={section.title}
-                    initial={{ 
-                      opacity: 0,
-                      scale: 0.95,
-                      rotateX: 5,
-                      y: 20
-                    }}
-                    animate={{ 
-                      opacity: 1,
-                      scale: 1,
-                      rotateX: 0,
-                      y: 0
-                    }}
-                    exit={{ 
-                      opacity: 0,
-                      scale: 0.95,
-                      rotateX: -5,
-                      y: -20
-                    }}
-                    transition={{
-                      type: "spring",
-                      stiffness: 400,
-                      damping: 30,
-                      mass: 0.8
-                    }}
+                    initial={{ opacity: 0, x: 100 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -100 }}
+                    transition={{ duration: 0.5 }}
                     className="absolute inset-0 p-4"
                     style={{
                       willChange: "transform, opacity",

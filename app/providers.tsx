@@ -36,8 +36,8 @@ export default function Providers({ children }: { children: ReactNode }) {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <AuthProvider>
-        <Toaster theme="dark" position="top-center" closeButton richColors />
         {children}
+        <Toaster theme="dark" position="top-center" closeButton richColors />
       </AuthProvider>
     </ErrorBoundary>
   )

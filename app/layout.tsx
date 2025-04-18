@@ -63,11 +63,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           MozOsxFontSmoothing: "grayscale"
         }}
       >
-        <div id="root">
-          <Providers>
-            {children}
-          </Providers>
-        </div>
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   )
