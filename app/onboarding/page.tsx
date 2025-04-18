@@ -6,15 +6,43 @@ import { useAuth } from '@/hooks/use-supabase-auth'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Mic, Music2, User, Sparkles, ArrowLeft, ArrowRight } from 'lucide-react'
+import { Mic, Music2, User, Sparkles, ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 const supabase = createClientComponentClient()
 
+const slideVariants = {
+  enter: (direction: number) => ({
+    x: direction > 0 ? 1000 : -1000,
+    opacity: 0
+  }),
+  center: {
+    zIndex: 1,
+    x: 0,
+    opacity: 1
+  },
+  exit: (direction: number) => ({
+    zIndex: 0,
+    x: direction < 0 ? 1000 : -1000,
+    opacity: 0
+  })
+}
+
+const genreOptions = [
+  'Hip Hop', 'R&B', 'Pop', 'Rock', 'Electronic',
+  'Jazz', 'Classical', 'Country', 'Latin', 'Metal'
+]
+
+const themeColors = [
+  '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e',
+  '#f97316', '#eab308', '#22c55e', '#06b6d4'
+]
+
 export default function OnboardingPage() {
-  const [step, setStep] = useState(0)
+  const [[page, direction], setPage] = useState([0, 0])
   const [loading, setLoading] = useState(true)
-  const [direction, setDirection] = useState<'forward' | 'back'>('forward')
+  const [submitting, setSubmitting] = useState(false)
   const [formData, setFormData] = useState({
     username: '',
     displayName: '',
@@ -27,53 +55,37 @@ export default function OnboardingPage() {
   const { user, isLoading: authLoading } = useAuth()
 
   useEffect(() => {
-    // Wait for auth to load
-    if (authLoading) return;
-
-    // If no authenticated user, redirect to sign in
+    if (authLoading) return
     if (!user) {
-      router.push('/auth/signin');
-      return;
+      router.push('/auth/signin')
+      return
     }
 
     const initializeProfile = async () => {
       try {
         setLoading(true)
-        const profileId = user.id
-
-        if (!profileId) {
-          throw new Error('No profile ID found')
-        }
-
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', profileId)
+          .eq('id', user.id)
           .single()
 
-        if (error || !profile) {
-          console.error('Error loading profile:', error)
-          toast.error('Error loading profile')
-          // Stop loading and show UI instead of redirecting
-          setLoading(false)
-          return
+        if (error) throw error
+
+        // Pre-fill form if profile exists
+        if (profile) {
+          setFormData({
+            username: profile.username || '',
+            displayName: profile.display_name || '',
+            bio: profile.bio || '',
+            preferredGenres: profile.preferred_genres || [],
+            themeColor: profile.theme_color || '#6366f1'
+          })
         }
-
-        // Initialize form data from profile
-        setFormData(prev => ({
-          ...prev,
-          username: profile.username || '',
-          displayName: profile.display_name || '',
-          bio: profile.bio || '',
-          preferredGenres: profile.preferred_genres || [],
-          themeColor: profile.theme_color || '#6366f1'
-        }))
-
-        setLoading(false)
-      } catch (error) {
-        console.error('Error in initializeProfile:', error)
-        toast.error('Error initializing profile')
-        router.push('/')
+      } catch (error: any) {
+        console.error('Error loading profile:', error)
+        toast.error('Failed to load profile')
+      } finally {
         setLoading(false)
       }
     }
@@ -81,368 +93,326 @@ export default function OnboardingPage() {
     initializeProfile()
   }, [user, authLoading, router])
 
+  const paginate = (newDirection: number) => {
+    if ((page + newDirection) >= 0 && (page + newDirection) < totalSteps) {
+      setPage([page + newDirection, newDirection])
+    }
+  }
+
   const handleNext = () => {
     if (window.navigator.vibrate) window.navigator.vibrate(3)
-    if (step < totalSteps - 1) {
-      setDirection('forward')
-      setStep(prev => prev + 1)
-    }
+    paginate(1)
   }
 
   const handleBack = () => {
     if (window.navigator.vibrate) window.navigator.vibrate(3)
-    if (step > 0) {
-      setDirection('back')
-      setStep(prev => prev - 1)
-    }
+    paginate(-1)
   }
 
   const handleSubmit = async () => {
+    if (!user?.id) {
+      toast.error('No user ID found')
+      return
+    }
+
     try {
-      setLoading(true)
-      const profileId = user.id
-
-      if (!profileId) {
-        throw new Error('No profile ID found')
-      }
-
-      // Prepare base update payload
-      const baseUpdate = {
-        username: formData.username,
-        display_name: formData.displayName,
-        bio: formData.bio,
-        preferred_genres: formData.preferredGenres,
-        theme_color: formData.themeColor,
-        updated_at: new Date().toISOString()
-      }
-
-      // Try update with onboarding flag first
-      const { error: flagError } = await supabase
+      setSubmitting(true)
+      
+      const { error } = await supabase
         .from('profiles')
-        .update({ ...baseUpdate, onboarding_completed: true })
-        .eq('id', profileId)
+        .upsert({
+          id: user.id,
+          username: formData.username,
+          display_name: formData.displayName,
+          bio: formData.bio,
+          preferred_genres: formData.preferredGenres,
+          theme_color: formData.themeColor,
+          onboarding_completed: true,
+          updated_at: new Date().toISOString()
+        })
 
-      // If onboarding column doesn't exist, update without it
-      if (flagError?.code === 'PGRST204') {
-        const { error: baseError } = await supabase
-          .from('profiles')
-          .update(baseUpdate)
-          .eq('id', profileId)
-        if (baseError) throw baseError
-      } else if (flagError) {
-        throw flagError
-      }
+      if (error) throw error
 
-      // Success haptics and feedback
       if (window.navigator.vibrate) window.navigator.vibrate([3, 30, 3])
       toast.success('Profile updated successfully')
-      
-      // Mark onboarding as done locally
       localStorage.setItem('onboardingCompleted', 'true')
-      
       router.push('/rooms')
     } catch (error: any) {
       console.error('Error updating profile:', error)
       toast.error(error.message || 'Error updating profile')
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
   const renderStep = () => {
-    switch (step) {
-      case 0:
-        return (
+    const content = [
+      // Welcome Step
+      <motion.div 
+        key="welcome"
+        className="space-y-8"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+      >
+        <div className="text-center space-y-6">
           <motion.div 
-            className="space-y-8"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.4 }}
+            className="w-24 h-24 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.2, type: "spring" }}
           >
-            <div className="text-center space-y-6">
-              <motion.div 
-                className="w-24 h-24 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.2, type: "spring" }}
-              >
-                <Mic className="w-12 h-12 text-white" />
-              </motion.div>
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-              >
-                <h2 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                  Welcome to Vibe
-                </h2>
-                <p className="text-white/70 text-lg mt-3 max-w-sm mx-auto leading-relaxed">
-                  Let's set up your profile and get you ready to join the conversation.
-                </p>
-              </motion.div>
-            </div>
+            <Mic className="w-12 h-12 text-white" />
           </motion.div>
-        )
-      case 1:
-        return (
-          <motion.div 
-            className="space-y-8"
-            initial={{ opacity: 0, y: 20 }}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.4 }}
+            transition={{ delay: 0.3 }}
           >
-            <div className="text-center space-y-6">
-              <motion.div 
-                className="w-24 h-24 bg-gradient-to-br from-pink-500 to-rose-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.2, type: "spring" }}
-              >
-                <User className="w-12 h-12 text-white" />
-              </motion.div>
-              <div className="space-y-6 max-w-md mx-auto">
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <h2 className="text-3xl font-bold text-white mb-2">Create Your Identity</h2>
-                  <p className="text-white/70">Choose how others will know you.</p>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="space-y-4"
-                >
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Username"
-                      value={formData.username}
-                      onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/\s+/g, '') }))}
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                    />
-                    <p className="absolute -bottom-6 left-0 text-white/40 text-sm">
-                      This will be your unique identifier
-                    </p>
-                  </div>
-                  <div className="relative mt-8">
-                    <input
-                      type="text"
-                      placeholder="Display Name"
-                      value={formData.displayName}
-                      onChange={(e) => setFormData(prev => ({ ...prev, displayName: e.target.value }))}
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                    />
-                    <p className="absolute -bottom-6 left-0 text-white/40 text-sm">
-                      This is how your name will appear to others
-                    </p>
-                  </div>
-                </motion.div>
+            <h2 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              Welcome to Vibe
+            </h2>
+            <p className="text-white/70 text-lg mt-3 max-w-sm mx-auto leading-relaxed">
+              Let's set up your profile and get you ready to join the conversation.
+            </p>
+          </motion.div>
+        </div>
+      </motion.div>,
+
+      // Identity Step
+      <motion.div 
+        key="identity"
+        className="space-y-8"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+      >
+        <div className="text-center space-y-6">
+          <motion.div 
+            className="w-24 h-24 bg-gradient-to-br from-pink-500 to-rose-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.2, type: "spring" }}
+          >
+            <User className="w-12 h-12 text-white" />
+          </motion.div>
+          <div className="space-y-6 max-w-md mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <h2 className="text-3xl font-bold text-white mb-2">Create Your Identity</h2>
+              <p className="text-white/70">Choose how others will know you.</p>
+            </motion.div>
+            <motion.div 
+              className="space-y-4"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Username"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                />
+                <p className="absolute -bottom-6 left-0 text-white/40 text-sm">This will be your unique identifier</p>
               </div>
-            </div>
-          </motion.div>
-        )
-      case 2:
-        return (
-          <motion.div 
-            className="space-y-8"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.4 }}
-          >
-            <div className="text-center space-y-6">
-              <motion.div 
-                className="w-24 h-24 bg-gradient-to-br from-orange-500 to-amber-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.2, type: "spring" }}
-              >
-                <Music2 className="w-12 h-12 text-white" />
-              </motion.div>
-              <div className="space-y-6 max-w-md mx-auto">
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <h2 className="text-3xl font-bold text-white mb-2">Your Music Taste</h2>
-                  <p className="text-white/70">Select your favorite genres to find like-minded listeners.</p>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="grid grid-cols-2 gap-3 mt-6"
-                >
-                  {[
-                    'Hip Hop', 'Pop', 'Rock', 'R&B',
-                    'Electronic', 'Jazz', 'Classical', 'Metal',
-                    'Folk', 'Country', 'Latin', 'Indie'
-                  ].map((genre) => (
-                    <button
-                      key={genre}
-                      onClick={() => {
-                        if (window.navigator.vibrate) window.navigator.vibrate(2)
-                        setFormData(prev => ({
-                          ...prev,
-                          preferredGenres: prev.preferredGenres.includes(genre)
-                            ? prev.preferredGenres.filter(g => g !== genre)
-                            : [...prev.preferredGenres, genre]
-                        }))
-                      }}
-                      className={`px-4 py-3 rounded-lg text-sm font-medium transition-all ${
-                        formData.preferredGenres.includes(genre)
-                          ? 'bg-purple-500 text-white'
-                          : 'bg-white/10 text-white/70 hover:bg-white/20'
-                      }`}
-                    >
-                      {genre}
-                    </button>
-                  ))}
-                </motion.div>
+              <div className="relative mt-8">
+                <input
+                  type="text"
+                  placeholder="Display Name"
+                  value={formData.displayName}
+                  onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                />
+                <p className="absolute -bottom-6 left-0 text-white/40 text-sm">This is how your name will appear to others</p>
               </div>
-            </div>
-          </motion.div>
-        )
-      case 3:
-        return (
+            </motion.div>
+          </div>
+        </div>
+      </motion.div>,
+
+      // Genres Step
+      <motion.div 
+        key="genres"
+        className="space-y-8"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+      >
+        <div className="text-center space-y-6">
           <motion.div 
-            className="space-y-8"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.4 }}
+            className="w-24 h-24 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.2, type: "spring" }}
           >
-            <div className="text-center space-y-6">
-              <motion.div 
-                className="w-24 h-24 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.2, type: "spring" }}
-              >
-                <Sparkles className="w-12 h-12 text-white" />
-              </motion.div>
-              <div className="space-y-6 max-w-md mx-auto">
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <h2 className="text-3xl font-bold text-white mb-2">Almost Ready!</h2>
-                  <p className="text-white/70">Here's how your profile will look.</p>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="bg-white/10 rounded-xl p-6 text-left mt-6"
-                >
-                  <div className="flex items-center space-x-4 mb-4">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xl font-bold">
-                      {formData.displayName?.charAt(0) || formData.username?.charAt(0) || '?'}
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-white">{formData.displayName || formData.username}</h3>
-                      <p className="text-white/70">@{formData.username}</p>
-                    </div>
-                  </div>
-                  {formData.preferredGenres.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      {formData.preferredGenres.map(genre => (
-                        <span 
-                          key={genre}
-                          className="px-3 py-1 bg-white/10 rounded-full text-sm text-white/90"
-                        >
-                          {genre}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </motion.div>
-              </div>
-            </div>
+            <Music2 className="w-12 h-12 text-white" />
           </motion.div>
-        )
-      default:
-        return null
-    }
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <h2 className="text-3xl font-bold text-white mb-2">Pick Your Vibes</h2>
+            <p className="text-white/70">Select the genres you're into.</p>
+          </motion.div>
+          <motion.div 
+            className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-md mx-auto mt-8"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            {genreOptions.map((genre) => (
+              <motion.button
+                key={genre}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  const newGenres = formData.preferredGenres.includes(genre)
+                    ? formData.preferredGenres.filter(g => g !== genre)
+                    : [...formData.preferredGenres, genre]
+                  setFormData({ ...formData, preferredGenres: newGenres })
+                  if (window.navigator.vibrate) window.navigator.vibrate(3)
+                }}
+                className={cn(
+                  "p-3 rounded-lg text-sm font-medium transition-all",
+                  formData.preferredGenres.includes(genre)
+                    ? "bg-purple-500 text-white"
+                    : "bg-white/10 text-white/70 hover:bg-white/20"
+                )}
+              >
+                {genre}
+              </motion.button>
+            ))}
+          </motion.div>
+        </div>
+      </motion.div>,
+
+      // Final Step
+      <motion.div 
+        key="final"
+        className="space-y-8"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+      >
+        <div className="text-center space-y-6">
+          <motion.div 
+            className="w-24 h-24 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.2, type: "spring" }}
+          >
+            <Sparkles className="w-12 h-12 text-white" />
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <h2 className="text-3xl font-bold text-white mb-2">Almost There!</h2>
+            <p className="text-white/70">Choose your profile theme color.</p>
+          </motion.div>
+          <motion.div 
+            className="grid grid-cols-4 gap-3 max-w-xs mx-auto mt-8"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            {themeColors.map((color) => (
+              <motion.button
+                key={color}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => {
+                  setFormData({ ...formData, themeColor: color })
+                  if (window.navigator.vibrate) window.navigator.vibrate(3)
+                }}
+                className={cn(
+                  "w-12 h-12 rounded-full transition-transform",
+                  formData.themeColor === color && "ring-2 ring-white ring-offset-2 ring-offset-black"
+                )}
+                style={{ backgroundColor: color }}
+              />
+            ))}
+          </motion.div>
+        </div>
+      </motion.div>
+    ]
+
+    return (
+      <AnimatePresence mode="wait" custom={direction}>
+        <motion.div
+          key={page}
+          custom={direction}
+          variants={slideVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{
+            x: { type: "spring", stiffness: 300, damping: 30 },
+            opacity: { duration: 0.2 }
+          }}
+          className="w-full"
+        >
+          {content[page]}
+        </motion.div>
+      </AnimatePresence>
+    )
   }
 
   if (loading || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-          className="flex flex-col items-center space-y-6"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center"
         >
-          <div className="relative">
-            <div className="w-20 h-20 border-4 border-purple-500/30 rounded-full" />
-            <div className="absolute inset-0 w-20 h-20 border-4 border-r-purple-500 border-t-purple-500 rounded-full animate-spin" />
-          </div>
-          <motion.p 
-            className="text-lg font-medium text-white/70"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-          >
-            Setting up your Vibe...
-          </motion.p>
+          <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-white/70">Setting up your vibe...</p>
         </motion.div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-black text-white">
-      <div className="flex-1 max-w-4xl mx-auto px-4 py-8">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={step}
-            initial={{ opacity: 0, x: direction === 'forward' ? 20 : -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: direction === 'forward' ? -20 : 20 }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="relative"
-          >
+    <div className="min-h-screen bg-black text-white">
+      <div className="flex flex-col min-h-screen">
+        <div className="flex-1 max-w-4xl mx-auto px-4 py-8">
+          <div className="relative">
             {renderStep()}
-          </motion.div>
-        </AnimatePresence>
+          </div>
+        </div>
 
-        <motion.div
-          className="fixed z-50 bottom-8 left-1/2 -translate-x-1/2 w-full max-w-lg mx-auto"
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          <div className="bg-white/10 backdrop-blur-xl border border-white/10 rounded-2xl p-4 mx-4 flex items-center justify-between">
+        <div className="sticky bottom-0 bg-black/80 backdrop-blur-lg border-t border-white/10">
+          <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
             <Button
               onClick={handleBack}
-              disabled={step === 0}
+              disabled={page === 0 || submitting}
               variant="ghost"
-              className="text-white/70 hover:text-white hover:bg-white/10"
+              className="text-white hover:bg-white/10"
             >
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              Back
+              <ArrowLeft className="w-5 h-5" />
             </Button>
 
             <div className="flex items-center space-x-2">
               {Array.from({ length: totalSteps }, (_, i) => (
                 <motion.div
                   key={i}
-                  className={`w-2 h-2 rounded-full ${
-                    i === step ? 'bg-purple-500' : 'bg-white/20'
-                  }`}
+                  className={cn(
+                    "w-2 h-2 rounded-full transition-colors",
+                    i === page ? "bg-purple-500" : "bg-white/20"
+                  )}
                   initial={false}
                   animate={{
-                    scale: i === step ? 1.2 : 1,
-                    opacity: i === step ? 1 : 0.5
+                    scale: i === page ? 1.2 : 1,
+                    opacity: i === page ? 1 : 0.5
                   }}
                   transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 />
@@ -450,17 +420,19 @@ export default function OnboardingPage() {
             </div>
 
             <Button
-              onClick={step === totalSteps - 1 ? handleSubmit : handleNext}
-              disabled={loading || (step === 1 && !formData.username)}
-              className={`${
-                step === totalSteps - 1
-                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
-                  : 'bg-purple-500 hover:bg-purple-600'
-              } text-white min-w-[100px] transition-all`}
+              onClick={page === totalSteps - 1 ? handleSubmit : handleNext}
+              disabled={submitting || (page === 1 && !formData.username)}
+              className={cn(
+                "min-w-[100px] transition-all",
+                page === totalSteps - 1
+                  ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                  : "bg-purple-500 hover:bg-purple-600",
+                "text-white"
+              )}
             >
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : step === totalSteps - 1 ? (
+              {submitting ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : page === totalSteps - 1 ? (
                 'Finish'
               ) : (
                 <>
@@ -470,7 +442,7 @@ export default function OnboardingPage() {
               )}
             </Button>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   )
