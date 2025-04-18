@@ -1,7 +1,8 @@
 'use client';
 
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, m } from 'framer-motion';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { Wifi, WifiOff, Home, RefreshCw, ArrowLeft, History } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -52,7 +53,7 @@ const CachedPagesList = ({ onNavigate }: { onNavigate: () => void }) => {
   }
   
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
@@ -62,12 +63,12 @@ const CachedPagesList = ({ onNavigate }: { onNavigate: () => void }) => {
       <div className="space-y-1">
         {cachedPages.map((page, index) => (
           <Link 
-            href={page}
+            href={page as Route}
             key={page}
             onClick={onNavigate}
             className="flex items-center p-2 rounded-lg hover:bg-zinc-800/60 transition-colors group"
           >
-            <motion.div
+            <m.div
               initial={{ x: -10, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               transition={{ delay: index * 0.05, duration: 0.2 }}
@@ -82,11 +83,11 @@ const CachedPagesList = ({ onNavigate }: { onNavigate: () => void }) => {
               </div>
               <span className="text-zinc-300 text-sm">{page === '/' ? 'Home' : page.charAt(1).toUpperCase() + page.slice(2)}</span>
               <ArrowLeft className="w-4 h-4 text-zinc-500 ml-auto transition-transform group-hover:translate-x-1" />
-            </motion.div>
+            </m.div>
           </Link>
         ))}
       </div>
-    </motion.div>
+    </m.div>
   );
 };
 
@@ -192,7 +193,7 @@ export default function OfflinePage() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-zinc-900 to-black p-4">
       <AnimatePresence mode="wait">
         {!showCachedContent ? (
-          <motion.div
+          <m.div
             key="main-offline"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -200,13 +201,13 @@ export default function OfflinePage() {
             transition={{ duration: 0.5 }}
             className="max-w-md w-full p-6 rounded-2xl bg-gradient-to-br from-zinc-800/70 to-zinc-900/70 backdrop-blur-xl border border-zinc-700/30 shadow-xl"
           >
-            <motion.div
+            <m.div
               variants={containerVariants}
               initial="hidden"
               animate="visible"
               className="flex flex-col items-center text-center"
             >
-              <motion.div
+              <m.div
                 variants={itemVariants}
                 initial={{ scale: 0.8 }}
                 animate={{ 
@@ -220,7 +221,7 @@ export default function OfflinePage() {
                 }}
                 className="w-20 h-20 rounded-full bg-zinc-800 flex items-center justify-center mb-6"
               >
-                <motion.div
+                <m.div
                   animate={{ 
                     opacity: [1, 0.5, 1],
                   }}
@@ -231,24 +232,24 @@ export default function OfflinePage() {
                   }}
                 >
                   <WifiOff className="w-10 h-10 text-zinc-500" />
-                </motion.div>
-              </motion.div>
+                </m.div>
+              </m.div>
               
-              <motion.h2 
+              <m.h2 
                 variants={itemVariants}
                 className="text-2xl font-bold text-white mb-2"
               >
                 You're Offline
-              </motion.h2>
+              </m.h2>
               
-              <motion.p
+              <m.p
                 variants={itemVariants}
                 className="text-zinc-400 mb-6"
               >
                 Check your connection and try again
-              </motion.p>
+              </m.p>
               
-              <motion.div
+              <m.div
                 variants={itemVariants}
                 className="flex flex-col space-y-3 w-full"
               >
@@ -257,7 +258,7 @@ export default function OfflinePage() {
                     <div className="flex items-center">
                       <div className="mr-3 relative">
                         <Wifi className="w-5 h-5 text-indigo-400" />
-                        <motion.div 
+                        <m.div 
                           className="absolute inset-0"
                           animate={{
                             scale: [1, 1.5, 1],
@@ -270,19 +271,19 @@ export default function OfflinePage() {
                           }}
                         >
                           <Wifi className="w-5 h-5 text-indigo-400" />
-                        </motion.div>
+                        </m.div>
                       </div>
                       <div className="text-left">
                         <p className="text-zinc-300 text-sm font-medium">Reconnecting...</p>
                         <p className="text-zinc-500 text-xs">Retrying in {countdown}s</p>
                       </div>
                     </div>
-                    <motion.div
+                    <m.div
                       animate={{ rotate: 360 }}
                       transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                     >
                       <RefreshCw className="w-5 h-5 text-indigo-400" />
-                    </motion.div>
+                    </m.div>
                   </div>
                 ) : (
                   <button
@@ -300,11 +301,11 @@ export default function OfflinePage() {
                 >
                   View Available Offline Content
                 </button>
-              </motion.div>
-            </motion.div>
-          </motion.div>
+              </m.div>
+            </m.div>
+          </m.div>
         ) : (
-          <motion.div
+          <m.div
             key="cached-content"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -334,7 +335,7 @@ export default function OfflinePage() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>

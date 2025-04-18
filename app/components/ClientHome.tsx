@@ -10,7 +10,7 @@ import { useAuth, useGuestSession } from '@/hooks/auth';
 import { useRoomParticipants } from '@/hooks/useRoomParticipants';
 import { supabase } from '@/lib/supabase';
 import { Room } from '@/types/Room';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -222,7 +222,7 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
         </Link>
       </div>
 
-      <motion.div
+      <m.div
         variants={containerVariants}
         initial="hidden"
         animate="visible"
@@ -232,7 +232,7 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
         {rooms.length === 0 ? (
           <div className="bg-zinc-900/80 backdrop-blur-lg border border-zinc-800/50 rounded-2xl p-12 text-center">
             <div className="w-20 h-20 rounded-full bg-zinc-800/50 flex items-center justify-center mx-auto mb-6">
-              <motion.svg
+              <m.svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="h-10 w-10 text-zinc-500"
                 fill="none"
@@ -247,7 +247,7 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
                   strokeWidth={1.5}
                   d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                 />
-              </motion.svg>
+              </m.svg>
             </div>
             <h3 className="text-2xl font-bold text-white mb-3">No Rooms Available</h3>
             <p className="text-zinc-400 mb-8 max-w-md mx-auto">
@@ -260,7 +260,7 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
             </Link>
           </div>
         ) : (
-          <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <m.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <AnimatePresence mode="popLayout">
               {rooms.map((room) => {
                 const participantCount = participantCounts.find(
@@ -268,7 +268,7 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
                 )?.participantCount || room.participant_count || 0;
                 
                 return (
-                  <motion.div
+                  <m.div
                     key={room.id}
                     variants={itemVariants}
                     exit={{ opacity: 0, y: 20 }}
@@ -288,7 +288,7 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
                           <h2 className="text-xl font-semibold text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-indigo-300 group-hover:to-purple-300 transition-all duration-300">
                             {room.name}
                           </h2>
-                          <motion.p 
+                          <m.p 
                             className="text-sm text-white/80 flex items-center gap-2"
                             initial={false}
                             animate={{ 
@@ -299,7 +299,7 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
                           >
                             <span className="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse" />
                             {participantCount} {participantCount === 1 ? "participant" : "participants"}
-                          </motion.p>
+                          </m.p>
                         </div>
                         <span className="px-3 py-1 text-xs font-medium rounded-full bg-black/50 text-white/80 border border-white/10 shadow-inner">
                           {room.is_public ? "Public" : "Private"}
@@ -326,7 +326,7 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
                             <span className="text-xs text-white/50">+{room.tags.length - 2}</span>
                           )}
                         </div>
-                        <motion.div
+                        <m.div
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
                         >
@@ -338,16 +338,16 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
                           >
                             Join Room
                           </Button>
-                        </motion.div>
+                        </m.div>
                       </div>
                     </div>
-                  </motion.div>
+                  </m.div>
                 );
               })}
             </AnimatePresence>
-          </motion.div>
+          </m.div>
         )}
-      </motion.div>
+      </m.div>
     </div>
   );
 }

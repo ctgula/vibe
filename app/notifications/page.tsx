@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Navigation } from "@/components/navigation"
-import { motion, AnimatePresence } from "framer-motion"
+import { m, AnimatePresence } from "framer-motion"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Bell, User, Mic, MegaphoneIcon, Calendar, Heart, ArrowLeft, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -131,7 +131,7 @@ export default function NotificationsPage() {
   return (
     <div className="min-h-screen bg-background relative">
       {/* Cosmic background blobs with subtle animations */}
-      <motion.div 
+      <m.div 
         className="cosmic-blob w-96 h-96 opacity-10 top-20 -left-48"
         animate={{ 
           scale: [1, 1.05, 1], 
@@ -144,9 +144,9 @@ export default function NotificationsPage() {
           ease: "easeInOut", 
           repeat: Infinity 
         }}
-      ></motion.div>
+      ></m.div>
       
-      <motion.div 
+      <m.div 
         className="cosmic-blob w-80 h-80 opacity-10 bottom-40 -right-40"
         animate={{ 
           scale: [1, 1.1, 1], 
@@ -160,10 +160,10 @@ export default function NotificationsPage() {
           repeat: Infinity,
           delay: 1
         }}
-      ></motion.div>
+      ></m.div>
 
       {/* Header */}
-      <motion.div
+      <m.div
         className="fixed top-0 left-0 right-0 z-50 glass-effect backdrop-blur-lg"
         initial={{ y: -100 }}
         animate={{ y: 0 }}
@@ -172,7 +172,7 @@ export default function NotificationsPage() {
         <div className="container max-w-md mx-auto">
           <div className="flex items-center justify-between h-16 px-4">
             <div className="flex items-center">
-              <motion.div 
+              <m.div 
                 whileTap={{ scale: 0.92 }} 
                 transition={{ duration: 0.1 }}
               >
@@ -187,16 +187,16 @@ export default function NotificationsPage() {
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
-              </motion.div>
-              <motion.div 
+              </m.div>
+              <m.div 
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
               >
                 <h1 className="text-xl font-semibold text-gradient">Notifications</h1>
-              </motion.div>
+              </m.div>
             </div>
-            <motion.div
+            <m.div
               whileTap={{ scale: 0.92 }}
               transition={{ duration: 0.1 }}
             >
@@ -211,15 +211,15 @@ export default function NotificationsPage() {
               >
                 Mark all read
               </Button>
-            </motion.div>
+            </m.div>
           </div>
         </div>
-      </motion.div>
+      </m.div>
 
       <main className="container max-w-md mx-auto pt-20 pb-20 px-4">
         <AnimatePresence>
           {notifications.map((notification, index) => (
-            <motion.div
+            <m.div
               key={notification.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ 
@@ -260,7 +260,7 @@ export default function NotificationsPage() {
                     <div className="flex items-center ml-2">
                       <span className="text-xs text-white/60">{notification.time}</span>
                       {(!readItems.includes(notification.id) && !notification.read) && (
-                        <motion.div 
+                        <m.div 
                           className="ml-2 h-2 w-2 rounded-full bg-indigo-500"
                           initial={{ scale: 0.8 }}
                           animate={{ scale: [0.8, 1, 0.8] }}
@@ -279,21 +279,21 @@ export default function NotificationsPage() {
                     )}
                   </p>
                 </div>
-                <motion.button
+                <m.button
                   whileTap={{ scale: 0.9 }}
                   transition={{ duration: 0.1 }}
                   onClick={(e) => dismissNotification(notification.id, e)}
                   className="ml-2 h-6 w-6 rounded-full bg-white/10 flex items-center justify-center text-white/60 hover:text-white/90 hover:bg-white/20 transition-colors"
                 >
                   <X className="h-3 w-3" />
-                </motion.button>
+                </m.button>
               </div>
-            </motion.div>
+            </m.div>
           ))}
         </AnimatePresence>
 
         {notifications.length === 0 && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
@@ -304,7 +304,7 @@ export default function NotificationsPage() {
             <p className="text-white/40 text-sm text-center mt-1">
               When you get notifications, they'll appear here
             </p>
-          </motion.div>
+          </m.div>
         )}
       </main>
 

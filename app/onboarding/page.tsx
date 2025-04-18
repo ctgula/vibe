@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/use-supabase-auth'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toast } from 'sonner'
-import { m as motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { Mic, Music2, User, Sparkles, ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -115,14 +115,14 @@ export default function OnboardingPage() {
   if (loading || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="text-center"
         >
           <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto mb-4" />
           <p className="text-white/70">Setting up your vibe...</p>
-        </motion.div>
+        </m.div>
       </div>
     )
   }
@@ -182,7 +182,7 @@ export default function OnboardingPage() {
   const renderStep = () => {
     const content = [
       // Welcome Step
-      <motion.div 
+      <m.div 
         key="welcome"
         className="space-y-8"
         initial={{ opacity: 0, y: 20 }}
@@ -190,15 +190,15 @@ export default function OnboardingPage() {
         exit={{ opacity: 0, y: -20 }}
       >
         <div className="text-center space-y-6">
-          <motion.div 
+          <m.div 
             className="w-24 h-24 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2, type: "spring" }}
           >
             <Mic className="w-12 h-12 text-white" />
-          </motion.div>
-          <motion.div
+          </m.div>
+          <m.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
@@ -209,12 +209,12 @@ export default function OnboardingPage() {
             <p className="text-white/70 text-lg mt-3 max-w-sm mx-auto leading-relaxed">
               Let's set up your profile and get you ready to join the conversation.
             </p>
-          </motion.div>
+          </m.div>
         </div>
-      </motion.div>,
+      </m.div>,
 
       // Identity Step
-      <motion.div 
+      <m.div 
         key="identity"
         className="space-y-8"
         initial={{ opacity: 0, y: 20 }}
@@ -222,24 +222,24 @@ export default function OnboardingPage() {
         exit={{ opacity: 0, y: -20 }}
       >
         <div className="text-center space-y-6">
-          <motion.div 
+          <m.div 
             className="w-24 h-24 bg-gradient-to-br from-pink-500 to-rose-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2, type: "spring" }}
           >
             <User className="w-12 h-12 text-white" />
-          </motion.div>
+          </m.div>
           <div className="space-y-6 max-w-md mx-auto">
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
             >
               <h2 className="text-3xl font-bold text-white mb-2">Create Your Identity</h2>
               <p className="text-white/70">Choose how others will know you.</p>
-            </motion.div>
-            <motion.div 
+            </m.div>
+            <m.div 
               className="space-y-6"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -269,13 +269,13 @@ export default function OnboardingPage() {
                   This is how your name will appear to others
                 </p>
               </div>
-            </motion.div>
+            </m.div>
           </div>
         </div>
-      </motion.div>,
+      </m.div>,
 
       // Genres Step
-      <motion.div 
+      <m.div 
         key="genres"
         className="space-y-8"
         initial={{ opacity: 0, y: 20 }}
@@ -283,30 +283,30 @@ export default function OnboardingPage() {
         exit={{ opacity: 0, y: -20 }}
       >
         <div className="text-center space-y-6">
-          <motion.div 
+          <m.div 
             className="w-24 h-24 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2, type: "spring" }}
           >
             <Music2 className="w-12 h-12 text-white" />
-          </motion.div>
-          <motion.div
+          </m.div>
+          <m.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
           >
             <h2 className="text-3xl font-bold text-white mb-2">Pick Your Vibes</h2>
             <p className="text-white/70">Select the genres you're into.</p>
-          </motion.div>
-          <motion.div 
+          </m.div>
+          <m.div 
             className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-md mx-auto mt-8"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
             {genreOptions.map((genre) => (
-              <motion.button
+              <m.button
                 key={genre}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -325,14 +325,14 @@ export default function OnboardingPage() {
                 )}
               >
                 {genre}
-              </motion.button>
+              </m.button>
             ))}
-          </motion.div>
+          </m.div>
         </div>
-      </motion.div>,
+      </m.div>,
 
       // Final Step
-      <motion.div 
+      <m.div 
         key="final"
         className="space-y-8"
         initial={{ opacity: 0, y: 20 }}
@@ -340,30 +340,30 @@ export default function OnboardingPage() {
         exit={{ opacity: 0, y: -20 }}
       >
         <div className="text-center space-y-6">
-          <motion.div 
+          <m.div 
             className="w-24 h-24 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2, type: "spring" }}
           >
             <Sparkles className="w-12 h-12 text-white" />
-          </motion.div>
-          <motion.div
+          </m.div>
+          <m.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
           >
             <h2 className="text-3xl font-bold text-white mb-2">Almost There!</h2>
             <p className="text-white/70">Choose your profile theme color.</p>
-          </motion.div>
-          <motion.div 
+          </m.div>
+          <m.div 
             className="grid grid-cols-4 gap-3 max-w-xs mx-auto mt-8"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
             {themeColors.map((color) => (
-              <motion.button
+              <m.button
                 key={color}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
@@ -378,14 +378,14 @@ export default function OnboardingPage() {
                 style={{ backgroundColor: color }}
               />
             ))}
-          </motion.div>
+          </m.div>
         </div>
-      </motion.div>
+      </m.div>
     ]
 
     return (
       <AnimatePresence mode="wait" custom={direction}>
-        <motion.div
+        <m.div
           key={page}
           custom={direction}
           variants={slideVariants}
@@ -399,7 +399,7 @@ export default function OnboardingPage() {
           className="w-full"
         >
           {content[page]}
-        </motion.div>
+        </m.div>
       </AnimatePresence>
     )
   }
@@ -426,7 +426,7 @@ export default function OnboardingPage() {
 
             <div className="flex items-center space-x-2">
               {Array.from({ length: totalSteps }, (_, i) => (
-                <motion.div
+                <m.div
                   key={i}
                   className={cn(
                     "w-2 h-2 rounded-full transition-colors",
