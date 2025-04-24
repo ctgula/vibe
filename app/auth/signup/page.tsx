@@ -16,14 +16,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mail, Lock, User, AtSign, AlertCircle, ArrowRight } from "lucide-react";
 import { ErrorBoundary } from "react-error-boundary";
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-// Simple inline SVG for Google Icon (Same as sign-in)
+// Simple inline SVG for Google Icon
 const GoogleIcon = () => (
   <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
-    {/* SVG paths */}
     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
@@ -32,38 +31,85 @@ const GoogleIcon = () => (
   </svg>
 );
 
-// ErrorFallback remains the same
+// Error fallback component
 function ErrorFallback({ error, resetErrorBoundary }: { error: Error, resetErrorBoundary: () => void }) {
   return (
-    <div className="bg-zinc-900 text-white min-h-screen flex flex-col items-center justify-center p-6">
-      <h2 className="text-2xl font-bold mb-4">Something went wrong</h2>
-      <p className="text-red-400 mb-4">{error.message || "Unknown error"}</p>
-      <Button onClick={resetErrorBoundary} variant="default">
+    <div className="p-4 border border-red-500 bg-red-50 rounded-md text-red-800 my-4">
+      <div className="flex items-center gap-2 mb-2">
+        <AlertCircle size={20} />
+        <h3 className="font-semibold">Something went wrong</h3>
+      </div>
+      <p className="text-sm mb-3">{error.message || "Unknown error"}</p>
+      <Button 
+        variant="outline"
+        onClick={resetErrorBoundary}
+        className="text-sm"
+      >
         Try again
       </Button>
-      <Link href="/" className="mt-4 text-blue-400 hover:underline">
-        Return to home page
-      </Link>
     </div>
   );
 }
 
 function SignupContent() {
-  const { signUp, signInWithOAuth, isLoading } = useAuth(); // Get methods from hook
-  const supabase = createClientComponentClient(); // Re-initialize client
+  const { signUp, signInWithOAuth, isLoading } = useAuth();
+  const supabase = createClientComponentClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
-  // Use toast for feedback, no need for separate error state string? Let's keep it for form-level errors.
-  const [formError, setFormError] = useState<string | null>(null);
+  const [errors, setErrors] = useState({
+    email: '',
+    password: '',
+    username: '',
+    displayName: ''
+  });
   const router = useRouter();
 
+  // Form validation
+  const validateForm = () => {
+    let isValid = true;
+    const newErrors = {
+      email: '',
+      password: '',
+      username: '',
+      displayName: ''
+    };
+    
+    // Email validation
+    if (!email) {
+      newErrors.email = 'Email is required';
+      isValid = false;
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      newErrors.email = 'Email format is invalid';
+      isValid = false;
+    }
+    
+    // Password validation
+    if (!password) {
+      newErrors.password = 'Password is required';
+      isValid = false;
+    } else if (password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+      isValid = false;
+    }
+    
+    // Username validation
+    if (!username) {
+      newErrors.username = 'Username is required';
+      isValid = false;
+    } else if (!/^[a-z0-9_]+$/.test(username)) {
+      newErrors.username = 'Username can only contain lowercase letters, numbers, and underscores';
+      isValid = false;
+    }
+    
+    setErrors(newErrors);
+    return isValid;
+  };
+
   const handleGoogleSignIn = async () => {
-    setFormError(null); // Clear form error on new action
     try {
       await signInWithOAuth('google');
-      // Supabase handles redirect
       toast.success('Redirecting to Google...');
     } catch (error: any) {
       console.error('Google Sign In/Up Error:', error);
@@ -73,80 +119,71 @@ function SignupContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFormError(null); // Clear previous errors
-
-    // Validate username format
-    if (!/^[a-z0-9_]+$/.test(username)) {
-      const message = "Username can only contain lowercase letters, numbers, and underscores.";
-      setFormError(message);
-      toast.error(message);
+    
+    // Validate form
+    if (!validateForm()) {
       return;
     }
-    if (password.length < 6) {
-      const message = "Password must be at least 6 characters long.";
-      setFormError(message);
-      toast.error(message);
-      return;
-    }
-
+    
     try {
-      // 1. Call signUp from the hook with only email and password
-      const response = await signUp(email, password); // Store the full response
-
-      // Check for Supabase auth error
-      if (response.error || !response.data?.user) { // Access error and data from response
-        const message = response.error?.message || "Failed to sign up with Supabase Auth.";
-        console.error("Supabase Sign Up Error:", response.error);
-        setFormError(message);
-        toast.error(message);
-        return; // Stop execution if auth fails
+      console.log('Starting signup process...', { email, username });
+      
+      // 1. Sign up with Supabase Auth
+      const response = await signUp(email, password);
+      
+      // 2. Check if user creation was successful
+      if (response.error) {
+        throw response.error;
       }
-
-      // 2. Create user profile row AFTER successful auth
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert([
-          {
-            id: response.data.user.id, // Use the ID from the successful response.data.user
-            username,
+      
+      // 3. Store username and display name in profiles table
+      if (response.data?.user) {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: response.data.user.id,
+            username: username,
             display_name: displayName || username,
-            is_guest: false, // Ensure this is false for registered users
-            // created_at: new Date().toISOString(), // Handled by db default now? Check schema. Assuming yes.
-          },
-        ]);
-
-      if (profileError) {
-        // Log the error, inform the user, but the auth user *is* created.
-        // Might need a cleanup mechanism or user guidance here.
-        console.error("Error creating profile after sign up:", profileError);
-        toast.error("Account created, but failed to set up profile. Please contact support.");
-        // Decide if we should still proceed with redirect or stop here. Let's redirect for now.
-      } else {
-        toast.success("Account created successfully! Please check your email to confirm.");
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            is_guest: false
+          });
+          
+        if (profileError) {
+          console.error('Error updating profile:', profileError);
+          // We don't throw here because the user was created successfully
+          toast.error('Account created, but there was an issue setting up your profile.');
+        }
       }
-
-      // 3. Redirect to confirmation page
-      router.push("/auth/confirm");
-
+      
+      // 4. Show confirmation message
+      if (!response.data?.user?.email_confirmed_at) {
+        toast.success('Check your email to confirm your account!');
+        router.push('/auth/check-email');
+      } else {
+        toast.success('Account created successfully!');
+        router.push('/');
+      }
     } catch (error: any) {
-      // Catch errors specifically from the signUp call if it throws internally
-      console.error("Sign up process error:", error);
-      const message = error.message || "An unexpected error occurred during sign up.";
-      setFormError(message);
-      toast.error(message);
+      console.error('Signup error:', error);
+      if (error.message.includes('duplicate key')) {
+        toast.error('This email or username is already in use.');
+      } else {
+        toast.error(error.message || 'Failed to create account.');
+      }
     }
   };
 
-  // Input field styling consistent with sign-in
+  // Consistent input styles
   const inputStyles = "bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-indigo-500 focus:ring-indigo-500";
 
   return (
     <div className="w-full max-w-md">
       <Card className="border-zinc-800 bg-zinc-900/80 text-zinc-200 backdrop-blur-sm">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl">Create an account</CardTitle>
+          <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
           <CardDescription className="text-zinc-400">
-            Enter your details below to sign up
+            Get started with your Vibe profile
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -155,7 +192,7 @@ function SignupContent() {
             variant="outline"
             onClick={handleGoogleSignIn}
             disabled={isLoading}
-            className="w-full bg-white text-black hover:bg-gray-200 border-zinc-300"
+            className="w-full bg-white text-black hover:bg-gray-200 border-zinc-300 transition-all duration-300"
           >
             {isLoading ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -180,7 +217,9 @@ function SignupContent() {
           {/* Email Form */}
           <form onSubmit={handleSubmit} className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="flex items-center">
+                <Mail size={16} className="mr-2" /> Email
+              </Label>
               <Input
                 id="email"
                 type="email"
@@ -190,10 +229,16 @@ function SignupContent() {
                 onChange={(e) => setEmail(e.target.value)}
                 className={inputStyles}
                 disabled={isLoading}
+                aria-invalid={!!errors.email}
               />
+              {errors.email && (
+                <p className="text-red-400 text-xs mt-1">{errors.email}</p>
+              )}
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username" className="flex items-center">
+                <AtSign size={16} className="mr-2" /> Username
+              </Label>
               <Input
                 id="username"
                 type="text"
@@ -203,13 +248,18 @@ function SignupContent() {
                 onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                 className={inputStyles}
                 disabled={isLoading}
-                pattern="^[a-z0-9_]+$"
-                title="Lowercase letters, numbers, underscores only."
+                aria-invalid={!!errors.username}
               />
-              <p className="text-xs text-zinc-500">Lowercase letters, numbers, underscores only.</p>
+              {errors.username ? (
+                <p className="text-red-400 text-xs mt-1">{errors.username}</p>
+              ) : (
+                <p className="text-xs text-zinc-500">Lowercase letters, numbers, underscores only.</p>
+              )}
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="displayName">Display Name <span className="text-zinc-500">(Optional)</span></Label>
+              <Label htmlFor="displayName" className="flex items-center">
+                <User size={16} className="mr-2" /> Display Name <span className="text-zinc-500 ml-1">(Optional)</span>
+              </Label>
               <Input
                 id="displayName"
                 type="text"
@@ -221,7 +271,9 @@ function SignupContent() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="flex items-center">
+                <Lock size={16} className="mr-2" /> Password
+              </Label>
               <Input
                 id="password"
                 type="password"
@@ -231,23 +283,32 @@ function SignupContent() {
                 onChange={(e) => setPassword(e.target.value)}
                 className={inputStyles}
                 disabled={isLoading}
+                aria-invalid={!!errors.password}
               />
-              <p className="text-xs text-zinc-500">Minimum 6 characters.</p>
+              {errors.password ? (
+                <p className="text-red-400 text-xs mt-1">{errors.password}</p>
+              ) : (
+                <p className="text-xs text-zinc-500">Minimum 6 characters.</p>
+              )}
             </div>
 
-            {formError && (
-              <p className="text-sm text-red-500">{formError}</p>
-            )}
-
-            <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button 
+              type="submit" 
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white transition-all duration-300 mt-2" 
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <ArrowRight size={16} className="mr-2" />
+              )}
               Create Account
             </Button>
           </form>
         </CardContent>
         <CardFooter className="text-center text-sm text-zinc-400">
           Already have an account?{' '}
-          <Link href="/auth/signin" className="underline hover:text-indigo-400">
+          <Link href="/auth/signin" className="text-indigo-400 hover:underline hover:text-indigo-300 transition-all">
             Sign in
           </Link>
         </CardFooter>
@@ -256,11 +317,12 @@ function SignupContent() {
   );
 }
 
-// SignupPage wrapper remains the same
 export default function SignupPage() {
   return (
-    <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <SignupContent />
-    </ErrorBoundary>
+    <div className="flex min-h-[calc(100vh-80px)] items-center justify-center p-4">
+      <ErrorBoundary FallbackComponent={ErrorFallback}>
+        <SignupContent />
+      </ErrorBoundary>
+    </div>
   );
 }

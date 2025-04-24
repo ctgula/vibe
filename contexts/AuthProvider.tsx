@@ -192,21 +192,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log("No profile found, creating new profile");
       
       // Create new profile if it doesn't exist
-      const newProfile: UserProfile = {
+      // Ensure all REQUIRED fields from the 'profiles' table 'Insert' type are present
+      const newProfileData = {
         id: userId,
-        username: user?.email?.split('@')[0] || `user_${Math.floor(Math.random() * 10000)}`,
+        email: user?.email, // Added required email field
         display_name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'New User',
-        avatar_url: user?.user_metadata?.avatar_url || '',
+        avatar_url: user?.user_metadata?.avatar_url || null, // Ensure null if empty
         is_guest: false,
-        bio: '',
-        theme_color: 'default',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        onboarding_completed: false // Added missing field, assuming default is false
+        // created_at is handled by the database default
+        // Removed fields not in schema: username, bio, theme_color, updated_at
       };
+
+      // Type assertion to ensure compatibility if UserProfile type is different
+      const newProfile: UserProfile = newProfileData as UserProfile;
       
       const { error: insertError } = await supabase
         .from('profiles')
-        .insert([newProfile]);
+        .insert([newProfileData]); // Use the cleaned-up data object
       
       if (insertError) {
         console.error('Error creating profile:', insertError);

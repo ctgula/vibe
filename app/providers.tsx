@@ -15,12 +15,14 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     )}>
-      <LazyMotion features={domAnimation} strict>
-        <AuthProvider>
+      <AuthProvider>
+        {/* Portal container for modals and popovers */}
+        <div id="portal-root" />
+        <LazyMotion features={domAnimation} strict>
           <Toaster richColors position="top-center" />
           {children}
-        </AuthProvider>
-      </LazyMotion>
+        </LazyMotion>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

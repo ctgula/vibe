@@ -2,15 +2,12 @@ import { User } from '@supabase/supabase-js';
 
 export interface UserProfile {
   id: string;
-  username: string;
+  email: string;
   display_name: string | null;
   avatar_url: string | null;
   is_guest: boolean;
-  bio: string | null;
-  theme_color: string | null;
   created_at: string;
-  updated_at: string;
-  name?: string; // Added for backward compatibility
+  onboarding_completed: boolean;
 }
 
 // For backward compatibility

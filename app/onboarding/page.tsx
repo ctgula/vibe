@@ -52,7 +52,7 @@ export default function OnboardingPage() {
   })
   const totalSteps = 4
   const router = useRouter()
-  const { user, isLoading: authLoading } = useAuth()
+  const { user, isLoading: authLoading, createEmptyProfile } = useAuth()
 
   // DEBUG LOGGING
   useEffect(() => {
@@ -70,19 +70,55 @@ export default function OnboardingPage() {
     const initializeProfile = async () => {
       try {
         setLoading(true)
+        
+        // First check if the profile exists
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
-          .single()
-
-        if (error) throw error
-
-        // Pre-fill form if profile exists
-        if (profile) {
+          .maybeSingle() // Use maybeSingle instead of single to avoid errors when no profile exists
+        
+        if (error) {
+          console.error('Error checking profile:', error)
+          throw error
+        }
+        
+        // If no profile exists, create an empty one
+        if (!profile) {
+          console.log('[Onboarding] No profile found, creating empty profile')
+          try {
+            // Use the createEmptyProfile from useAuth which handles proper profile creation
+            await createEmptyProfile(user.id)
+            
+            // Re-fetch the newly created profile
+            const { data: newProfile, error: newProfileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', user.id)
+              .single()
+              
+            if (newProfileError) throw newProfileError
+            
+            // Pre-fill form with the new profile data
+            if (newProfile) {
+              setFormData({
+                username: newProfile.username || `user_${Date.now().toString(36)}`,
+                displayName: newProfile.display_name || 'New User',
+                bio: newProfile.bio || '',
+                preferredGenres: newProfile.preferred_genres || [],
+                themeColor: newProfile.theme_color || '#6366f1'
+              })
+            }
+          } catch (createError) {
+            console.error('[Onboarding] Error creating empty profile:', createError)
+            toast.error('Error creating your profile. Please try again.')
+          }
+        } else {
+          // Pre-fill form if profile exists
+          console.log('[Onboarding] Profile found:', profile)
           setFormData({
-            username: profile.username || '',
-            displayName: profile.display_name || '',
+            username: profile.username || `user_${Date.now().toString(36)}`,
+            displayName: profile.display_name || profile.username || 'New User',
             bio: profile.bio || '',
             preferredGenres: profile.preferred_genres || [],
             themeColor: profile.theme_color || '#6366f1'
@@ -97,7 +133,7 @@ export default function OnboardingPage() {
     }
 
     initializeProfile()
-  }, [user, authLoading, router])
+  }, [user, authLoading, router, createEmptyProfile])
 
   // FALLBACK UI if stuck loading
   if ((loading || authLoading) && !user) {
@@ -144,242 +180,358 @@ export default function OnboardingPage() {
   }
 
   const handleSubmit = async () => {
-    if (!user?.id) {
-      toast.error('No user ID found')
+    if (!user) {
+      toast.error('You must be logged in to complete onboarding')
       return
     }
 
     try {
+      // Set submitting state to show loading UI
       setSubmitting(true)
       
+      console.log('[Onboarding] Updating profile for user:', user.id, 'with data:', formData)
+      
+      // Check if username is available (not already taken)
+      const { data: existingUsername, error: usernameError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', formData.username)
+        .neq('id', user.id)  // Exclude current user
+        .maybeSingle();
+        
+      if (usernameError) {
+        console.error('[Onboarding] Error checking username:', usernameError);
+      } else if (existingUsername) {
+        // Username is taken by another user
+        toast.error('Username is already taken. Please choose another.');
+        setSubmitting(false);
+        return;
+      }
+      
+      // Validate required fields
+      if (!formData.username.trim()) {
+        toast.error('Username is required');
+        setSubmitting(false);
+        return;
+      }
+      
+      // Make sure we have all required fields for the profile
+      const profileData = {
+        id: user.id,
+        username: formData.username.toLowerCase().trim(),
+        display_name: formData.displayName.trim() || formData.username.trim(),
+        bio: formData.bio,
+        preferred_genres: formData.preferredGenres,
+        theme_color: formData.themeColor,
+        onboarding_completed: true,
+        updated_at: new Date().toISOString(),
+        // Add email if available to avoid constraint issues
+        email: user.email || null,
+        // Preserve guest status if it was set (important for guest auth flow)
+        ...(localStorage.getItem('guestProfileId') ? { is_guest: true } : {})
+      }
+      
+      console.log('[Onboarding] Submitting profile data:', profileData)
+      
+      // Update the profile in Supabase
       const { error } = await supabase
         .from('profiles')
-        .upsert({
-          id: user.id,
-          username: formData.username,
-          display_name: formData.displayName,
-          bio: formData.bio,
-          preferred_genres: formData.preferredGenres,
-          theme_color: formData.themeColor,
-          onboarding_completed: true,
-          updated_at: new Date().toISOString()
-        })
+        .upsert(profileData)
 
-      if (error) throw error
+      if (error) {
+        console.error('[Onboarding] Error updating profile:', error)
+        throw error
+      }
 
+      console.log('[Onboarding] Profile updated successfully, redirecting to /rooms')
+      
+      // Provide haptic feedback on success
       if (window.navigator.vibrate) window.navigator.vibrate([3, 30, 3])
+      
+      // Show success message
       toast.success('Profile updated successfully')
+      
+      // Set local storage flag to indicate onboarding is complete
       localStorage.setItem('onboardingCompleted', 'true')
-      router.push('/rooms')
+      
+      // Redirect to rooms page (with a small delay for visual feedback)
+      setTimeout(() => {
+        router.push('/rooms')
+      }, 800)
     } catch (error: any) {
-      console.error('Error updating profile:', error)
-      toast.error(error.message || 'Error updating profile')
-    } finally {
+      console.error('[Onboarding] Error updating profile:', error)
+      
+      // Show a more helpful error message based on the error type
+      if (error.code === '23505') {
+        toast.error('Username is already taken. Please choose another.');
+      } else if (error.code === '23502') {
+        toast.error('Missing required field. Please check your inputs.');
+      } else {
+        toast.error(error.message || 'Error updating profile. Please try again.');
+      }
+      
+      // Reset submission state so user can try again
       setSubmitting(false)
+      
+      // Scroll to username field if it's a duplicate username error
+      if (error.code === '23505' && error.message?.includes('username')) {
+        const usernameField = document.getElementById('username');
+        if (usernameField) {
+          usernameField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          usernameField.focus();
+        }
+      }
     }
   }
 
   const renderStep = () => {
     const content = [
-      // Welcome Step
-      <m.div 
+      // Step 1: Welcome
+      <m.div
         key="welcome"
-        className="space-y-8"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
+        className="flex flex-col items-center justify-center py-10 text-center space-y-8"
       >
-        <div className="text-center space-y-6">
-          <m.div 
-            className="w-24 h-24 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.2, type: "spring" }}
+        <div className="space-y-4">
+          <m.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
           >
-            <Mic className="w-12 h-12 text-white" />
+            <div className="h-20 w-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto">
+              <Sparkles className="h-10 w-10 text-white" />
+            </div>
           </m.div>
           <m.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.1 }}
           >
-            <h2 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Welcome to Vibe
-            </h2>
-            <p className="text-white/70 text-lg mt-3 max-w-sm mx-auto leading-relaxed">
-              Let's set up your profile and get you ready to join the conversation.
-            </p>
+            <h1 className="text-4xl font-bold">Welcome to Vibe</h1>
+            <p className="text-white/70 mt-2">Let's set up your profile in a few simple steps.</p>
           </m.div>
         </div>
-      </m.div>,
-
-      // Identity Step
-      <m.div 
-        key="identity"
-        className="space-y-8"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-      >
-        <div className="text-center space-y-6">
-          <m.div 
-            className="w-24 h-24 bg-gradient-to-br from-pink-500 to-rose-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.2, type: "spring" }}
-          >
-            <User className="w-12 h-12 text-white" />
-          </m.div>
-          <div className="space-y-6 max-w-md mx-auto">
-            <m.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-            >
-              <h2 className="text-3xl font-bold text-white mb-2">Create Your Identity</h2>
-              <p className="text-white/70">Choose how others will know you.</p>
-            </m.div>
-            <m.div 
-              className="space-y-6"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-            >
-              <div className="relative mb-8">
-                <input
-                  type="text"
-                  placeholder="Username"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                />
-                <p className="absolute top-full mt-2 text-white/60 text-sm">
-                  This will be your unique identifier
-                </p>
+        
+        <m.div
+          className="w-full max-w-md grid grid-cols-1 gap-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+            <div className="flex items-start">
+              <div className="bg-purple-500/20 p-2 rounded-md mr-4">
+                <Mic className="h-5 w-5 text-purple-400" />
               </div>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Display Name"
-                  value={formData.displayName}
-                  onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                />
-                <p className="absolute top-full mt-2 text-white/60 text-sm">
-                  This is how your name will appear to others
-                </p>
+              <div>
+                <h3 className="font-medium">Audio Rooms</h3>
+                <p className="text-sm text-white/60">Join and create audio conversations on any topic</p>
               </div>
-            </m.div>
+            </div>
           </div>
-        </div>
+          
+          <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+            <div className="flex items-start">
+              <div className="bg-pink-500/20 p-2 rounded-md mr-4">
+                <User className="h-5 w-5 text-pink-400" />
+              </div>
+              <div>
+                <h3 className="font-medium">Personalized Profile</h3>
+                <p className="text-sm text-white/60">Customize your profile and connect with others</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+            <div className="flex items-start">
+              <div className="bg-blue-500/20 p-2 rounded-md mr-4">
+                <Music2 className="h-5 w-5 text-blue-400" />
+              </div>
+              <div>
+                <h3 className="font-medium">Music & Topics</h3>
+                <p className="text-sm text-white/60">Find rooms that match your interests</p>
+              </div>
+            </div>
+          </div>
+        </m.div>
       </m.div>,
 
-      // Genres Step
-      <m.div 
-        key="genres"
-        className="space-y-8"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
+      // Step 2: Username and Display Name
+      <m.div
+        key="username"
+        className="flex flex-col items-center justify-center py-10 text-center"
       >
-        <div className="text-center space-y-6">
-          <m.div 
-            className="w-24 h-24 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.2, type: "spring" }}
-          >
-            <Music2 className="w-12 h-12 text-white" />
-          </m.div>
-          <m.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <h2 className="text-3xl font-bold text-white mb-2">Pick Your Vibes</h2>
-            <p className="text-white/70">Select the genres you're into.</p>
-          </m.div>
-          <m.div 
-            className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-md mx-auto mt-8"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-          >
-            {genreOptions.map((genre) => (
-              <m.button
-                key={genre}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  const newGenres = formData.preferredGenres.includes(genre)
-                    ? formData.preferredGenres.filter(g => g !== genre)
-                    : [...formData.preferredGenres, genre]
-                  setFormData({ ...formData, preferredGenres: newGenres })
-                  if (window.navigator.vibrate) window.navigator.vibrate(3)
-                }}
-                className={cn(
-                  "p-3 rounded-lg text-sm font-medium transition-all",
-                  formData.preferredGenres.includes(genre)
-                    ? "bg-purple-500 text-white"
-                    : "bg-white/10 text-white/70 hover:bg-white/20"
-                )}
-              >
-                {genre}
-              </m.button>
-            ))}
-          </m.div>
-        </div>
-      </m.div>,
+        <m.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+        >
+          <h2 className="text-3xl font-bold text-white mb-2">Create Your Identity</h2>
+          <p className="text-white/70">Choose how you'll appear to others.</p>
+        </m.div>
 
-      // Final Step
-      <m.div 
-        key="final"
-        className="space-y-8"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-      >
-        <div className="text-center space-y-6">
-          <m.div 
-            className="w-24 h-24 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto shadow-xl"
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.2, type: "spring" }}
-          >
-            <Sparkles className="w-12 h-12 text-white" />
-          </m.div>
-          <m.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <h2 className="text-3xl font-bold text-white mb-2">Almost There!</h2>
-            <p className="text-white/70">Choose your profile theme color.</p>
-          </m.div>
-          <m.div 
-            className="grid grid-cols-4 gap-3 max-w-xs mx-auto mt-8"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-          >
-            {themeColors.map((color) => (
-              <m.button
-                key={color}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => {
-                  setFormData({ ...formData, themeColor: color })
-                  if (window.navigator.vibrate) window.navigator.vibrate(3)
-                }}
-                className={cn(
-                  "w-12 h-12 rounded-full transition-transform",
-                  formData.themeColor === color && "ring-2 ring-white ring-offset-2 ring-offset-black"
-                )}
-                style={{ backgroundColor: color }}
+        <m.div 
+          className="w-full max-w-md mt-10"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <div className="space-y-6">
+            <div className="space-y-2 text-left">
+              <label htmlFor="username" className="block text-sm font-medium text-white">
+                Username <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-white/50">@</span>
+                <input
+                  type="text"
+                  id="username"
+                  value={formData.username}
+                  onChange={(e) => {
+                    // Only allow lowercase alphanumeric and underscore
+                    const sanitized = e.target.value
+                      .toLowerCase()
+                      .replace(/[^a-z0-9_]/g, '')
+                    setFormData({ ...formData, username: sanitized })
+                  }}
+                  className="block w-full rounded-md border-0 bg-white/5 px-10 py-2.5 text-white shadow-sm ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-inset focus:ring-purple-500 sm:text-sm"
+                  placeholder="username"
+                  required
+                />
+              </div>
+              <p className="text-xs text-white/50">Lowercase letters, numbers, and underscores only.</p>
+            </div>
+
+            <div className="space-y-2 text-left">
+              <label htmlFor="display-name" className="block text-sm font-medium text-white">
+                Display Name
+              </label>
+              <input
+                type="text"
+                id="display-name"
+                value={formData.displayName}
+                onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                className="block w-full rounded-md border-0 bg-white/5 px-3.5 py-2.5 text-white shadow-sm ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-inset focus:ring-purple-500 sm:text-sm"
+                placeholder="Your Name"
               />
-            ))}
-          </m.div>
-        </div>
+              <p className="text-xs text-white/50">This is how your name will appear to others.</p>
+            </div>
+          </div>
+        </m.div>
+      </m.div>,
+
+      // Step 3: Bio and Genres
+      <m.div
+        key="bio"
+        className="flex flex-col items-center justify-center py-10 text-center"
+      >
+        <m.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+        >
+          <h2 className="text-3xl font-bold text-white mb-2">Your Preferences</h2>
+          <p className="text-white/70">Tell us about yourself and what you enjoy.</p>
+        </m.div>
+
+        <m.div 
+          className="w-full max-w-md mt-8"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <div className="space-y-6">
+            <div className="space-y-2 text-left">
+              <label htmlFor="bio" className="block text-sm font-medium text-white">
+                Bio
+              </label>
+              <textarea
+                id="bio"
+                value={formData.bio}
+                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                rows={3}
+                className="block w-full rounded-md border-0 bg-white/5 px-3.5 py-2.5 text-white shadow-sm ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-inset focus:ring-purple-500 sm:text-sm"
+                placeholder="Tell us a bit about yourself..."
+              />
+              <p className="text-xs text-white/50">What do you want others to know about you?</p>
+            </div>
+
+            <div className="space-y-3 text-left">
+              <label className="block text-sm font-medium text-white">
+                Preferred Music Genres
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {genreOptions.map((genre) => (
+                  <button
+                    key={genre}
+                    type="button"
+                    onClick={() => {
+                      if (window.navigator.vibrate) window.navigator.vibrate(3)
+                      setFormData({
+                        ...formData, 
+                        preferredGenres: formData.preferredGenres.includes(genre)
+                          ? formData.preferredGenres.filter(g => g !== genre)
+                          : [...formData.preferredGenres, genre]
+                      })
+                    }}
+                    className={cn(
+                      "px-3 py-1.5 text-sm rounded-full transition-colors",
+                      formData.preferredGenres.includes(genre)
+                        ? "bg-purple-500/80 text-white"
+                        : "bg-white/5 text-white/70 hover:bg-white/10"
+                    )}
+                  >
+                    {genre}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-white/50">Select your favorite genres to discover relevant rooms.</p>
+            </div>
+          </div>
+        </m.div>
+      </m.div>,
+
+      // Step 4: Theme Color
+      <m.div
+        key="theme"
+        className="flex flex-col items-center justify-center py-10 text-center"
+      >
+        <m.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+        >
+          <h2 className="text-3xl font-bold text-white mb-2">Almost There!</h2>
+          <p className="text-white/70">Choose your profile theme color.</p>
+        </m.div>
+        <m.div 
+          className="grid grid-cols-4 gap-3 max-w-xs mx-auto mt-8"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          {themeColors.map((color) => (
+            <m.button
+              key={color}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => {
+                setFormData({ ...formData, themeColor: color })
+                if (window.navigator.vibrate) window.navigator.vibrate(3)
+                
+                // Automatically submit the form after selecting a theme color
+                if (page === totalSteps - 1) {
+                  setTimeout(() => {
+                    handleSubmit();
+                  }, 300);
+                }
+              }}
+              className={cn(
+                "w-12 h-12 rounded-full transition-transform",
+                formData.themeColor === color && "ring-2 ring-white ring-offset-2 ring-offset-black"
+              )}
+              style={{ backgroundColor: color }}
+            />
+          ))}
+        </m.div>
       </m.div>
     ]
 

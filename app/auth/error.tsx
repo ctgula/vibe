@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { m } from 'framer-motion';
 
 export default function AuthError({
   error,
@@ -19,7 +19,7 @@ export default function AuthError({
 
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="max-w-md w-full p-6 rounded-2xl bg-zinc-900/70 backdrop-blur-xl border border-zinc-700/30 shadow-xl text-center"
@@ -42,7 +42,7 @@ export default function AuthError({
             Go Home
           </button>
         </div>
-      </motion.div>
+      </m.div>
     </div>
   );
 }
