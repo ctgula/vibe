@@ -163,6 +163,7 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'join' | 'create'>('join');
   const [showSecondary, setShowSecondary] = useState(false);
+  const [forceShowContent, setForceShowContent] = useState(false); // New state to force content display
   const router = useRouter();
   const { user, isLoading } = useAuth();
 
@@ -170,20 +171,32 @@ export default function Home() {
     setMounted(true);
     // Load secondary content after initial render
     const timer = setTimeout(() => setShowSecondary(true), 100);
-    return () => clearTimeout(timer);
-  }, []);
+    
+    // Force content to show after 3 seconds even if auth is still loading
+    const forceTimer = setTimeout(() => {
+      if (isLoading) {
+        console.log("Auth still loading after 3s; forcing content display");
+        setForceShowContent(true);
+      }
+    }, 3000);
+    
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(forceTimer);
+    };
+  }, [isLoading]);
 
-  // Show loading state only while auth is loading
-  if (isLoading) {
+  // Don't render until mounted (client-side)
+  if (!mounted) return null;
+  
+  // Show loading state only while auth is loading, but not if we're forcing content
+  if (isLoading && !forceShowContent) {
     return (
       <div className="min-h-screen bg-[#0d0d12] flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-b-transparent border-purple-500 rounded-full animate-spin" />
       </div>
     );
   }
-
-  // Don't render until mounted (client-side)
-  if (!mounted) return null;
 
   const handleContinue = (path: typeof ROUTES[keyof typeof ROUTES]) => {
     try {
@@ -192,7 +205,7 @@ export default function Home() {
         router.push(path);
         return;
       }
-      // Route to onboarding for everyone else - enables guest authentication
+      // Otherwise go to onboarding to handle guest mode
       router.push(ROUTES.ONBOARDING);
     } catch (error) {
       console.error('Error in handleContinue:', error);

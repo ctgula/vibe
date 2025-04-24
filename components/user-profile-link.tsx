@@ -36,8 +36,12 @@ export function UserProfileLink({
   const initials = displayName ? displayName.charAt(0).toUpperCase() : username ? username.charAt(0).toUpperCase() : '?';
   
   const handleClick = () => {
-    // Navigate to profile page
-    router.push('/profile');
+    try {
+      // Navigate to profile page
+      router.push('/profile');
+    } catch (error) {
+      console.error('Error navigating to profile:', error);
+    }
   };
   
   return (

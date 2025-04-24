@@ -171,9 +171,17 @@ export default function SignInPage() {
                   )}
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="password" className="flex items-center">
-                    <Lock size={16} className="mr-2" /> Password
-                  </Label>
+                  <div className="flex justify-between items-center">
+                    <Label htmlFor="password" className="flex items-center">
+                      <Lock size={16} className="mr-2" /> Password
+                    </Label>
+                    <Link 
+                      href="/auth/reset-password" 
+                      className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
                   <Input
                     id="password"
                     type="password"

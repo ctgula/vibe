@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { useAuth } from "@/hooks/use-supabase-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +58,7 @@ function SignupContent() {
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [localLoading, setLocalLoading] = useState(false); // Local loading state to ensure we can control it
   const [errors, setErrors] = useState({
     email: '',
     password: '',
@@ -119,58 +120,92 @@ function SignupContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Signup form submitted');
     
     // Validate form
     if (!validateForm()) {
+      console.log('Form validation failed');
       return;
     }
     
+    // Set loading state
+    setLocalLoading(true);
+    console.log('Setting loading state: true');
+    
+    // Create a safety timeout to prevent hanging
+    const safetyTimeout = setTimeout(() => {
+      console.log('Signup safety timeout reached');
+      setLocalLoading(false);
+      toast.error('Request timed out. Please try again.');
+      // Force redirect to home as a last resort
+      window.location.href = '/';
+    }, 8000);
+    
     try {
-      console.log('Starting signup process...', { email, username });
+      console.log('Creating account with:', { email, username });
+      toast.info('Creating your account...');
       
-      // 1. Sign up with Supabase Auth
+      // Basic account creation first - this is the slowest step
       const response = await signUp(email, password);
+      console.log('Account creation response:', response);
       
-      // 2. Check if user creation was successful
       if (response.error) {
+        console.error('Signup error from Supabase:', response.error);
         throw response.error;
       }
       
-      // 3. Store username and display name in profiles table
-      if (response.data?.user) {
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: response.data.user.id,
-            username: username,
-            display_name: displayName || username,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            is_guest: false
-          });
-          
-        if (profileError) {
-          console.error('Error updating profile:', profileError);
-          // We don't throw here because the user was created successfully
-          toast.error('Account created, but there was an issue setting up your profile.');
-        }
+      console.log('Account created, now updating profile');
+      
+      // If we don't have a user ID, we can't continue properly
+      if (!response.data?.user?.id) {
+        console.error('No user ID in response', response);
+        toast.error('Account created but profile setup failed. Please try signing in.');
+        window.location.href = '/auth/signin';
+        return;
       }
       
-      // 4. Show confirmation message
-      if (!response.data?.user?.email_confirmed_at) {
-        toast.success('Check your email to confirm your account!');
-        router.push('/auth/check-email');
-      } else {
-        toast.success('Account created successfully!');
-        router.push('/');
+      try {
+        // Update profile with username
+        console.log('Updating profile for user:', response.data.user.id);
+        await supabase.from('profiles').upsert({
+          id: response.data.user.id,
+          username,
+          display_name: displayName || username,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          is_guest: false,
+          onboarding_completed: false
+        });
+        console.log('Profile updated successfully');
+      } catch (profileError) {
+        console.error('Profile update error:', profileError);
+        // Don't block the flow
       }
+      
+      // Show success and redirect
+      toast.success('Account created successfully!');
+      console.log('Redirecting to onboarding page');
+      
+      // Clear the safety timeout
+      clearTimeout(safetyTimeout);
+      
+      // Use window.location for a hard redirect
+      window.location.href = '/onboarding';
+      
     } catch (error: any) {
-      console.error('Signup error:', error);
-      if (error.message.includes('duplicate key')) {
+      console.error('Complete signup error:', error);
+      
+      // Handle specific errors
+      if (error.message?.includes('duplicate key')) {
         toast.error('This email or username is already in use.');
       } else {
         toast.error(error.message || 'Failed to create account.');
       }
+    } finally {
+      // Ensure loading state is reset
+      console.log('Setting loading state: false (in finally block)');
+      setLocalLoading(false);
+      clearTimeout(safetyTimeout);
     }
   };
 
@@ -295,9 +330,9 @@ function SignupContent() {
             <Button 
               type="submit" 
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white transition-all duration-300 mt-2" 
-              disabled={isLoading}
+              disabled={isLoading || localLoading}
             >
-              {isLoading ? (
+              {(isLoading || localLoading) ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <ArrowRight size={16} className="mr-2" />

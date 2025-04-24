@@ -56,16 +56,10 @@ export function useRooms() {
       setIsLoading(true);
       console.log('Fetching rooms...');
       
-      // Get all active rooms
+      // Instead of a joined query that's failing, fetch rooms and participants separately
       const { data: roomsData, error: roomsError } = await supabase
         .from('rooms')
-        .select(`
-          *,
-          participants:room_participants(
-            *,
-            profile:profiles(*)
-          )
-        `)
+        .select('*')
         .eq('is_active', true);
 
       if (roomsError) {
@@ -75,20 +69,39 @@ export function useRooms() {
 
       console.log('Rooms data:', roomsData);
 
-      // Process the rooms data to get the host and format correctly
-      const processedRooms = roomsData.map(room => {
-        const participants = room.participants || [];
-        const activeParticipants = participants.filter((p: any) => p.is_active === true);
-        const hostParticipant = participants.find((p: any) => p.user_id === room.created_by);
+      // Process each room to get participants separately
+      const processedRooms = await Promise.all(roomsData.map(async (room) => {
+        // For each room, fetch its participants
+        const { data: participants, error: participantsError } = await supabase
+          .from('room_participants')
+          .select(`
+            *,
+            profile:profiles(*)
+          `)
+          .eq('room_id', room.id);
+          
+        if (participantsError) {
+          console.error(`Error fetching participants for room ${room.id}:`, participantsError);
+          return {
+            ...room,
+            participants: [],
+            activeParticipantCount: 0,
+            hostProfile: null
+          };
+        }
+        
+        // Filter active participants and find host
+        const activeParticipants = participants?.filter(p => p.is_active === true) || [];
+        const hostParticipant = participants?.find(p => p.user_id === room.created_by);
         const hostProfile = hostParticipant ? hostParticipant.profile : null;
         
         return {
           ...room,
-          participants,
+          participants: participants || [],
           activeParticipantCount: activeParticipants.length,
           hostProfile
         };
-      });
+      }));
 
       setRooms(processedRooms);
       setError(null);
@@ -100,92 +113,96 @@ export function useRooms() {
     }
   };
 
-  useEffect(() => {
-    fetchRooms();
-
-    // Set up real-time subscription for room updates
-    const roomsSubscription = supabase
-      .channel('rooms-channel')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'rooms' }, 
-        (payload) => {
-          console.log('Room change detected:', payload);
-          // Refresh all rooms when there's a change
-          fetchRooms();
-        }
-      )
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'room_participants' }, 
-        (payload) => {
-          console.log('Room participant change detected:', payload);
-          // Refresh all rooms when there's a participant change
-          fetchRooms();
-        }
-      )
-      .subscribe((status, error) => {
-        if (error) {
-          console.error('Subscription error:', error);
-        }
-        console.log('Subscription status:', status);
-      });
-    
-    return () => {
-      // Clean up subscription
-      if (roomsSubscription) {
-        supabase.removeChannel(roomsSubscription);
-      }
-    };
-  }, [user?.id]);
-
-  // Create a new room
   const createRoom = async (name: string, description: string, topics: string[] = []) => {
-    if (!user) {
-      toast.error("You must be logged in to create a room");
-      throw new Error("You must be logged in to create a room");
-    }
+    // Get the user ID from either auth user or guest ID in localStorage
+    const userId = user?.id || localStorage.getItem('guestProfileId');
     
+    if (!userId) {
+      toast.error('You must be logged in or have a guest account to create a room');
+      return null;
+    }
+
     try {
-      // Add haptic feedback for better mobile experience
-      if (window.navigator && window.navigator.vibrate) {
-        window.navigator.vibrate([3, 10, 3]);
-      }
-      
-      console.log('Creating room:', { name, description, topics, created_by: user.id });
-      
-      // Insert the room
-      const { data: room, error: roomError } = await supabase
+      setIsLoading(true);
+      console.log('Creating room with user ID:', userId);
+
+      // 1. First create the room
+      const { data: newRoom, error: roomError } = await supabase
         .from('rooms')
-        .insert([
-          { 
-            name, 
-            description, 
-            topics, 
-            created_by: user.id,
-            is_active: true, 
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }
-        ])
+        .insert({
+          name,
+          description,
+          created_by: userId,
+          is_active: true,
+          topics,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
         .select()
         .single();
-      
+
       if (roomError) {
         console.error('Error creating room:', roomError);
+        toast.error('Failed to create room: ' + roomError.message);
         throw roomError;
       }
+
+      console.log('Room created successfully:', newRoom);
+
+      // 2. Manually add the creator as a participant since the trigger might not work
+      const { error: participantError } = await supabase
+        .from('room_participants')
+        .insert({
+          room_id: newRoom.id,
+          user_id: userId,
+          is_active: true,
+          created_at: new Date().toISOString()
+        });
+
+      if (participantError) {
+        console.error('Error adding creator as participant:', participantError);
+        // Continue anyway, we still created the room
+      } else {
+        console.log('Added room creator as participant');
+      }
+
+      // 3. Fetch the user profile to attach to the room
+      const { data: userProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError);
+      }
+
+      // 4. Create a processed room with participants
+      const processedRoom: RoomWithParticipants = {
+        ...newRoom,
+        participants: [{
+          id: crypto.randomUUID(), // Temporary ID for the participant
+          room_id: newRoom.id,
+          user_id: userId,
+          created_at: new Date().toISOString(),
+          is_active: true,
+          is_speaking: false,
+          profile: userProfile || null
+        }],
+        activeParticipantCount: 1,
+        hostProfile: userProfile || null
+      };
+
+      // 5. Add this new room to the state
+      setRooms(prev => [processedRoom, ...prev]);
       
-      console.log('Room created:', room);
-      
-      // The trigger should automatically add the creator as a participant
-      // But let's fetch the room to be sure
-      await fetchRooms();
-      
-      toast.success("Room created successfully!");
-      return room.id;
-    } catch (error) {
-      console.error("Error creating room:", error);
-      toast.error("Failed to create room");
-      throw error;
+      toast.success('Room created!');
+      return processedRoom;
+    } catch (err) {
+      console.error('Error in createRoom:', err);
+      return null;
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -286,6 +303,43 @@ export function useRooms() {
       throw error;
     }
   };
+
+  useEffect(() => {
+    fetchRooms();
+
+    // Set up real-time subscription for room updates
+    const roomsSubscription = supabase
+      .channel('rooms-channel')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'rooms' }, 
+        (payload) => {
+          console.log('Room change detected:', payload);
+          // Refresh all rooms when there's a change
+          fetchRooms();
+        }
+      )
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'room_participants' }, 
+        (payload) => {
+          console.log('Room participant change detected:', payload);
+          // Refresh all rooms when there's a participant change
+          fetchRooms();
+        }
+      )
+      .subscribe((status, error) => {
+        if (error) {
+          console.error('Subscription error:', error);
+        }
+        console.log('Subscription status:', status);
+      });
+    
+    return () => {
+      // Clean up subscription
+      if (roomsSubscription) {
+        supabase.removeChannel(roomsSubscription);
+      }
+    };
+  }, [user?.id]);
 
   return {
     rooms,

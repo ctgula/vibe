@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Create an empty profile for a user
-  const createEmptyProfile = async (userId: string) => {
+  const createEmptyProfile = async (userId: string): Promise<void> => {
     try {
       console.log('Creating empty profile for user:', userId);
       const { data, error } = await supabase
@@ -73,7 +73,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       console.log('Empty profile created successfully');
-      return data;
     } catch (err) {
       console.error('Exception creating empty profile:', err);
       throw err;
@@ -91,7 +90,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (sessionError) {
           console.error('Error getting session:', sessionError);
-          throw sessionError;
+          setIsLoading(false); // Make sure to set loading to false even if there's an error
+          return;
         }
         
         // 2. Set up auth state change listener
@@ -101,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             
             // Update user state
             const newUser = newSession?.user || null;
-            setUser(prev => {
+            setUser((prev: any) => {
               // Only update if actually different to avoid re-renders
               if (JSON.stringify(prev?.id) !== JSON.stringify(newUser?.id)) {
                 return newUser;
@@ -119,126 +119,126 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 if (!userProfile) {
                   console.log('No profile found, creating empty profile');
                   await createEmptyProfile(newUser.id);
-                  
-                  // Fetch the newly created profile
+                  // Fetch again after creation
                   await fetchUserProfile(newUser.id);
                 }
               } catch (err) {
-                console.error('Error handling user profile:', err);
+                console.error('Error handling profile change:', err);
               }
-              
-              // Clear any guest session on successful auth
-              await clearGuestSession();
-            } else if (event === 'SIGNED_OUT') {
+            } else {
+              // Clear profile state when user signs out
               setProfile(null);
             }
           }
         );
-
-        // 3. Set initial user state
-        const initialUser = session?.user ?? null;
-        setUser(initialUser);
         
-        // 4. If there's an authenticated user, fetch their profile
-        if (initialUser) {
-          try {
-            // Try to fetch profile
-            const userProfile = await fetchUserProfile(initialUser.id);
-            
-            // If no profile exists, create an empty one
-            if (!userProfile) {
-              console.log('No profile found, creating empty profile');
-              await createEmptyProfile(initialUser.id);
-              
-              // Fetch the newly created profile
-              await fetchUserProfile(initialUser.id);
-            }
-          } catch (err) {
-            console.error('Error handling initial user profile:', err);
-          }
+        // 3. Update initial user state
+        if (session?.user) {
+          console.log('Session exists, setting user', session.user.id);
+          setUser(session.user);
           
-          // Clear any guest sessions when there's an authenticated user
-          await clearGuestSession();
+          // 4. Try to fetch user profile
+          const userProfile = await fetchUserProfile(session.user.id);
+          
+          // 5. Create empty profile if needed
+          if (!userProfile) {
+            console.log('No profile found for authenticated user, creating');
+            await createEmptyProfile(session.user.id);
+            // Refresh profile after creation
+            await fetchUserProfile(session.user.id);
+          }
         } else {
-          // 5. No authenticated user, check for guest session
+          console.log('No session, checking for guest');
+          setUser(null);
+          
+          // 6. Check for guest session
           await checkGuestSession();
         }
         
         setAuthInitialized(true);
+      } catch (err) {
+        console.error('Auth initialization error:', err);
+      } finally {
+        // Always set loading to false after initialization attempt
+        console.log('Auth initialization complete, setting isLoading to false');
         setIsLoading(false);
-        
-        // Cleanup auth listener on unmount
-        return () => {
-          authListener.subscription.unsubscribe();
-        };
-
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        setIsLoading(false);
-        setAuthInitialized(true);
-        toast.error('Error initializing authentication. Please try again.');
       }
     };
 
-    // Helper to fetch user profile from database
-    const fetchUserProfile = async (userId: string) => {
-      try {
-        console.log('Fetching profile for user:', userId);
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single();
+    if (!authInitialized) {
+      initializeAuth();
+    }
+    
+    // Add a safety timeout to ensure isLoading is reset after a maximum time
+    // This prevents the app from being stuck in a loading state
+    const safetyTimeout = setTimeout(() => {
+      if (isLoading) {
+        console.log('Safety timeout triggered: forcing isLoading to false');
+        setIsLoading(false);
+      }
+    }, 5000); // 5 second maximum loading time
+    
+    return () => {
+      clearTimeout(safetyTimeout);
+    };
+  }, [authInitialized]);
 
-        if (error) {
-          console.error('Error fetching user profile:', error);
-          return null;
-        }
+  // Helper to fetch user profile from database
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      console.log('Fetching profile for user:', userId);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
-        console.log('Profile fetched successfully:', data);
-        setProfile(data);
-        return data;
-      } catch (error) {
-        console.error('Exception fetching user profile:', error);
+      if (error) {
+        console.error('Error fetching user profile:', error);
         return null;
       }
-    };
 
-    // Helper to check for guest session
-    const checkGuestSession = async () => {
-      const storedGuestId = localStorage.getItem('guestProfileId');
-      if (!storedGuestId) return null;
+      console.log('Profile fetched successfully:', data);
+      setProfile(data);
+      return data;
+    } catch (error) {
+      console.error('Exception fetching user profile:', error);
+      return null;
+    }
+  };
+
+  // Helper to check for guest session
+  const checkGuestSession = async () => {
+    const storedGuestId = localStorage.getItem('guestProfileId');
+    if (!storedGuestId) return null;
+    
+    try {
+      console.log('Checking guest session:', storedGuestId);
+      setGuestId(storedGuestId);
       
-      try {
-        console.log('Checking guest session:', storedGuestId);
-        setGuestId(storedGuestId);
-        
-        // Fetch guest profile
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', storedGuestId)
-          .eq('is_guest', true)
-          .single();
-        
-        if (error || !data) {
-          console.error('Guest profile error or not found:', error);
-          await clearGuestSession();
-          return null;
-        }
-        
-        console.log('Guest profile loaded:', data);
-        setProfile(data);
-        return data;
-      } catch (error) {
-        console.error('Exception checking guest session:', error);
+      // Fetch guest profile
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', storedGuestId)
+        .eq('is_guest', true)
+        .single();
+      
+      if (error || !data) {
+        console.error('Guest profile error or not found:', error);
         await clearGuestSession();
         return null;
       }
-    };
-
-    initializeAuth();
-  }, []);
+      
+      console.log('Guest profile loaded:', data);
+      setProfile(data);
+      return data;
+    } catch (error) {
+      console.error('Exception checking guest session:', error);
+      await clearGuestSession();
+      return null;
+    }
+  };
 
   /**
    * Sign in with email and password
