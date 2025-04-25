@@ -350,8 +350,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Handle redirect if needed
       if (isClient) {
-        const redirectPath = localStorage.getItem('redirectAfterAuth') || '/';
-        localStorage.removeItem('redirectAfterAuth');
+        // Check if user has completed onboarding
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('onboarding_completed')
+          .eq('id', data.user.id)
+          .single();
+          
+        let redirectPath = '/';
+        
+        // If redirectAfterAuth is set, use that
+        const storedRedirect = localStorage.getItem('redirectAfterAuth');
+        if (storedRedirect) {
+          redirectPath = storedRedirect;
+          localStorage.removeItem('redirectAfterAuth');
+        } 
+        // Otherwise, if onboarding not completed, redirect to onboarding
+        else if (profileData && profileData.onboarding_completed === false) {
+          redirectPath = '/onboarding';
+        }
+        // Otherwise, redirect to dashboard
+        else {
+          redirectPath = '/dashboard';
+        }
+        
+        console.log('Redirecting to:', redirectPath);
         router.push(redirectPath as Route);
       }
 
@@ -426,7 +449,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Force redirect to onboarding after a short delay
       // This bypasses any potential navigation issues
       if (isClient) {
+        // Use router for better navigation
         setTimeout(() => {
+          console.log('Redirecting to onboarding...');
+          // Using direct window.location for more reliable redirect
           window.location.href = '/onboarding';
         }, 1000);
       }
