@@ -3,6 +3,7 @@
 import { LazyMotion, domAnimation } from 'framer-motion';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/hooks/use-supabase-auth';
+import { SimpleAuthProvider } from '@/hooks/use-simple-auth';
 import { ErrorBoundary } from 'react-error-boundary';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
@@ -16,12 +17,14 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       </div>
     )}>
       <AuthProvider>
-        {/* Portal container for modals and popovers */}
-        <div id="portal-root" />
-        <LazyMotion features={domAnimation} strict>
-          <Toaster richColors position="top-center" />
-          {children}
-        </LazyMotion>
+        <SimpleAuthProvider>
+          {/* Portal container for modals and popovers */}
+          <div id="portal-root" />
+          <LazyMotion features={domAnimation} strict>
+            <Toaster richColors position="top-center" />
+            {children}
+          </LazyMotion>
+        </SimpleAuthProvider>
       </AuthProvider>
     </ErrorBoundary>
   );
