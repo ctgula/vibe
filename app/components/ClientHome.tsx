@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PlusIcon } from '@heroicons/react/24/solid';
 import { Button } from '@/components/ui/button';
-import toast from 'react-hot-toast';
-import { useAuth, useGuestSession } from '@/hooks/auth';
+import { toast } from 'sonner';
+import { useAuth } from '@/hooks/use-supabase-auth';
 import { useRoomParticipants } from '@/hooks/useRoomParticipants';
 import { supabase } from '@/lib/supabase';
 import { Room } from '@/types/Room';
@@ -24,7 +24,7 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
   const [rooms, setRooms] = useState<Room[]>(initialRooms);
   const [error, setError] = useState<string | null>(null);
   const { user, profile, isLoading: authLoading } = useAuth();
-  const { guestId, guestProfile, isLoading: guestLoading } = useGuestSession();
+  const [guestId, setGuestId] = useState<string | null>(null);
   const { participantCounts, isLoading: participantsLoading } = useRoomParticipants();
   const [isClient, setIsClient] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(true);
@@ -32,6 +32,11 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
 
   useEffect(() => {
     setIsClient(true);
+    // Check localStorage for guest ID
+    const storedGuestId = localStorage.getItem('guestProfileId');
+    if (storedGuestId) {
+      setGuestId(storedGuestId);
+    }
   }, []);
 
   // Fetch rooms when client is ready
@@ -189,7 +194,7 @@ export default function ClientHome({ initialRooms }: ClientHomeProps) {
     exit: { opacity: 0, y: -10 },
   };
 
-  const isLoading = !isClient || authLoading || guestLoading || participantsLoading;
+  const isLoading = !isClient || authLoading || participantsLoading;
 
   if (isLoading) {
     return (
