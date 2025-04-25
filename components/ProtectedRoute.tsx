@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, ReactNode } from 'react';
-import { useRouter, AppRouterInstance } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/auth';
 
 interface ProtectedRouteProps {
@@ -16,7 +16,7 @@ export function ProtectedRoute({
   fallbackRoute = '/onboarding'
 }: ProtectedRouteProps) {
   const { user, guestId, isLoading, isAuthenticated, isGuest } = useAuth();
-  const router = useRouter() as AppRouterInstance;
+  const router = useRouter();
 
   // Log auth state for debugging
   useEffect(() => {
@@ -44,6 +44,7 @@ export function ProtectedRoute({
   if (requireAuth && !user) {
     // If auth is required and user is not authenticated (guest doesn't count)
     console.log('Auth required but user not authenticated, redirecting to:', fallbackRoute);
+    // @ts-ignore - Next.js types are not fully compatible with the router
     router.replace(fallbackRoute);
     return null;
   }
@@ -53,6 +54,7 @@ export function ProtectedRoute({
     // If no user and no guest ID
     console.error("No user or guest ID available for protected route");
     console.log('No authentication found, redirecting to:', fallbackRoute);
+    // @ts-ignore - Next.js types are not fully compatible with the router
     router.replace(fallbackRoute);
     return null;
   }
