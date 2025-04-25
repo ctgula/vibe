@@ -3,7 +3,7 @@
 import { LazyMotion, domAnimation } from 'framer-motion';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/hooks/use-supabase-auth';
-import { SimpleAuthProvider } from '@/hooks/use-simple-auth';
+import { SimpleAuthProvider } from '@/contexts/SimpleAuthProvider';
 import { ErrorBoundary } from 'react-error-boundary';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
