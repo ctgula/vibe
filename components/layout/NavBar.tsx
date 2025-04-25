@@ -65,6 +65,7 @@ export function NavBar() {
   };
 
   const handleNavigation = (path: string) => {
+    // @ts-ignore - Next.js types are not fully compatible with the router
     router.push(path);
     setIsMenuOpen(false);
   };
