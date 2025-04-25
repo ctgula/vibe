@@ -172,7 +172,7 @@ export function Navigation() {
             {navItems.map((item, index) => (
               <Link 
                 key={item.path} 
-                href={item.path}
+                href={item.path as any}
                 className="no-select"
                 onClick={() => handleNavPress(item.label)}
               >
