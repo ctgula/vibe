@@ -1,19 +1,25 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, useGuestSession } from '@/hooks/auth';
+import { useAuth } from '@/hooks/use-supabase-auth';
 import { motion } from 'framer-motion';
 
 export default function CreateRoomRedirect() {
   const router = useRouter();
-  const { isLoading: authLoading, isGuest, isAuthenticated, user, profile } = useAuth();
-  const { guestId, isLoading } = useGuestSession();
+  const { isLoading: authLoading, user, profile } = useAuth();
+  const [mounted, setMounted] = useState(false);
   
   useEffect(() => {
-    console.log('CreateRoomRedirect - Auth state:', { user: !!user, guestId: !!guestId, authLoading, isLoading });
+    setMounted(true);
+  }, []);
+  
+  useEffect(() => {
+    if (!mounted) return;
+    
+    console.log('CreateRoomRedirect - Auth state:', { user: !!user, authLoading });
     
     // Wait for auth states to load
-    if (authLoading || isLoading) {
+    if (authLoading) {
       console.log('Still loading auth state, waiting...');
       return;
     }
@@ -28,6 +34,9 @@ export default function CreateRoomRedirect() {
       console.log('Stored redirect to /room/create');
     }
     
+    // Get the guestId from localStorage
+    const guestId = localStorage.getItem('guestProfileId');
+    
     // Redirect to the new room creation page if authenticated or guest
     if (user || guestId) {
       console.log(`Redirecting to room creation with ${user ? 'authenticated user' : 'guest user'}`);
@@ -35,12 +44,12 @@ export default function CreateRoomRedirect() {
     } else {
       // Redirect to login if not authenticated
       console.log('No authentication found, redirecting to login');
-      router.replace('/auth/login');
+      router.replace('/auth/signin');
     }
-  }, [router, user, guestId, authLoading, isLoading]);
+  }, [router, user, authLoading, mounted]);
   
   // Show loading state while auth is initializing
-  if (authLoading) {
+  if (authLoading || !mounted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
         <motion.div 
@@ -55,9 +64,9 @@ export default function CreateRoomRedirect() {
     );
   }
 
-  // Redirect to login if not authenticated
-  if (!isAuthenticated) {
-    router.push('/auth/login');
+  // Redirect to login if not authenticated and not a guest
+  if (!user && !localStorage.getItem('guestProfileId')) {
+    router.push('/auth/signin');
     return null;
   }
   

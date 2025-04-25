@@ -198,11 +198,12 @@ export default function Home() {
     );
   }
 
-  const handleContinue = (path: typeof ROUTES[keyof typeof ROUTES]) => {
+  const handleContinue = (path: string) => {
     try {
       // If user is authenticated, go directly to path
       if (user) {
-        router.push(path);
+        // Use window.location for more reliable navigation with any string path
+        window.location.href = path;
         return;
       }
       // Otherwise go to onboarding to handle guest mode

@@ -3,12 +3,72 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useGuestSession } from '@/hooks/auth';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Loader2, LogIn, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { generateCreativeGuestName } from '@/lib/utils';
+import { toast } from 'sonner';
+
+// Create a hook for guest session
+interface GuestSessionData {
+  guestId: string | null;
+  isLoading: boolean;
+  createGuestSession: (nickname?: string) => Promise<void>;
+}
+
+function useGuestSession(): GuestSessionData {
+  const [guestId, setGuestId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const supabase = createClientComponentClient();
+  
+  // Initialize guest session on mount
+  useEffect(() => {
+    const storedGuestId = localStorage.getItem('guestProfileId');
+    if (storedGuestId) {
+      setGuestId(storedGuestId);
+    }
+    setIsLoading(false);
+  }, []);
+  
+  // Function to create a new guest profile
+  const createGuestSession = async (nickname?: string) => {
+    setIsLoading(true);
+    try {
+      // Create a guest profile in the database
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert({
+          username: `guest_${Date.now().toString(36)}`,
+          display_name: nickname || generateCreativeGuestName(),
+          is_guest: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select('id')
+        .single();
+        
+      if (error) {
+        throw error;
+      }
+      
+      // Store the guest ID in localStorage
+      if (data?.id) {
+        localStorage.setItem('guestProfileId', data.id);
+        setGuestId(data.id);
+        console.log('Created guest profile with ID:', data.id);
+      }
+    } catch (err) {
+      console.error('Error creating guest profile:', err);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  return { guestId, isLoading, createGuestSession };
+}
 
 export default function GuestPage() {
   const [nickname, setNickname] = useState('');
@@ -32,7 +92,7 @@ export default function GuestPage() {
       // Clear login flags and redirect
       sessionStorage.removeItem('loggingIn');
       sessionStorage.removeItem('redirectedToLogin');
-      router.replace('/');
+      router.replace('/rooms');
     }
     
     return () => {
@@ -49,17 +109,20 @@ export default function GuestPage() {
     setError('');
     
     try {
-      await createGuestSession();
+      await createGuestSession(nickname);
       
       // Set session flags to indicate successful login
       sessionStorage.setItem('justLoggedIn', 'true');
       sessionStorage.removeItem('redirectedToLogin');
       
-      // Redirect to the main page
-      router.replace('/');
+      toast.success('Guest profile created successfully!');
+      
+      // Redirect to the rooms page
+      router.replace('/rooms');
     } catch (err: any) {
       console.error('Error in guest login:', err);
       setError('Failed to create guest profile. Please try again.');
+      toast.error('Failed to create guest profile. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -137,7 +200,7 @@ export default function GuestPage() {
           <p className="text-zinc-400 text-sm mb-4">
             Want to create an account instead?
           </p>
-          <Link href="/auth/login">
+          <Link href="/auth/signin">
             <Button variant="outline" className="w-full py-5 border-zinc-700 hover:bg-zinc-800 flex items-center justify-center gap-2">
               <LogIn className="w-4 h-4" />
               <span>Sign in or Create Account</span>

@@ -30,7 +30,7 @@ export async function GET() {
             UNIQUE(room_id, user_id)
           );
         `
-      }).catch(() => ({ error: null }));
+      });
       
       if (createTableError) {
         console.error('Error creating room_participants table:', createTableError);

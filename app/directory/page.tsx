@@ -60,7 +60,7 @@ export default function Directory() {
         (data || []).map(async (room: Room) => {
           const { count } = await supabase
             .from('room_participants')
-            .select('*', { count: true })
+            .select('*', { count: "estimated" })
             .eq('room_id', room.id)
             .eq('is_active', true)
             .single();

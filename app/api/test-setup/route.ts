@@ -17,16 +17,16 @@ export async function GET() {
     
     // First check if demo user exists
     const { data: existingDemoAuth } = await supabase.auth.admin.listUsers({
-      filter: {
-        email: demoEmail,
-      },
-      limit: 1,
+      page: 1,
+      perPage: 1,
     });
     
     let demoUserId = null;
     
     // If demo user doesn't exist in auth, create it
-    if (!existingDemoAuth?.users || existingDemoAuth.users.length === 0) {
+    // Look for the demo user in the returned users array
+    const demoUser = existingDemoAuth?.users?.find(user => user.email === demoEmail);
+    if (!demoUser) {
       const { data: newDemoUser, error: createDemoError } = await supabase.auth.admin.createUser({
         email: demoEmail,
         password: demoPassword,
@@ -40,7 +40,7 @@ export async function GET() {
         console.log('Created new demo user with ID:', demoUserId);
       }
     } else {
-      demoUserId = existingDemoAuth.users[0].id;
+      demoUserId = demoUser.id;
       console.log('Found existing demo user with ID:', demoUserId);
     }
     

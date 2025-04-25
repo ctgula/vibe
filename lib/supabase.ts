@@ -48,14 +48,19 @@ export const supabase = createBrowserClient<Database>(
 // Type definitions
 export interface Profile {
   id: string;
-  name: string;
+  name?: string;
+  email?: string;
   display_name?: string;
   username?: string;
   avatar_url?: string;
   bio?: string;
+  theme_color?: string;
   created_at?: string;
   updated_at?: string;
   is_guest?: boolean;
+  onboarding_completed?: boolean;
+  preferred_genres?: string[];
+  full_name?: string;
 }
 
 export interface Room {
