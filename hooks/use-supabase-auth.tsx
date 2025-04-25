@@ -25,6 +25,9 @@ interface AuthContextType {
   profile: Profile | null;
   guestId: string | null;
   isLoading: boolean;
+  isGuest: boolean;
+  isAuthenticated: boolean;
+  authLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<AuthResponse>;
   signInWithOAuth: (provider: Provider) => Promise<void>; 
@@ -32,6 +35,7 @@ interface AuthContextType {
   setProfile: (profile: Profile | null) => void;
   clearGuestSession: () => Promise<void>; 
   createEmptyProfile: (userId: string) => Promise<void>;
+  ensureSessionToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -43,6 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [guestId, setGuestId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
   const [authInitialized, setAuthInitialized] = useState(false);
 
   // Clear guest session helper
@@ -236,6 +241,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Exception checking guest session:', error);
       await clearGuestSession();
+      return null;
+    }
+  };
+
+  // Ensure we have a valid session token
+  const ensureSessionToken = async (): Promise<string | null> => {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      return session?.access_token || null;
+    } catch (err) {
+      console.error('Error getting session token:', err);
       return null;
     }
   };
@@ -435,6 +452,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     profile,
     guestId,
     isLoading,
+    authLoading,
+    isGuest: !!guestId,
+    isAuthenticated: !!user,
     signIn,
     signUp,
     signInWithOAuth, 
@@ -443,7 +463,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(newProfile);
     },
     clearGuestSession,
-    createEmptyProfile
+    createEmptyProfile,
+    ensureSessionToken
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
