@@ -999,13 +999,16 @@ export default function Room({ params }: { params: { id: string } }) {
               <Controls
                 isMuted={isMuted}
                 isSpeaker={isSpeaker}
+                hasRaisedHand={hasRaisedHand}
                 isCameraOn={isCameraOn}
+                showCameraButton={roomHasVideoEnabled}
                 showMessages={showMessages}
                 unreadCount={unreadCount}
                 onToggleMute={handleToggleMute}
+                onToggleRaiseHand={handleRaiseHand}
                 onToggleCamera={handleToggleCamera}
                 onToggleMessages={toggleMessages}
-                onLeave={handleLeaveRoom}
+                onLeaveRoom={handleLeaveRoom}
               />
             </div>
 
