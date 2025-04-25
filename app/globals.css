@@ -302,6 +302,12 @@
 
 /* Mobile optimizations */
 @media (max-width: 640px) {
+  /* Core mobile optimizations for smooth performance */
+  * {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  
   /* Prevent overscroll bouncing on iOS */
   html, body {
     position: fixed;
@@ -310,18 +316,25 @@
     height: 100%;
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
-    touch-action: manipulation; /* Improves touch responsiveness */
+    -webkit-user-select: none;
+    user-select: none;
   }
   
-  /* Enable scrolling on main content */
-  main {
+  /* Main content scrolling container */
+  #__next, main {
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
+    /* Enable hardware acceleration for smoother scrolling */
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000;
+    will-change: transform;
   }
   
   /* Fix for mobile double-tap unwanted zoom */
@@ -329,11 +342,19 @@
     touch-action: manipulation;
   }
   
-  /* Make controls easier to tap */
+  /* Make all clickable elements at least 44px (Apple's minimum touch target size) */
+  button, .btn, a.btn, .interactive-item, 
+  [role="button"], [type="button"], 
+  [type="submit"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Fast touch response with instant visual feedback */
   .haptic-feedback:active {
     opacity: 0.7;
     transform: scale(0.96);
-    transition: transform 0.1s, opacity 0.1s;
+    transition: transform 0.08s, opacity 0.08s;
   }
   
   /* Prevent text selection while tapping */
@@ -349,38 +370,123 @@
   
   /* Improved spacing for mobile */
   .container {
-    padding-left: clamp(1rem, 5vw, 1.5rem);
-    padding-right: clamp(1rem, 5vw, 1.5rem);
+    padding-left: max(env(safe-area-inset-left), 1rem);
+    padding-right: max(env(safe-area-inset-right), 1rem);
+    width: 100%;
   }
   
   /* Adjust font sizes for better readability on mobile */
   h1 {
-    font-size: clamp(1.5rem, 8vw, 2.25rem);
+    font-size: clamp(1.5rem, 7vw, 2.25rem);
+    letter-spacing: -0.015em;
   }
   
   h2 {
     font-size: clamp(1.25rem, 6vw, 1.75rem);
+    letter-spacing: -0.01em;
   }
   
   p {
     font-size: clamp(0.875rem, 4vw, 1rem);
   }
   
-  /* Ensure buttons are large enough for touch */
+  /* Ensure buttons and interactive elements are large enough for touch */
   button, .btn, a.btn {
     min-height: 44px;
     padding: 0.75rem 1rem;
+    border-radius: 12px;
   }
   
-  /* Adjust form elements for touch */
+  /* Adjust form elements for touch - 16px prevents iOS zoom on focus */
   input, select, textarea {
-    font-size: 16px; /* Prevents iOS zoom on focus */
+    font-size: 16px;
     min-height: 44px;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
   }
   
-  /* Improve spacing between elements */
+  /* Ensure proper content spacing */
   .stack > * + * {
-    margin-top: clamp(0.5rem, 3vw, 1rem);
+    margin-top: clamp(0.75rem, 3vw, 1.25rem);
+  }
+  
+  /* Enable momentum-based scrolling for smoother experience */
+  .scroll-container {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scroll-snap-type: y proximity;
+    /* Hardware acceleration for smooth scrolling */
+    transform: translateZ(0);
+    will-change: scroll-position;
+  }
+  
+  /* Reduce motion for users with that preference */
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+  
+  /* Enhanced tap states for buttons and interactive elements */
+  .tap-highlight {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .tap-highlight::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, transparent 70%);
+    opacity: 0;
+    transform: scale(1.5);
+    transition: opacity 0.2s, transform 0.3s;
+  }
+  
+  .tap-highlight:active::after {
+    opacity: 1;
+    transform: scale(1);
+    transition: opacity 0s, transform 0s;
+  }
+  
+  /* Fix viewport height issues on mobile */
+  .vh-fix {
+    height: 100vh;
+    height: -webkit-fill-available;
+    height: stretch;
+  }
+  
+  /* Optimize images for faster rendering */
+  img {
+    content-visibility: auto;
+  }
+  
+  /* Prevent fixed elements from jumping during keyboard appearance */
+  .keyboard-aware {
+    transition: transform 0.2s ease-out;
+  }
+}
+
+/* Add support for modern viewport units */
+@supports (height: 1dvh) {
+  .h-screen {
+    height: 100dvh;
+  }
+  
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+  
+  .h-svh {
+    height: 100svh;
   }
 }
 
