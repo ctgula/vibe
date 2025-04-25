@@ -1,6 +1,3 @@
-// Fixed TypeScript errors - Sat Apr 12 16:59:11 EDT 2025
-// This file has been modified to include a fix for a TypeScript error
-
 'use client';
 
 import { useEffect, useState, useRef, useMemo } from 'react';
@@ -18,7 +15,7 @@ import { Controls } from '@/components/room/Controls';
 import { RaisedHands } from '@/components/room/RaisedHands';
 import { MessageCircle, X, ChevronDown, Video, Bell, Users, FileUp, PenTool, Link, Sparkles } from 'lucide-react';
 import { PageTransition } from '@/components/transitions/PageTransition';
-import { useGuestSession, useAuth } from '@/hooks/auth';
+import { useAuth } from '@/hooks/use-supabase-auth';
 import { useNotifications } from '@/hooks/use-notifications';
 import { Notifications } from '@/components/Notifications';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
@@ -30,14 +27,7 @@ import { RoomHeader } from '@/components/room/RoomHeader';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Room({ params }: { params: { id: string } }) {
-  let user, profile, guestId, isGuest, isAuthenticated, ensureSessionToken;
-  try {
-    ({ user, profile, guestId, isGuest, isAuthenticated, ensureSessionToken } = useAuth());
-  } catch {
-    user = profile = guestId = ensureSessionToken = null;
-    isGuest = isAuthenticated = false;
-  }
-
+  const { user, profile, guestId, isGuest, isAuthenticated, ensureSessionToken } = useAuth();
   const router = useRouter();
   const [room, setRoom] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -55,7 +45,7 @@ export default function Room({ params }: { params: { id: string } }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isJoining, setIsJoining] = useState(true);
   const [roomHasVideoEnabled, setRoomHasVideoEnabled] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [speakers, setSpeakers] = useState<any[]>([]);
@@ -970,96 +960,54 @@ export default function Room({ params }: { params: { id: string } }) {
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-gradient-to-br from-[#0f172a] via-[#18181b] to-[#0e7490] text-white relative overflow-hidden">
-        <motion.div 
-          className="absolute inset-0 opacity-50"
-          initial={false}
-          animate={{
-            background: [
-              "radial-gradient(circle at 0% 0%, #6366f1 0%, transparent 50%)",
-              "radial-gradient(circle at 100% 100%, #0ea5e9 0%, transparent 50%)",
-              "radial-gradient(circle at 50% 50%, #8b5cf6 0%, transparent 50%)",
-            ],
-          }}
-          transition={{
-            duration: 10,
-            repeat: Infinity,
-            repeatType: "reverse",
-          }}
-        />
-
-        <div className="relative z-10">
-          {/* Room Header */}
-          <motion.div
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-          >
+      <div className="min-h-screen bg-black text-white">
+        <div className="relative min-h-screen flex flex-col">
+          <div className="relative flex-1 overflow-hidden">
+            {/* Room Header */}
             <RoomHeader
-              room={room}
-              onBack={() => router.push('/directory')}
-              onShare={() => setShowInviteLink(true)}
+              roomName={room?.name || 'Loading...'}
+              participantCount={activeParticipants.length}
+              onShowParticipants={() => setShowParticipants(true)}
             />
-          </motion.div>
 
-          {/* Main Content */}
-          <div className="p-4 sm:p-6 max-w-7xl mx-auto">
-            {/* Stage Area */}
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="mb-8"
-            >
-              <Stage
-                speakers={speakers}
-                isSpeaker={isSpeaker}
-                isMuted={isMuted}
-                onMute={handleToggleMute}
-                onPromote={handlePromoteToSpeaker}
-                onDismiss={handleDismissRaisedHand}
-                videoRef={videoRef}
-                showVideo={showVideo}
-                isCameraOn={isCameraOn}
-              />
-            </motion.div>
+            {/* Main Content */}
+            <div className="relative p-4">
+              {/* Video Stage */}
+              {roomHasVideoEnabled && (
+                <div className="mb-6">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-64 object-cover rounded-2xl bg-zinc-900"
+                  />
+                </div>
+              )}
 
-            {/* Audience Area */}
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="mb-8"
-            >
+              {/* Audience Section */}
               <Audience
-                audience={audience}
-                onPromote={handlePromoteToSpeaker}
-                onMute={handleMute}
-                onKick={handleKick}
+                listeners={audience}
+                currentUserId={user?.id || guestId || ''}
+                promoteToSpeaker={handlePromoteToSpeaker}
+                updateRoomActivity={updateRoomActivity}
+                onRaiseHand={handleAudienceRaiseHand}
+                roomId={params.id}
               />
-            </motion.div>
 
-            {/* Controls */}
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.5 }}
-              className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-xl border-t border-white/10 p-4"
-            >
+              {/* Controls */}
               <Controls
-                isSpeaker={isSpeaker}
                 isMuted={isMuted}
-                hasRaisedHand={hasRaisedHand}
+                isSpeaker={isSpeaker}
                 isCameraOn={isCameraOn}
+                showMessages={showMessages}
+                unreadCount={unreadCount}
                 onToggleMute={handleToggleMute}
                 onToggleCamera={handleToggleCamera}
-                onRaiseHand={handleRaiseHand}
-                onLeave={handleLeaveRoom}
-                showMessages={showMessages}
                 onToggleMessages={toggleMessages}
-                unreadCount={unreadCount}
+                onLeave={handleLeaveRoom}
               />
-            </motion.div>
+            </div>
 
             {/* Messages Panel */}
             <AnimatePresence mode="wait">
