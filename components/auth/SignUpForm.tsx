@@ -146,11 +146,14 @@ export default function SignUpForm() {
         return;
       }
       
-      // All checks passed, proceed with signup
-      await signUp(email, password, {
+      // Store the form data in localStorage for later use in onboarding
+      localStorage.setItem('signupData', JSON.stringify({
         username,
         display_name: displayName || username,
-      });
+      }));
+      
+      // All checks passed, proceed with signup (only pass email and password)
+      await signUp(email, password);
       
       // Sign up success, redirect to check email page
       router.push('/auth/check-email');
