@@ -304,8 +304,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   const signUp = async (email: string, password: string): Promise<AuthResponse> => {
     setIsLoading(true);
+    
+    // Create a safety timeout to prevent hanging
+    const safetyTimeout = setTimeout(() => {
+      console.log('Safety timeout reached in signUp');
+      setIsLoading(false);
+      toast.error('Request timed out. Please try again.');
+    }, 10000);
+    
     try {
       console.log('Starting sign up...', { email });
+      toast.info('Creating your account...');
       
       // Clear any guest session
       await clearGuestSession();
@@ -319,6 +328,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       });
 
+      console.log('Signup response:', response);
+
       if (response.error) {
         console.error('Sign up error:', response.error);
         throw response.error;
@@ -331,14 +342,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log('Signup successful:', response.data.user?.id);
       
-      // Create an empty profile for the new user
-      await createEmptyProfile(response.data.user.id);
+      try {
+        // Create an empty profile for the new user
+        await createEmptyProfile(response.data.user.id);
+        console.log('Empty profile created for new user');
+      } catch (profileError) {
+        console.error('Error creating profile, but signup succeeded:', profileError);
+        // Don't block the signup flow, continue anyway
+      }
       
       if (!response.data.user.email_confirmed_at) {
         toast.success('Check your email to confirm your account!');
       } else {
-        toast.success('Account created successfully');
+        toast.success('Account created successfully!');
       }
+
+      // Force redirect to onboarding after a short delay
+      // This bypasses any potential navigation issues
+      setTimeout(() => {
+        window.location.href = '/onboarding';
+      }, 1000);
 
       return response;
 
@@ -347,6 +370,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       toast.error(error?.message || 'Error creating account. Please try again.');
       throw error;
     } finally {
+      clearTimeout(safetyTimeout);
       setIsLoading(false);
     }
   };
