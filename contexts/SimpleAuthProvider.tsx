@@ -22,8 +22,17 @@ export const SimpleAuthProvider = ({ children }: { children: ReactNode }) => {
   const [guestId, setGuestId] = useState<string | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isClient, setIsClient] = useState(false);
+
+  // Safe check for client-side to avoid localStorage errors during SSR
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
+    // Only run authentication logic on the client side
+    if (!isClient) return;
+
     const getSession = async () => {
       try {
         console.log("Checking auth session...");
@@ -56,36 +65,43 @@ export const SimpleAuthProvider = ({ children }: { children: ReactNode }) => {
             console.error("Error fetching profile:", profileError);
           }
         } else {
-          // Handle guest fallback
-          const storedGuestId = localStorage.getItem("guest_id") || localStorage.getItem("guestProfileId");
-          
-          if (!storedGuestId) {
-            // Create new guest ID
-            const newGuestId = uuidv4();
-            console.log("Creating new guest ID:", newGuestId);
-            localStorage.setItem("guest_id", newGuestId);
-            localStorage.setItem("guestProfileId", newGuestId); // For compatibility
-            setGuestId(newGuestId);
+          // Handle guest fallback - Wrap localStorage access in try/catch
+          try {
+            const storedGuestId = localStorage.getItem("guest_id") || localStorage.getItem("guestProfileId");
             
-            // We'll create the profile when needed, not here
-          } else {
-            console.log("Found existing guest ID:", storedGuestId);
-            setGuestId(storedGuestId);
-            
-            // Try to fetch existing guest profile
-            const { data: guestProfile, error: guestProfileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', storedGuestId)
-              .eq('is_guest', true)
-              .single();
+            if (!storedGuestId) {
+              // Create new guest ID
+              const newGuestId = uuidv4();
+              console.log("Creating new guest ID:", newGuestId);
+              localStorage.setItem("guest_id", newGuestId);
+              localStorage.setItem("guestProfileId", newGuestId); // For compatibility
+              setGuestId(newGuestId);
               
-            if (guestProfile) {
-              console.log("Found guest profile");
-              setProfile(guestProfile);
+              // We'll create the profile when needed, not here
             } else {
-              console.log("No guest profile found or error:", guestProfileError);
+              console.log("Found existing guest ID:", storedGuestId);
+              setGuestId(storedGuestId);
+              
+              // Try to fetch existing guest profile
+              const { data: guestProfile, error: guestProfileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', storedGuestId)
+                .eq('is_guest', true)
+                .single();
+                
+              if (guestProfile) {
+                console.log("Found guest profile");
+                setProfile(guestProfile);
+              } else {
+                console.log("No guest profile found or error:", guestProfileError);
+              }
             }
+          } catch (err) {
+            console.error("Error accessing localStorage:", err);
+            // Generate a temporary in-memory guest ID that won't persist
+            const tempGuestId = uuidv4();
+            setGuestId(tempGuestId);
           }
         }
       } catch (err) {
@@ -127,33 +143,24 @@ export const SimpleAuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, isClient]); // Add isClient dependency
 
   // Derived states
   const isAuthenticated = Boolean(user || guestId);
   const isGuest = Boolean(!user && guestId);
 
-  // Show loading state
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-black text-white">
-        <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <div>Checking authentication...</div>
-      </div>
-    );
-  }
+  // Provide default values for server-side rendering to prevent hydration errors
+  const contextValue = {
+    user,
+    guestId,
+    loading: isClient ? loading : true, // Always show loading during SSR
+    isAuthenticated,
+    isGuest,
+    profile
+  };
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        user, 
-        guestId, 
-        loading, 
-        isAuthenticated, 
-        isGuest,
-        profile
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
