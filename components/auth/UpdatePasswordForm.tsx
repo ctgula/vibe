@@ -23,17 +23,27 @@ export default function UpdatePasswordForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [isClient, setIsClient] = useState(false);
   const router = useRouter();
   const supabase = createClientComponentClient();
 
+  // Safely handle client-side operations
   useEffect(() => {
+    setIsClient(true);
+    
     // Check if we have a session
     const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      
-      // If no session, redirect to reset password page
-      if (!data.session) {
-        toast.error('Invalid or expired password reset link');
+      try {
+        const { data } = await supabase.auth.getSession();
+        
+        // If no session, redirect to reset password page
+        if (!data.session) {
+          toast.error('Invalid or expired password reset link');
+          router.push('/auth/reset-password');
+        }
+      } catch (err) {
+        console.error('Error checking session:', err);
+        toast.error('Something went wrong. Please try again.');
         router.push('/auth/reset-password');
       }
     };
@@ -102,6 +112,26 @@ export default function UpdatePasswordForm() {
       setIsLoading(false);
     }
   };
+
+  // Prevent hydration issues by only rendering on client
+  if (!isClient) {
+    return (
+      <div className="flex min-h-[calc(100vh-80px)] items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <Card className="border-zinc-800 bg-zinc-900/80 text-zinc-200 backdrop-blur-sm">
+            <CardHeader className="space-y-1 text-center">
+              <CardTitle className="text-xl">Loading...</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-[calc(100vh-80px)] items-center justify-center p-4">

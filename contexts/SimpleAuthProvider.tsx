@@ -16,6 +16,16 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// Default values for server-side rendering to prevent hydration errors
+const defaultContextValue: AuthContextType = {
+  user: null,
+  guestId: null,
+  loading: true,
+  isAuthenticated: false,
+  isGuest: false,
+  profile: null
+};
+
 export const SimpleAuthProvider = ({ children }: { children: ReactNode }) => {
   const supabase = createClientComponentClient();
   const [user, setUser] = useState<User | null>(null);
@@ -36,6 +46,14 @@ export const SimpleAuthProvider = ({ children }: { children: ReactNode }) => {
     const getSession = async () => {
       try {
         console.log("Checking auth session...");
+        
+        // Add a safety timeout to prevent infinite loading state
+        const safetyTimeout = setTimeout(() => {
+          if (loading) {
+            console.log("Safety timeout triggered: forcing loading to false");
+            setLoading(false);
+          }
+        }, 5000);
         
         // Check for authenticated user first
         const {
@@ -67,14 +85,15 @@ export const SimpleAuthProvider = ({ children }: { children: ReactNode }) => {
         } else {
           // Handle guest fallback - Wrap localStorage access in try/catch
           try {
-            const storedGuestId = localStorage.getItem("guest_id") || localStorage.getItem("guestProfileId");
+            // First check for guestProfileId (primary) then guest_id (legacy)
+            const storedGuestId = localStorage.getItem("guestProfileId") || localStorage.getItem("guest_id");
             
             if (!storedGuestId) {
               // Create new guest ID
               const newGuestId = uuidv4();
               console.log("Creating new guest ID:", newGuestId);
-              localStorage.setItem("guest_id", newGuestId);
-              localStorage.setItem("guestProfileId", newGuestId); // For compatibility
+              localStorage.setItem("guestProfileId", newGuestId);
+              localStorage.setItem("guest_id", newGuestId); // For compatibility
               setGuestId(newGuestId);
               
               // We'll create the profile when needed, not here
@@ -104,6 +123,9 @@ export const SimpleAuthProvider = ({ children }: { children: ReactNode }) => {
             setGuestId(tempGuestId);
           }
         }
+        
+        // Clear the safety timeout
+        clearTimeout(safetyTimeout);
       } catch (err) {
         console.error("Unexpected error in auth initialization:", err);
       } finally {
@@ -149,15 +171,15 @@ export const SimpleAuthProvider = ({ children }: { children: ReactNode }) => {
   const isAuthenticated = Boolean(user || guestId);
   const isGuest = Boolean(!user && guestId);
 
-  // Provide default values for server-side rendering to prevent hydration errors
-  const contextValue = {
+  // Use default values during SSR and actual values on client
+  const contextValue = isClient ? {
     user,
     guestId,
-    loading: isClient ? loading : true, // Always show loading during SSR
+    loading,
     isAuthenticated,
     isGuest,
     profile
-  };
+  } : defaultContextValue;
 
   return (
     <AuthContext.Provider value={contextValue}>

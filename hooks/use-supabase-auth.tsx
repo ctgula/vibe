@@ -38,7 +38,26 @@ interface AuthContextType {
   ensureSessionToken: () => Promise<string | null>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Default context values for SSR to prevent hydration errors
+const defaultContextValue: AuthContextType = {
+  user: null,
+  profile: null,
+  guestId: null,
+  isLoading: true,
+  isGuest: false,
+  isAuthenticated: false,
+  authLoading: true,
+  signIn: async () => { throw new Error('Not implemented') },
+  signUp: async () => { throw new Error('Not implemented') },
+  signInWithOAuth: async () => { throw new Error('Not implemented') },
+  signOut: async () => { throw new Error('Not implemented') },
+  setProfile: () => {},
+  clearGuestSession: async () => {},
+  createEmptyProfile: async () => {},
+  ensureSessionToken: async () => null
+};
+
+const AuthContext = createContext<AuthContextType>(defaultContextValue);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClientComponentClient();
@@ -49,10 +68,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [authLoading, setAuthLoading] = useState(true);
   const [authInitialized, setAuthInitialized] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  // Set isClient flag on mount
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Clear guest session helper
   const clearGuestSession = async () => {
-    localStorage.removeItem('guestProfileId');
+    if (isClient) {
+      localStorage.removeItem('guestProfileId');
+      localStorage.removeItem('guest_id'); // Clear legacy key too
+    }
     setGuestId(null);
   };
 
@@ -85,6 +113,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Only run on client side
+    if (!isClient) return;
+    
     const initializeAuth = async () => {
       try {
         console.log('Initializing auth...');
@@ -181,12 +212,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('Safety timeout triggered: forcing isLoading to false');
         setIsLoading(false);
       }
+      if (authLoading) {
+        console.log('Safety timeout triggered: forcing authLoading to false');
+        setAuthLoading(false);
+      }
     }, 5000); // 5 second maximum loading time
     
     return () => {
       clearTimeout(safetyTimeout);
     };
-  }, [authInitialized]);
+  }, [authInitialized, isClient]); // Add isClient dependency
 
   // Helper to fetch user profile from database
   const fetchUserProfile = async (userId: string) => {
@@ -214,10 +249,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Helper to check for guest session
   const checkGuestSession = async () => {
-    const storedGuestId = localStorage.getItem('guestProfileId');
-    if (!storedGuestId) return null;
+    if (!isClient) return null;
     
     try {
+      // First check for guestProfileId (primary) then guest_id (legacy)
+      const storedGuestId = localStorage.getItem('guestProfileId') || localStorage.getItem('guest_id');
+      if (!storedGuestId) return null;
+      
       console.log('Checking guest session:', storedGuestId);
       setGuestId(storedGuestId);
       
@@ -262,6 +300,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   const signIn = async (email: string, password: string) => {
     setIsLoading(true);
+    
+    // Create a safety timeout to prevent hanging
+    const safetyTimeout = setTimeout(() => {
+      console.log('Safety timeout reached in signIn');
+      setIsLoading(false);
+      toast.error('Request timed out. Please try again.');
+    }, 10000);
+    
     try {
       console.log('Signing in...', { email });
       
@@ -303,15 +349,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       toast.success('Signed in successfully');
       
       // Handle redirect if needed
-      const redirectPath = localStorage.getItem('redirectAfterAuth') || '/';
-      localStorage.removeItem('redirectAfterAuth');
-      router.push(redirectPath as Route); 
+      if (isClient) {
+        const redirectPath = localStorage.getItem('redirectAfterAuth') || '/';
+        localStorage.removeItem('redirectAfterAuth');
+        router.push(redirectPath as Route);
+      }
 
     } catch (error: any) {
       console.error('Error signing in:', error);
       toast.error(error?.message || 'Error signing in. Please check your credentials.');
       throw error;
     } finally {
+      clearTimeout(safetyTimeout);
       setIsLoading(false);
     }
   };
@@ -376,9 +425,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Force redirect to onboarding after a short delay
       // This bypasses any potential navigation issues
-      setTimeout(() => {
-        window.location.href = '/onboarding';
-      }, 1000);
+      if (isClient) {
+        setTimeout(() => {
+          window.location.href = '/onboarding';
+        }, 1000);
+      }
 
       return response;
 
@@ -447,7 +498,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const value = {
+  // Use default values during SSR to prevent hydration errors
+  const value = isClient ? {
     user,
     profile,
     guestId,
@@ -465,7 +517,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearGuestSession,
     createEmptyProfile,
     ensureSessionToken
-  };
+  } : defaultContextValue;
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
