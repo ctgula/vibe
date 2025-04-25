@@ -53,16 +53,27 @@ export default function OnboardingPage() {
   const totalSteps = 4
   const router = useRouter()
   const { user, isLoading: authLoading, createEmptyProfile } = useAuth()
+  const [guestId, setGuestId] = useState<string | null>(null)
 
   // DEBUG LOGGING
   useEffect(() => {
-    console.log('[Onboarding] loading:', loading, 'authLoading:', authLoading, 'user:', user)
-  }, [loading, authLoading, user])
+    console.log('[Onboarding] loading:', loading, 'authLoading:', authLoading, 'user:', user, 'guestId:', guestId)
+  }, [loading, authLoading, user, guestId])
+
+  // Check for guest profile
+  useEffect(() => {
+    const storedGuestId = localStorage.getItem('guestProfileId')
+    if (storedGuestId) {
+      setGuestId(storedGuestId)
+    }
+  }, [])
 
   useEffect(() => {
     if (authLoading) return
-    if (!user) {
-      console.warn('[Onboarding] No user found, redirecting to /auth/signin')
+    
+    // If neither authenticated user nor guest user, redirect to signin
+    if (!user && !guestId) {
+      console.warn('[Onboarding] No user or guest found, redirecting to /auth/signin')
       router.push('/auth/signin')
       return
     }
@@ -71,11 +82,17 @@ export default function OnboardingPage() {
       try {
         setLoading(true)
         
+        // Determine which ID to use (auth user or guest)
+        const profileId = user?.id || guestId
+        if (!profileId) {
+          throw new Error('No profile ID available')
+        }
+        
         // First check if the profile exists
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', user.id)
+          .eq('id', profileId)
           .maybeSingle() // Use maybeSingle instead of single to avoid errors when no profile exists
         
         if (error) {
@@ -88,13 +105,25 @@ export default function OnboardingPage() {
           console.log('[Onboarding] No profile found, creating empty profile')
           try {
             // Use the createEmptyProfile from useAuth which handles proper profile creation
-            await createEmptyProfile(user.id)
+            if (user) {
+              await createEmptyProfile(user.id)
+            } else if (guestId) {
+              // For guest profiles, create directly
+              await supabase.from('profiles').insert({
+                id: guestId,
+                username: `guest_${Date.now().toString(36)}`,
+                display_name: 'Guest User',
+                is_guest: true,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+            }
             
             // Re-fetch the newly created profile
             const { data: newProfile, error: newProfileError } = await supabase
               .from('profiles')
               .select('*')
-              .eq('id', user.id)
+              .eq('id', profileId)
               .single()
               
             if (newProfileError) throw newProfileError
@@ -124,16 +153,16 @@ export default function OnboardingPage() {
             themeColor: profile.theme_color || '#6366f1'
           })
         }
-      } catch (error: any) {
-        console.error('[Onboarding] Error loading profile:', error)
-        toast.error('Failed to load profile')
+      } catch (err) {
+        console.error('[Onboarding] Error in initializeProfile:', err)
+        toast.error('There was an error loading your profile. Please try again.')
       } finally {
         setLoading(false)
       }
     }
 
     initializeProfile()
-  }, [user, authLoading, router, createEmptyProfile])
+  }, [authLoading, user, guestId, router, createEmptyProfile])
 
   // FALLBACK UI if stuck loading
   if ((loading || authLoading) && !user) {
@@ -180,107 +209,57 @@ export default function OnboardingPage() {
   }
 
   const handleSubmit = async () => {
-    if (!user) {
-      toast.error('You must be logged in to complete onboarding')
-      return
-    }
-
+    setSubmitting(true)
+    
     try {
-      // Set submitting state to show loading UI
-      setSubmitting(true)
+      const profileId = user?.id || guestId
       
-      console.log('[Onboarding] Updating profile for user:', user.id, 'with data:', formData)
-      
-      // Check if username is available (not already taken)
-      const { data: existingUsername, error: usernameError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('username', formData.username)
-        .neq('id', user.id)  // Exclude current user
-        .maybeSingle();
-        
-      if (usernameError) {
-        console.error('[Onboarding] Error checking username:', usernameError);
-      } else if (existingUsername) {
-        // Username is taken by another user
-        toast.error('Username is already taken. Please choose another.');
-        setSubmitting(false);
-        return;
+      if (!profileId) {
+        throw new Error('No profile ID available for update')
       }
       
-      // Validate required fields
-      if (!formData.username.trim()) {
-        toast.error('Username is required');
-        setSubmitting(false);
-        return;
-      }
-      
-      // Make sure we have all required fields for the profile
-      const profileData = {
-        id: user.id,
-        username: formData.username.toLowerCase().trim(),
-        display_name: formData.displayName.trim() || formData.username.trim(),
+      console.log('[Onboarding] Submitting profile update:', {
+        id: profileId,
+        username: formData.username,
+        display_name: formData.displayName,
         bio: formData.bio,
         preferred_genres: formData.preferredGenres,
         theme_color: formData.themeColor,
-        onboarding_completed: true,
-        updated_at: new Date().toISOString(),
-        // Add email if available to avoid constraint issues
-        email: user.email || null,
-        // Preserve guest status if it was set (important for guest auth flow)
-        ...(localStorage.getItem('guestProfileId') ? { is_guest: true } : {})
-      }
+        onboarding_completed: true
+      })
       
-      console.log('[Onboarding] Submitting profile data:', profileData)
-      
-      // Update the profile in Supabase
+      // Update the profile with all the onboarding details
       const { error } = await supabase
         .from('profiles')
-        .upsert(profileData)
-
+        .upsert({
+          id: profileId,
+          username: formData.username,
+          display_name: formData.displayName,
+          bio: formData.bio,
+          preferred_genres: formData.preferredGenres,
+          theme_color: formData.themeColor,
+          onboarding_completed: true,
+          updated_at: new Date().toISOString()
+        })
+      
       if (error) {
         console.error('[Onboarding] Error updating profile:', error)
         throw error
       }
-
-      console.log('[Onboarding] Profile updated successfully, redirecting to /rooms')
       
-      // Provide haptic feedback on success
-      if (window.navigator.vibrate) window.navigator.vibrate([3, 30, 3])
+      console.log('[Onboarding] Profile updated successfully')
+      toast.success('Profile updated successfully!')
       
-      // Show success message
-      toast.success('Profile updated successfully')
-      
-      // Set local storage flag to indicate onboarding is complete
-      localStorage.setItem('onboardingCompleted', 'true')
-      
-      // Redirect to rooms page (with a small delay for visual feedback)
+      // Add a short delay to let the toast show before redirect
       setTimeout(() => {
+        // Redirect to the rooms page
         router.push('/rooms')
-      }, 800)
-    } catch (error: any) {
-      console.error('[Onboarding] Error updating profile:', error)
-      
-      // Show a more helpful error message based on the error type
-      if (error.code === '23505') {
-        toast.error('Username is already taken. Please choose another.');
-      } else if (error.code === '23502') {
-        toast.error('Missing required field. Please check your inputs.');
-      } else {
-        toast.error(error.message || 'Error updating profile. Please try again.');
-      }
-      
-      // Reset submission state so user can try again
+      }, 500)
+    } catch (err) {
+      console.error('[Onboarding] Error in handleSubmit:', err)
+      toast.error('There was an error updating your profile. Please try again.')
+    } finally {
       setSubmitting(false)
-      
-      // Scroll to username field if it's a duplicate username error
-      if (error.code === '23505' && error.message?.includes('username')) {
-        const usernameField = document.getElementById('username');
-        if (usernameField) {
-          usernameField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          usernameField.focus();
-        }
-      }
     }
   }
 
