@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0">
+    <title>Vibe - Offline</title>
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <style>
+        :root {
+            --background: #000000;
+            --text: #ffffff;
+            --primary: #6366f1;
+            --accent: #38bdf8;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-font-smoothing: antialiased;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        body {
+            background: var(--background);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            min-height: 100dvh;
+            padding: 1rem;
+            overflow: hidden;
+            text-align: center;
+        }
+        .logo {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(to right, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .container {
+            width: 100%;
+            max-width: 400px;
+            padding: 2rem;
+            border-radius: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+        p {
+            margin-bottom: 1.5rem;
+            opacity: 0.8;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        button {
+            background: linear-gradient(to right, var(--primary), var(--accent));
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 2rem;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            width: 100%;
+            min-height: 44px;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+            transform: translateZ(0);
+            transition: transform 0.2s;
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        .signal {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+        .signal-bar {
+            position: absolute;
+            bottom: 0;
+            width: 10px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+        }
+        .bar1 {
+            height: 15px;
+            left: 0;
+        }
+        .bar2 {
+            height: 25px;
+            left: 16px;
+        }
+        .bar3 {
+            height: 35px;
+            left: 32px;
+        }
+        .bar4 {
+            height: 45px;
+            left: 48px;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.3; }
+            50% { opacity: 0.8; }
+            100% { opacity: 0.3; }
+        }
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        .safe-area-bottom {
+            padding-bottom: env(safe-area-inset-bottom, 16px);
+        }
+    </style>
+</head>
+<body>
+    <div class="logo">Vibe</div>
+    <div class="container safe-area-bottom">
+        <div class="signal">
+            <div class="signal-bar bar1"></div>
+            <div class="signal-bar bar2"></div>
+            <div class="signal-bar bar3 pulse"></div>
+            <div class="signal-bar bar4"></div>
+        </div>
+        <h1>You're offline</h1>
+        <p>It looks like you're not connected to the internet. Connect to a network to continue using Vibe for audio conversations.</p>
+        <button onclick="window.location.reload()">Try Again</button>
+    </div>
+    <script>
+        // Register event to try reconnecting when online
+        window.addEventListener('online', () => {
+            window.location.reload();
+        });
+        
+        // On iOS, handle visibility change to trigger reload
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && navigator.onLine) {
+                window.location.reload();
+            }
+        });
+    </script>
+</body>
+</html>

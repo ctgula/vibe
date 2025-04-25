@@ -6,6 +6,7 @@ const STATIC_ASSETS = [
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
   '/icons/apple-touch-icon.png',
+  '/offline.html', // Add offline fallback page
   // CSS and JS assets
   '/_next/static/css/app.css', 
   // Add more assets as needed
@@ -48,9 +49,30 @@ self.addEventListener('fetch', event => {
   
   // Exclude API calls or other dynamic resources
   if (event.request.url.includes('/api/') || event.request.url.includes('/_next/data/')) {
-    return fetch(event.request);
+    return fetch(event.request).catch(() => {
+      // For API requests that fail, try to return a generic response
+      if (event.request.url.includes('/api/')) {
+        return new Response(JSON.stringify({
+          error: 'You are offline',
+          offline: true
+        }), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    });
   }
   
+  // HTML requests - serve index for navigation but fallback to offline page
+  if (event.request.headers.get('Accept')?.includes('text/html')) {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.match('/offline.html');
+      })
+    );
+    return;
+  }
+  
+  // For other assets, use stale-while-revalidate strategy
   event.respondWith(
     caches.match(event.request).then(cachedResponse => {
       // Return cached response immediately if available
@@ -94,11 +116,36 @@ self.addEventListener('fetch', event => {
         })
         .catch(error => {
           console.error('Fetch failed:', error);
-          // Optionally return a custom offline page
-          // return caches.match('/offline.html');
+          // Return a custom offline page for HTML requests
+          if (event.request.headers.get('Accept')?.includes('text/html')) {
+            return caches.match('/offline.html');
+          }
+          
+          // For images, you could return a placeholder
+          if (event.request.url.match(/\.(jpg|jpeg|png|gif|svg)$/)) {
+            return caches.match('/icons/offline-image.png');
+          }
         });
     })
   );
+});
+
+// Optimize performance with preloading future pages
+self.addEventListener('message', event => {
+  // Handle messages from the client
+  if (event.data && event.data.type === 'PREFETCH_URLS') {
+    const urls = event.data.payload;
+    if (Array.isArray(urls) && urls.length > 0) {
+      // Prefetch URLs in the background with low priority
+      caches.open(CACHE_NAME).then(cache => {
+        urls.forEach(url => {
+          fetch(url, { priority: 'low' })
+            .then(response => cache.put(url, response))
+            .catch(err => console.warn('Prefetch failed for:', url, err));
+        });
+      });
+    }
+  }
 });
 
 // Push notifications (future)
