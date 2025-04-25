@@ -6,6 +6,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Route } from 'next';
+import { toast } from 'sonner';
 
 export default function CallbackPage() {
   const router = useRouter();
@@ -53,11 +54,11 @@ export default function CallbackPage() {
             console.log('Session found, redirecting');
             setMessage('Sign-in successful! Redirecting...');
             
-            // Check if there's a redirect path stored in sessionStorage
-            const redirectPath = sessionStorage.getItem('redirectAfterAuth');
+            // Check if there's a redirect path stored
+            const redirectPath = localStorage.getItem('redirectAfterAuth') || sessionStorage.getItem('redirectAfterAuth');
             
             // Set flag for successful login
-            sessionStorage.setItem('justLoggedIn', 'true');
+            localStorage.setItem('justLoggedIn', 'true');
             
             // Check if we have pending profile data from sign-up
             const pendingUsername = localStorage.getItem('pendingUsername');
@@ -96,12 +97,45 @@ export default function CallbackPage() {
             sessionStorage.removeItem('redirectedToLogin');
             sessionStorage.removeItem('loggingIn');
             
-            // Redirect to the stored path or default to home
-            if (redirectPath) {
+            // Check if user has completed onboarding
+            try {
+              const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('onboarding_completed')
+                .eq('id', data.session.user.id)
+                .single();
+                
+              if (profileError) {
+                console.error('Error checking onboarding status:', profileError);
+              }
+              
+              // Determine redirect path
+              let finalRedirectPath = '/dashboard';
+              
+              // If redirectPath is specified, use that
+              if (redirectPath) {
+                finalRedirectPath = redirectPath;
+              } 
+              // If onboarding not completed, redirect to onboarding
+              else if (profileData && profileData.onboarding_completed === false) {
+                finalRedirectPath = '/onboarding';
+              }
+              
+              console.log('Redirecting to:', finalRedirectPath);
+              
+              // Clear stored redirect paths
+              localStorage.removeItem('redirectAfterAuth');
               sessionStorage.removeItem('redirectAfterAuth');
-              router.push(redirectPath as Route);
-            } else {
-              router.push('/');
+              
+              // Use direct window.location for more reliable redirect
+              setTimeout(() => {
+                window.location.href = finalRedirectPath;
+              }, 500);
+              
+            } catch (err) {
+              console.error('Error determining redirect path:', err);
+              // Default redirect to dashboard
+              window.location.href = '/dashboard';
             }
           } else {
             setError('No session found after authentication');
@@ -126,10 +160,10 @@ export default function CallbackPage() {
           <p className="text-red-300">{error}</p>
           <div className="flex flex-col sm:flex-row gap-3 mt-4 w-full">
             <button 
-              onClick={() => router.push('/auth/login')}
+              onClick={() => router.push('/auth/signin')}
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white font-medium transition-colors flex-1"
             >
-              Return to Login
+              Return to Sign In
             </button>
             <button 
               onClick={() => router.push('/')}
@@ -162,10 +196,10 @@ export default function CallbackPage() {
         
         {message.includes('longer') && (
           <button 
-            onClick={() => router.push('/')}
+            onClick={() => router.push('/dashboard')}
             className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white font-medium transition-colors"
           >
-            Continue to App
+            Continue to Dashboard
           </button>
         )}
       </motion.div>
