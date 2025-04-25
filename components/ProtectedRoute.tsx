@@ -44,8 +44,7 @@ export function ProtectedRoute({
   if (requireAuth && !user) {
     // If auth is required and user is not authenticated (guest doesn't count)
     console.log('Auth required but user not authenticated, redirecting to:', fallbackRoute);
-    // @ts-ignore - Next.js types are not fully compatible with the router
-    router.replace(fallbackRoute);
+    router.push(fallbackRoute as any);
     return null;
   }
 
@@ -54,8 +53,7 @@ export function ProtectedRoute({
     // If no user and no guest ID
     console.error("No user or guest ID available for protected route");
     console.log('No authentication found, redirecting to:', fallbackRoute);
-    // @ts-ignore - Next.js types are not fully compatible with the router
-    router.replace(fallbackRoute);
+    router.push(fallbackRoute as any);
     return null;
   }
 
