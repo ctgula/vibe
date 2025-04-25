@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Route } from 'next';
 
 export default function CallbackPage() {
   const router = useRouter();
@@ -98,7 +99,7 @@ export default function CallbackPage() {
             // Redirect to the stored path or default to home
             if (redirectPath) {
               sessionStorage.removeItem('redirectAfterAuth');
-              router.push(redirectPath);
+              router.push(redirectPath as Route);
             } else {
               router.push('/');
             }
