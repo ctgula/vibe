@@ -25,8 +25,14 @@ export function useToast() {
     }, duration);
   }, []);
 
+  const toast = useCallback((props: { title?: string; description: string; variant?: 'default' | 'destructive' }) => {
+    const type = props.variant === 'destructive' ? 'error' : 'info';
+    showToast(props.description, type);
+  }, [showToast]);
+
   return {
     toasts,
     showToast,
+    toast,
   };
 }

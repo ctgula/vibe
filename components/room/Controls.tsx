@@ -7,10 +7,13 @@ interface ControlsProps {
   hasRaisedHand: boolean;
   isCameraOn?: boolean;
   showCameraButton?: boolean;
+  showMessages: boolean;
+  unreadCount?: number;
   onToggleMute: () => void;
   onToggleRaiseHand?: () => void;
   onLeaveRoom: () => void;
   onToggleCamera?: () => void;
+  onToggleMessages?: () => void;
 }
 
 export function Controls({
@@ -19,10 +22,13 @@ export function Controls({
   hasRaisedHand,
   isCameraOn,
   showCameraButton,
+  showMessages,
+  unreadCount,
   onToggleMute,
   onToggleRaiseHand,
   onLeaveRoom,
   onToggleCamera,
+  onToggleMessages,
 }: ControlsProps) {
   return (
     <motion.div 

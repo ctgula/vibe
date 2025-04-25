@@ -33,24 +33,18 @@ export function SignInForm() {
     hapticFeedback(5); // Feedback for submit
 
     try {
-      const { error: signInError } = await signIn(email, password);
-
-      if (signInError) {
-        setError(signInError.message || "Failed to sign in");
-        hapticFeedback([10, 5, 10, 5, 10]); // Error feedback
-        toast.error(signInError.message || "Failed to sign in");
-      } else {
-        hapticFeedback([3, 30, 3]); // Success feedback
-        toast.success("Successfully signed in");
-        
-        // Set flag for redirection logic and clear any redirect flags
-        sessionStorage.setItem('justLoggedIn', 'true');
-        sessionStorage.removeItem('redirectedToLogin');
-        sessionStorage.removeItem('loggingIn');
-        
-        // Use replace instead of push to avoid history issues
-        router.replace("/");
-      }
+      await signIn(email, password);
+      
+      hapticFeedback([3, 30, 3]); // Success feedback
+      toast.success("Successfully signed in");
+      
+      // Set flag for redirection logic and clear any redirect flags
+      sessionStorage.setItem('justLoggedIn', 'true');
+      sessionStorage.removeItem('redirectedToLogin');
+      sessionStorage.removeItem('loggingIn');
+      
+      // Use replace instead of push to avoid history issues
+      router.replace("/");
     } catch (error: any) {
       setError(error.message || "An unexpected error occurred");
       hapticFeedback([10, 5, 10, 5, 10]); // Error feedback
