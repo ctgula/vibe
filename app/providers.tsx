@@ -5,6 +5,7 @@ import { Toaster } from 'sonner';
 import { AuthProvider } from '@/hooks/use-supabase-auth';
 import { SimpleAuthProvider } from '@/contexts/SimpleAuthProvider';
 import { ErrorBoundary } from 'react-error-boundary';
+import { ToastProvider } from '@/components/ui/toaster';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -18,12 +19,14 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     )}>
       <AuthProvider>
         <SimpleAuthProvider>
-          {/* Portal container for modals and popovers */}
-          <div id="portal-root" />
-          <LazyMotion features={domAnimation} strict>
-            <Toaster richColors position="top-center" />
-            {children}
-          </LazyMotion>
+          <ToastProvider>
+            {/* Portal container for modals and popovers */}
+            <div id="portal-root" />
+            <LazyMotion features={domAnimation} strict>
+              <Toaster richColors position="top-center" />
+              {children}
+            </LazyMotion>
+          </ToastProvider>
         </SimpleAuthProvider>
       </AuthProvider>
     </ErrorBoundary>
