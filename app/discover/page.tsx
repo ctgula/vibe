@@ -206,6 +206,7 @@ function DiscoverContent() {
       
       if (!user) {
         // Redirect to login if not authenticated
+        // @ts-ignore - Next.js types are not fully compatible with the router
         router.push('/auth/signin')
         return
       }

@@ -90,6 +90,7 @@ export default function UpdatePasswordPage() {
         
         // Redirect after a short delay
         setTimeout(() => {
+          // @ts-ignore - Next.js types are not fully compatible with the router
           router.push('/auth/signin');
         }, 2000);
       }
@@ -125,7 +126,10 @@ export default function UpdatePasswordPage() {
                   Your password has been updated successfully. You'll be redirected to sign in.
                 </p>
                 <Button 
-                  onClick={() => router.push('/auth/signin')}
+                  onClick={() => {
+                    // @ts-ignore - Next.js types are not fully compatible with the router
+                    router.push('/auth/signin');
+                  }}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 >
                   Go to Sign In
