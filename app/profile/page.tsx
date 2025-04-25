@@ -48,15 +48,15 @@ export default function ProfilePage() {
         setLoading(true);
         setError(null);
         
-        // Use the auth profile if available, or fetch from database
+        // Use profile data from auth context, with defaults for missing fields
         if (authProfile) {
           console.log('Using profile from auth context:', authProfile);
           setProfileData({
             username: authProfile.username || '',
             display_name: authProfile.display_name || '',
-            bio: authProfile.bio || '',
+            bio: '',  // Default to empty string since bio is not in schema
             avatar_url: authProfile.avatar_url || '',
-            theme_color: authProfile.theme_color || '#6366f1'
+            theme_color: '#6366f1'  // Default to indigo since theme_color is not in schema
           });
           setLoading(false);
           return;
@@ -92,9 +92,9 @@ export default function ProfilePage() {
           setProfileData({
             username: profile.username || '',
             display_name: profile.display_name || '',
-            bio: profile.bio || '',
+            bio: profile.bio || '',  // Default to empty string since bio is not in schema
             avatar_url: profile.avatar_url || '',
-            theme_color: profile.theme_color || '#6366f1'
+            theme_color: profile.theme_color || '#6366f1'  // Default to indigo since theme_color is not in schema
           });
         } else {
           console.log('No profile found for ID:', profileId);
