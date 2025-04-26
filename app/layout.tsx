@@ -4,6 +4,7 @@ import { Inter } from "next/font/google"
 import { ReactNode } from 'react'
 import Providers from './providers'
 import { Viewport } from 'next'
+import { Favicon } from './favicon'
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -53,6 +54,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       }}
     >
       <head>
+        <Favicon />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="Vibe" />
         <meta name="mobile-web-app-capable" content="yes" />
