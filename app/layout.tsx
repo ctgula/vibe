@@ -73,7 +73,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
       </head>
       <body 
-        className="bg-black text-white overflow-x-hidden overscroll-none min-h-screen min-h-[100dvh] fixed inset-0 w-full"
+        className="bg-black text-white overflow-x-hidden"
         suppressHydrationWarning
         style={{
           WebkitTapHighlightColor: "transparent",
@@ -87,17 +87,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           WebkitFontSmoothing: "antialiased",
           MozOsxFontSmoothing: "grayscale",
           isolation: "isolate",
-          contain: "content",
-          contentVisibility: "auto",
-          // Add safe area insets for modern devices with notches
-          paddingTop: "env(safe-area-inset-top, 0px)",
-          paddingBottom: "env(safe-area-inset-bottom, 0px)",
-          paddingLeft: "env(safe-area-inset-left, 0px)",
-          paddingRight: "env(safe-area-inset-right, 0px)",
         }}
       >
         <Providers>
-          <div id="app-root" className="fixed inset-0 flex flex-col overflow-hidden">
+          <div id="app-root" className="relative">
             {children}
           </div>
         </Providers>
