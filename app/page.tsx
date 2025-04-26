@@ -160,212 +160,194 @@ const SecondaryContent = dynamic(() => Promise.resolve(({ onContinue }: { onCont
 )), { ssr: false });
 
 export default function Home() {
-  const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<'join' | 'create'>('join');
-  const [showSecondary, setShowSecondary] = useState(false);
-  const [forceShowContent, setForceShowContent] = useState(false); // New state to force content display
   const router = useRouter();
   const { user, isLoading } = useAuth();
+  const [activeTab, setActiveTab] = useState('join');
+  const [showSecondary, setShowSecondary] = useState(false);
+  const [isPortrait, setIsPortrait] = useState(true);
+  const [windowHeight, setWindowHeight] = useState('100%');
 
+  // Handle iOS-specific viewport issues
   useEffect(() => {
-    setMounted(true);
+    // Handle orientation changes
+    const checkOrientation = () => {
+      setIsPortrait(window.innerHeight > window.innerWidth);
+    };
+    
+    // Handle iOS viewport height
+    const handleResize = () => {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+      setWindowHeight(`${window.innerHeight}px`);
+      checkOrientation();
+    };
+    
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    
+    // Initial call
+    handleResize();
+    
     // Load secondary content after initial render
     const timer = setTimeout(() => setShowSecondary(true), 100);
     
-    // Force content to show after 3 seconds even if auth is still loading
-    const forceTimer = setTimeout(() => {
-      if (isLoading) {
-        console.log("Auth still loading after 3s; forcing content display");
-        setForceShowContent(true);
-      }
-    }, 3000);
-    
     return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
       clearTimeout(timer);
-      clearTimeout(forceTimer);
     };
-  }, [isLoading]);
+  }, []);
 
-  // Don't render until mounted (client-side)
-  if (!mounted) return null;
-  
-  // Show loading state only while auth is loading, but not if we're forcing content
-  if (isLoading && !forceShowContent) {
-    return (
-      <div className="min-h-screen bg-[#0d0d12] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-b-transparent border-purple-500 rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  const handleContinue = (path: string) => {
-    try {
-      // If user is authenticated, go directly to path
-      if (user) {
-        // Use window.location for more reliable navigation with any string path
-        window.location.href = path;
-        return;
-      }
-      // Otherwise go to onboarding to handle guest mode
+  // Redirect based on user state
+  useEffect(() => {
+    if (!isLoading && user && user.onboarded === false) {
       router.push(ROUTES.ONBOARDING);
-    } catch (error) {
-      console.error('Error in handleContinue:', error);
-      toast.error('Something went wrong. Please try again.');
     }
+  }, [isLoading, user, router]);
+
+  // Handle continue action
+  const handleContinue = (path: string) => {
+    router.push(path as any);
   };
 
   return (
     <>
       <Head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover" />
-        <meta name="theme-color" content="#0d0d12" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <link rel="manifest" href="/manifest.json" />
+        <title>Vibe - Live Audio Rooms</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </Head>
-      
-      <div className="min-h-screen text-white bg-[#0d0d12] overscroll-none">
-        {/* Decorative background elements - optimized with reduced opacity */}
-        <div className="fixed inset-0 overflow-hidden pointer-events-none z-0" aria-hidden="true">
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0d0d12] via-[#0d0d12] to-[#131320]"></div>
-          <div className="absolute top-[5%] -left-[10%] w-[50%] h-[30%] bg-purple-600/5 rounded-full blur-[120px] opacity-30"></div>
-          <div className="absolute bottom-[10%] right-[5%] w-[40%] h-[20%] bg-indigo-600/5 rounded-full blur-[100px] opacity-30"></div>
-        </div>
-        
-        {/* Content layer */}
-        <div className="relative z-10">
-          {/* Header - sticky with reduced height on mobile */}
-          <header className="sticky top-0 py-3 sm:py-4 backdrop-blur-md bg-black/20 border-b border-white/5 px-4 z-50">
-            <div className="max-w-5xl mx-auto flex items-center justify-between">
-              <Logo />
-              <div className="flex items-center gap-2 sm:gap-4">
-                <button 
-                  onClick={() => handleContinue(ROUTES.LOGIN)}
-                  className="px-3 py-1 sm:px-4 sm:py-1.5 text-xs sm:text-sm text-gray-300 hover:text-white transition-colors"
-                >
-                  Sign In
-                </button>
-                <button 
-                  onClick={() => router.push(ROUTES.SIGN_UP)}
-                  className="px-3 py-1 sm:px-4 sm:py-1.5 text-xs sm:text-sm bg-white/5 hover:bg-white/10 text-white rounded-full transition-colors"
-                >
-                  Create Account
-                </button>
-                <button 
-                  onClick={() => handleContinue(ROUTES.ROOMS)}
-                  className="px-3 py-1 sm:px-4 sm:py-1.5 text-xs sm:text-sm bg-white/5 hover:bg-white/10 text-white rounded-full transition-colors"
-                >
-                  Rooms
-                </button>
-              </div>
-            </div>
-          </header>
-        
-          <main>
-            <div className="max-w-5xl mx-auto px-4 py-6 sm:py-12">
-              {/* Hero Section - optimized for immediate visibility */}
-              <div className="text-center">
-                <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold mb-3 sm:mb-4 tracking-tight">
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-400 to-purple-400">
-                    Audio & Video Rooms
-                  </span>
-                  <span className="inline-block ml-1 will-change-transform">
-                    <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 inline" aria-hidden="true" />
-                  </span>
+      <div 
+        className="min-h-screen bg-black text-white ios-safe-area"
+        style={{
+          minHeight: `calc(var(--vh, 1vh) * 100)`,
+          height: windowHeight
+        }}
+      >
+        <div className="flex flex-col min-h-[inherit]">
+          {/* Hero header area */}
+          <main className="flex-1 relative pb-safe">
+            <div className="px-4 sm:px-6 md:px-8 pt-4 sm:pt-6 pb-6 md:pb-8 max-w-6xl mx-auto">
+              {/* Navigation */}
+              <header className="flex justify-between items-center mb-8 sm:mb-10">
+                <Logo />
+                <div className="flex space-x-3">
+                  <ActionButton
+                    onClick={() => router.push(ROUTES.LOGIN)}
+                    className="!w-auto text-sm ios-touch-fix"
+                    ariaLabel="Log in to your account"
+                  >
+                    Log In
+                  </ActionButton>
+                  <ActionButton
+                    onClick={() => router.push(ROUTES.SIGN_UP)}
+                    primary
+                    className="!w-auto text-sm ios-touch-fix"
+                    ariaLabel="Sign up for an account"
+                  >
+                    Sign Up
+                  </ActionButton>
+                </div>
+              </header>
+              
+              {/* Hero Section */}
+              <div className="text-center mb-8 sm:mb-12">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4 tracking-tight">
+                  Live Audio <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-indigo-400">Rooms</span>
                 </h1>
-                <p className="text-base sm:text-xl text-gray-300 mb-6 sm:mb-8 max-w-2xl mx-auto">
-                  Join immersive conversations, discover trending content, and share your voice.
-                  <span className="block mt-2 text-purple-400 text-sm sm:text-base font-medium">No account needed to get started.</span>
+                <p className="text-lg sm:text-xl text-gray-300 mb-6 sm:mb-8 max-w-2xl mx-auto">
+                  Connect through immersive conversations with spatial audio
                 </p>
                 
-                {/* Tab Selector - accessible pill toggle */}
-                <div 
-                  className="inline-flex rounded-full backdrop-blur-sm bg-black/20 p-1 border border-white/10 mb-6 sm:mb-8"
-                  role="tablist"
-                  aria-label="Join or create options"
-                >
-                  <button
-                    role="tab"
-                    id="join-tab"
-                    aria-selected={activeTab === 'join'}
-                    aria-controls="join-panel"
-                    onClick={() => setActiveTab('join')}
-                    className={`relative px-4 sm:px-5 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all duration-300 ${
-                      activeTab === 'join' 
-                        ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md" 
-                        : "text-gray-400 hover:text-white"
-                    }`}
+                {/* Tab buttons */}
+                <div className="space-y-4 sm:space-y-6">
+                  <div 
+                    className="inline-flex p-1 bg-white/5 backdrop-blur-md rounded-full"
+                    role="tablist"
+                    aria-label="Join or create options"
                   >
-                    Join a Room
-                  </button>
-                  <button
-                    role="tab"
-                    id="create-tab"
-                    aria-selected={activeTab === 'create'}
-                    aria-controls="create-panel"
-                    onClick={() => setActiveTab('create')}
-                    className={`relative px-4 sm:px-5 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all duration-300 ${
-                      activeTab === 'create' 
-                        ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md" 
-                        : "text-gray-400 hover:text-white"
-                    }`}
+                    <button
+                      role="tab"
+                      aria-selected={activeTab === 'join'}
+                      aria-controls="join-panel"
+                      onClick={() => setActiveTab('join')}
+                      className={`relative px-4 sm:px-5 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all duration-300 ${
+                        activeTab === 'join' 
+                          ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md" 
+                          : "text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      Join a Room
+                    </button>
+                    <button
+                      role="tab"
+                      aria-selected={activeTab === 'create'}
+                      aria-controls="create-panel"
+                      onClick={() => setActiveTab('create')}
+                      className={`relative px-4 sm:px-5 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all duration-300 ${
+                        activeTab === 'create' 
+                          ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md" 
+                          : "text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      Create a Room
+                    </button>
+                  </div>
+                  
+                  {/* Action Panel - accessible with tab indexing */}
+                  <div 
+                    className="backdrop-blur-md bg-white/5 p-4 sm:p-6 rounded-xl sm:rounded-2xl border border-white/10 shadow-lg max-w-lg mx-auto mb-6 sm:mb-8 ios-form-element"
+                    role="tabpanel"
+                    id={activeTab === 'join' ? 'join-panel' : 'create-panel'}
+                    aria-labelledby={activeTab === 'join' ? 'join-tab' : 'create-tab'}
                   >
-                    Create a Room
-                  </button>
+                    {activeTab === 'join' ? (
+                      <div className="space-y-3 sm:space-y-4">
+                        <h3 className="text-base sm:text-lg font-medium mb-1 sm:mb-2">Join live conversations instantly</h3>
+                        <p className="text-xs sm:text-sm text-gray-400 mb-3 sm:mb-4">No account required. Jump right into the action.</p>
+                        <ActionButton
+                          onClick={() => handleContinue(ROUTES.ROOMS)}
+                          primary
+                          ariaLabel="Join a room without an account"
+                          className="ios-touch-fix"
+                        >
+                          Jump In Now
+                          <ChevronRight className="w-4 h-4 ml-1" aria-hidden="true" />
+                        </ActionButton>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 sm:space-y-4">
+                        <h3 className="text-base sm:text-lg font-medium mb-1 sm:mb-2">Create your own audio or video space</h3>
+                        <p className="text-xs sm:text-sm text-gray-400 mb-3 sm:mb-4">Start instantly as a guest or sign up for more features.</p>
+                        <ActionButton
+                          onClick={() => handleContinue(ROUTES.ROOMS)}
+                          primary
+                          ariaLabel="Create your own room"
+                          className="ios-touch-fix"
+                        >
+                          Create Room
+                          <ChevronRight className="w-4 h-4 ml-1" aria-hidden="true" />
+                        </ActionButton>
+                        <div className="text-center">
+                          <button 
+                            onClick={() => router.push(ROUTES.SIGN_UP)}
+                            className="text-xs sm:text-sm text-purple-400 hover:text-purple-300 transition-colors py-2 px-4 ios-touch-fix"
+                          >
+                            Sign up for premium features
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
-                {/* Action Panel - accessible with tab indexing */}
-                <div 
-                  className="backdrop-blur-md bg-white/5 p-4 sm:p-6 rounded-xl sm:rounded-2xl border border-white/10 shadow-lg max-w-lg mx-auto mb-6 sm:mb-8"
-                  role="tabpanel"
-                  id={activeTab === 'join' ? 'join-panel' : 'create-panel'}
-                  aria-labelledby={activeTab === 'join' ? 'join-tab' : 'create-tab'}
-                >
-                  {activeTab === 'join' ? (
-                    <div className="space-y-3 sm:space-y-4">
-                      <h3 className="text-base sm:text-lg font-medium mb-1 sm:mb-2">Join live conversations instantly</h3>
-                      <p className="text-xs sm:text-sm text-gray-400 mb-3 sm:mb-4">No account required. Jump right into the action.</p>
-                      <ActionButton
-                        onClick={() => handleContinue(ROUTES.ROOMS)}
-                        primary
-                        ariaLabel="Join a room without an account"
-                      >
-                        Jump In Now
-                        <ChevronRight className="w-4 h-4 ml-1" aria-hidden="true" />
-                      </ActionButton>
-                    </div>
-                  ) : (
-                    <div className="space-y-3 sm:space-y-4">
-                      <h3 className="text-base sm:text-lg font-medium mb-1 sm:mb-2">Create your own audio or video space</h3>
-                      <p className="text-xs sm:text-sm text-gray-400 mb-3 sm:mb-4">Start instantly as a guest or sign up for more features.</p>
-                      <ActionButton
-                        onClick={() => handleContinue(ROUTES.ROOMS)}
-                        primary
-                        ariaLabel="Create your own room"
-                      >
-                        Create Room
-                        <ChevronRight className="w-4 h-4 ml-1" aria-hidden="true" />
-                      </ActionButton>
-                      <div className="text-center">
-                        <button 
-                          onClick={() => router.push(ROUTES.SIGN_UP)}
-                          className="text-xs sm:text-sm text-purple-400 hover:text-purple-300 transition-colors"
-                        >
-                          Sign up for premium features
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                {/* Dynamically load secondary content for optimal performance */}
+                {showSecondary && <SecondaryContent onContinue={handleContinue} />}
               </div>
-              
-              {/* Dynamically load secondary content for optimal performance */}
-              {showSecondary && <SecondaryContent onContinue={handleContinue} />}
             </div>
           </main>
           
           {/* Footer - minimal and clean */}
-          <footer className="text-center text-xs sm:text-sm text-gray-500 py-6 border-t border-gray-800 backdrop-blur-sm bg-black/10">
+          <footer className="text-center text-xs sm:text-sm text-gray-500 py-6 pb-safe border-t border-gray-800 backdrop-blur-sm bg-black/10 mt-auto">
             <div className="max-w-5xl mx-auto px-4">
               <div className="flex items-center justify-center mb-2">
                 <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-1 sm:p-1.5 rounded-lg shadow-sm mr-2">
@@ -373,7 +355,7 @@ export default function Home() {
                 </div>
                 <span className="font-medium">vibe</span>
               </div>
-              <p> 2025 Vibe. The future of live audio & video spaces.</p>
+              <p>&copy; 2025 Vibe. The future of live audio & video spaces.</p>
             </div>
           </footer>
         </div>
