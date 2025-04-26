@@ -10,6 +10,144 @@ html, body {
   padding: 0;
 }
 
+/* iOS Safe Areas */
+.ios-safe-area {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+
+.pr-safe {
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Custom viewport height for iOS */
+:root {
+  --app-height: 100%;
+  --vh: 1vh;
+}
+
+/* iOS height fixes */
+@supports (-webkit-touch-callout: none) {
+  .min-h-screen {
+    min-height: calc(var(--vh, 1vh) * 100);
+  }
+
+  body, html {
+    height: -webkit-fill-available;
+  }
+  
+  .ios-prevent-bounce {
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+    height: calc(var(--vh, 1vh) * 100);
+  }
+}
+
+/* Improved touch targets for iOS */
+.ios-touch-fix {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* iOS form styles */
+.ios-form-input {
+  font-size: 16px; /* Prevents iOS zoom on focus */
+  -webkit-appearance: none; /* Removes iOS default styling */
+  appearance: none;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.ios-form-element {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.ios-form-padding {
+  padding-bottom: env(safe-area-inset-bottom, 20px);
+  padding-top: env(safe-area-inset-top, 20px);
+}
+
+/* Handle keyboard opening on iOS */
+.ios-keyboard-open {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+/* iPhone-specific media queries */
+@media screen and (max-width: 428px) and (-webkit-device-pixel-ratio: 3) {
+  /* iPhone Pro/Max/Plus sizes */
+  .ios-form-input {
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  
+  .ios-touch-fix {
+    min-height: 48px;
+  }
+}
+
+@media screen and (max-width: 375px) and (-webkit-device-pixel-ratio: 2) {
+  /* iPhone mini/regular sizes */
+  button, .button, a[role="button"] {
+    font-size: 0.9rem;
+  }
+}
+
+/* Landscape mode adjustments */
+@media screen and (orientation: landscape) and (-webkit-device-pixel-ratio: 2) {
+  .ios-form-element {
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+}
+
+/* Prevent iOS bounce scrolling */
+.prevent-ios-tap {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+/* Fix for notched iPhones */
+@supports (padding: max(0px)) {
+  .ios-safe-area {
+    padding-left: max(env(safe-area-inset-left), 16px);
+    padding-right: max(env(safe-area-inset-right), 16px);
+  }
+  
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 16px);
+  }
+  
+  .pt-safe {
+    padding-top: max(env(safe-area-inset-top), 16px);
+  }
+}
+
 /* iOS Safari viewport height fix */
 :root {
   --app-height: 100%;
@@ -87,31 +225,6 @@ body {
     right: 0;
     bottom: 0;
   }
-}
-
-/* iOS-specific safe area insets - better notch handling */
-.ios-safe-area-top {
-  padding-top: env(safe-area-inset-top);
-}
-
-.ios-safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-.ios-safe-area-left {
-  padding-left: env(safe-area-inset-left);
-}
-
-.ios-safe-area-right {
-  padding-right: env(safe-area-inset-right);
-}
-
-/* Apply all safe area insets */
-.ios-safe-area {
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
 }
 
 /* Scrollable content container with momentum scrolling for mobile */

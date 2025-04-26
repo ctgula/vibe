@@ -55,6 +55,69 @@ export default function OnboardingForm() {
   const { user, isLoading: authLoading, createEmptyProfile } = useAuth()
   const [guestId, setGuestId] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [viewportHeight, setViewportHeight] = useState('100vh')
+  const [isIOSDevice, setIsIOSDevice] = useState(false)
+
+  // Handle iOS viewport issues
+  useEffect(() => {
+    // iOS detection
+    const checkIOSDevice = () => {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      setIsIOSDevice(isIOS);
+      return isIOS;
+    };
+
+    // Set viewport height
+    const updateViewportHeight = () => {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+      setViewportHeight(`${window.innerHeight}px`);
+    };
+
+    const isIOS = checkIOSDevice();
+    updateViewportHeight();
+
+    // Update on resize and orientation change
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', () => {
+      // Small timeout to ensure the browser has updated the viewport
+      setTimeout(updateViewportHeight, 100);
+    });
+
+    // If iOS, add specific fixes
+    if (isIOS) {
+      // Prevent scrolling of the body when inputs are focused
+      const handleFocus = () => {
+        document.body.classList.add('ios-keyboard-open');
+      };
+      
+      const handleBlur = () => {
+        document.body.classList.remove('ios-keyboard-open');
+      };
+      
+      const inputElements = document.querySelectorAll('input, textarea');
+      inputElements.forEach(el => {
+        el.addEventListener('focus', handleFocus);
+        el.addEventListener('blur', handleBlur);
+      });
+      
+      return () => {
+        window.removeEventListener('resize', updateViewportHeight);
+        window.removeEventListener('orientationchange', updateViewportHeight);
+        
+        inputElements.forEach(el => {
+          el.removeEventListener('focus', handleFocus);
+          el.removeEventListener('blur', handleBlur);
+        });
+      };
+    }
+    
+    return () => {
+      window.removeEventListener('resize', updateViewportHeight);
+      window.removeEventListener('orientationchange', updateViewportHeight);
+    };
+  }, []);
 
   // DEBUG LOGGING
   useEffect(() => {
@@ -126,365 +189,319 @@ export default function OnboardingForm() {
               .select('*')
               .eq('id', profileId)
               .single()
-              
+            
             if (newProfileError) {
               console.error('Error fetching new profile:', newProfileError)
               throw newProfileError
             }
             
-            // Pre-fill form with data from profile
-            if (newProfile) {
-              setFormData({
-                ...formData,
-                username: newProfile.username || '',
-                displayName: newProfile.display_name || '',
-                bio: newProfile.bio || '',
-                preferredGenres: newProfile.preferred_genres || [],
-                themeColor: newProfile.theme_color || '#6366f1'
-              })
-            }
-          } catch (error) {
-            console.error('Error creating empty profile:', error)
-            setErrorMessage('Failed to create a profile. Please try again.')
-            throw error
+            console.log('[Onboarding] Created new profile:', newProfile)
+          } catch (err) {
+            console.error('Error creating profile:', err)
+            setErrorMessage('Failed to initialize your profile. Please try again or sign out and sign back in.')
           }
         } else {
-          // Pre-fill form with data from profile
-          console.log('[Onboarding] Profile found, pre-filling form:', profile)
-          setFormData({
-            ...formData,
-            username: profile.username || '',
-            displayName: profile.display_name || '',
-            bio: profile.bio || '',
-            preferredGenres: profile.preferred_genres || [],
-            themeColor: profile.theme_color || '#6366f1'
-          })
-
-          // If onboarding has already been completed, redirect to room page
-          if (profile.onboarding_completed) {
-            console.log('[Onboarding] Onboarding already completed, redirecting to /rooms')
-            router.push('/rooms')
-            return
+          console.log('[Onboarding] Found existing profile:', profile)
+          // If we have a username already, use it (for guest accounts)
+          if (profile.username) {
+            setFormData(prevData => ({
+              ...prevData,
+              username: profile.username || '',
+              displayName: profile.display_name || '',
+              bio: profile.bio || ''
+            }))
           }
         }
       } catch (err) {
-        console.error('[Onboarding] Error in initializeProfile:', err)
-        setErrorMessage('Failed to load your profile. Please try again later.')
+        console.error('Error in initializeProfile:', err)
+        setErrorMessage('Something went wrong while loading your profile')
       } finally {
         setLoading(false)
       }
     }
     
     initializeProfile()
-  }, [authLoading, user, guestId, router, createEmptyProfile, formData])
-
+  }, [authLoading, user, guestId, createEmptyProfile, router])
+  
   // Helper to move between steps
   const paginate = (newDirection: number) => {
     setPage([page + newDirection, newDirection])
   }
-
+  
   const handleNext = () => {
     paginate(1)
   }
-
+  
   const handleBack = () => {
     paginate(-1)
   }
-
+  
   // Final submit handler
   const handleSubmit = async () => {
-    setSubmitting(true)
-    
     try {
+      setSubmitting(true)
+      setErrorMessage(null)
+      
+      // Get the right ID (authenticated or guest)
       const profileId = user?.id || guestId
       
       if (!profileId) {
-        throw new Error('No profile ID available for update')
+        throw new Error('No profile ID available')
       }
       
-      console.log('[Onboarding] Submitting profile update:', {
-        id: profileId,
+      // Prepare data for the database (convert camelCase to snake_case)
+      const profileData = {
         username: formData.username,
         display_name: formData.displayName,
-        bio: formData.bio,
+        bio: formData.bio || '',
         preferred_genres: formData.preferredGenres,
         theme_color: formData.themeColor,
-        onboarding_completed: true
-      })
+        onboarded: true,
+        updated_at: new Date().toISOString()
+      }
       
-      // Update the profile with all the onboarding details
+      console.log('[Onboarding] Submitting profile data:', profileData)
+      
+      // Update the profile in Supabase
       const { error } = await supabase
         .from('profiles')
-        .upsert({
-          id: profileId,
-          username: formData.username,
-          display_name: formData.displayName,
-          bio: formData.bio,
-          preferred_genres: formData.preferredGenres,
-          theme_color: formData.themeColor,
-          onboarding_completed: true,
-          updated_at: new Date().toISOString()
-        })
+        .update(profileData)
+        .eq('id', profileId)
       
       if (error) {
-        console.error('[Onboarding] Error updating profile:', error)
+        console.error('Error updating profile:', error)
         throw error
       }
       
-      console.log('[Onboarding] Profile updated successfully')
-      toast.success('Profile updated successfully!')
+      toast.success('Profile updated successfully')
       
-      // Add a short delay to let the toast show before redirect
-      setTimeout(() => {
-        // Redirect to the rooms page
-        router.push('/rooms')
-      }, 500)
-    } catch (err: any) {
-      console.error('[Onboarding] Error in handleSubmit:', err)
-      setErrorMessage(err.message || 'There was an error updating your profile. Please try again.')
-      toast.error(err.message || 'There was an error updating your profile. Please try again.')
+      // Re-fetch the profile to ensure we have latest data
+      const { data: updatedProfile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', profileId)
+        .single()
+      
+      if (fetchError) {
+        console.error('Error fetching updated profile:', fetchError)
+        throw fetchError
+      }
+      
+      console.log('[Onboarding] Updated profile:', updatedProfile)
+      
+      // Redirect to the appropriate page based on account type
+      router.push('/directory')
+    } catch (err) {
+      console.error('Error in handleSubmit:', err)
+      setErrorMessage('Failed to update your profile. Please try again.')
+      toast.error('Something went wrong while updating your profile')
     } finally {
       setSubmitting(false)
     }
   }
-
+  
   // Render the current step
   const renderStep = () => {
-    // If still loading or checking auth
+    // Show loading state
     if (loading || authLoading) {
       return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mb-4"></div>
-          <h3 className="text-xl font-medium text-white">Setting up your profile...</h3>
-          <p className="text-zinc-400 mt-2">Just a moment while we get things ready.</p>
+        <div className="flex items-center justify-center min-h-[50vh]">
+          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-purple-500" />
         </div>
       )
     }
-
-    // If we have an error
+    
+    // Show error message if any
     if (errorMessage) {
       return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-          <div className="bg-red-500/10 p-4 rounded-lg border border-red-500/20 mb-6 max-w-md">
-            <h3 className="text-xl font-medium text-red-400 mb-2">Oops, something went wrong</h3>
-            <p className="text-zinc-300">{errorMessage}</p>
-          </div>
-          
+        <div className="text-center p-6 rounded-lg bg-red-500/10 border border-red-500/20">
+          <h2 className="text-lg font-bold text-red-400 mb-2">Something went wrong</h2>
+          <p className="text-white/80 mb-4">{errorMessage}</p>
           <Button 
-            onClick={() => router.push('/')}
-            className="mt-4 bg-zinc-800 hover:bg-zinc-700 text-white"
+            onClick={() => router.push('/auth/signin')}
+            variant="outline"
+            className="bg-white/5 hover:bg-white/10 text-white border-white/20"
           >
-            Return to Home
+            Return to Sign In
           </Button>
         </div>
       )
     }
-
+    
+    // Onboarding steps
     const content = [
-      // Step 1: Username
-      <m.div key="step1" className="text-center px-4">
-        <m.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <User className="w-16 h-16 mx-auto mb-6 text-purple-500" />
-          <h1 className="text-3xl sm:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 mb-4">
-            Let's create your profile
-          </h1>
-          <p className="text-lg text-zinc-400 max-w-md mx-auto mb-12">
-            First, choose a unique username. This will be your identity in the app.
-          </p>
-        </m.div>
+      // Step 1: Welcome
+      <m.div 
+        key="welcome" 
+        className="px-4 py-8 md:p-8 backdrop-blur-sm bg-white/[0.03] rounded-xl border border-white/10 max-w-xl mx-auto ios-form-padding"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <div className="text-center mb-8">
+          <div className="inline-flex p-3 rounded-2xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 mb-4">
+            <Sparkles className="w-8 h-8 text-purple-400" aria-hidden="true" />
+          </div>
+          <h1 className="text-2xl font-bold mb-2">Welcome to Vibe</h1>
+          <p className="text-gray-400">Let's set up your profile in a few quick steps</p>
+        </div>
         
-        <div className="max-w-md mx-auto">
-          <div className="relative">
-            <m.label 
-              htmlFor="username"
-              className="block text-sm font-medium text-zinc-400 mb-2 text-left"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              Username
-            </m.label>
-            
-            <m.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="relative"
-            >
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <User className="h-5 w-5 text-zinc-500" />
-              </div>
-              <input
-                type="text"
-                id="username"
-                value={formData.username}
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                className="block w-full pl-10 rounded-md border-0 bg-zinc-800/70 py-2.5 text-white shadow-sm ring-1 ring-inset ring-zinc-700 focus:ring-2 focus:ring-inset focus:ring-purple-500"
-                placeholder="cooluser42"
-                required
-                disabled={submitting}
-              />
-            </m.div>
-            
-            <m.p 
-              className="mt-2 text-sm text-zinc-500 text-left"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-            >
-              This is how other users will find you.
-            </m.p>
+        <div className="space-y-4">
+          <div className="flex items-center p-4 rounded-lg bg-white/5 border border-white/10">
+            <div className="mr-4 text-purple-400">
+              <User className="w-5 h-5" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="font-medium">Create your identity</h2>
+              <p className="text-sm text-gray-400">Choose your username and profile info</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center p-4 rounded-lg bg-white/5 border border-white/10">
+            <div className="mr-4 text-pink-400">
+              <Music2 className="w-5 h-5" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="font-medium">Select your interests</h2>
+              <p className="text-sm text-gray-400">Help us personalize your experience</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center p-4 rounded-lg bg-white/5 border border-white/10">
+            <div className="mr-4 text-indigo-400">
+              <Mic className="w-5 h-5" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="font-medium">Customize your appearance</h2>
+              <p className="text-sm text-gray-400">Choose colors and themes you prefer</p>
+            </div>
           </div>
         </div>
       </m.div>,
       
-      // Step 2: Display Name & Bio
-      <m.div key="step2" className="text-center px-4">
-        <m.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <Sparkles className="w-16 h-16 mx-auto mb-6 text-purple-500" />
-          <h1 className="text-3xl sm:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 mb-4">
-            Tell us about yourself
-          </h1>
-          <p className="text-lg text-zinc-400 max-w-md mx-auto mb-8">
-            Add a display name and short bio to help people get to know you.
-          </p>
-        </m.div>
+      // Step 2: Username and basics
+      <m.div 
+        key="basics" 
+        className="px-4 py-8 md:p-8 backdrop-blur-sm bg-white/[0.03] rounded-xl border border-white/10 max-w-xl mx-auto ios-form-padding"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold mb-2">Your Identity</h1>
+          <p className="text-gray-400">How others will recognize you</p>
+        </div>
         
-        <div className="max-w-md mx-auto space-y-6">
-          <m.div 
-            className="relative"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <label htmlFor="displayName" className="block text-sm font-medium text-zinc-400 mb-2 text-left">
+        <div className="space-y-6">
+          <div>
+            <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-1">
+              Username
+            </label>
+            <input
+              id="username"
+              type="text"
+              value={formData.username}
+              onChange={(e) => setFormData({...formData, username: e.target.value})}
+              className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none ios-form-input"
+              placeholder="Your unique username"
+              maxLength={30}
+              aria-required="true"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              {formData.username.length}/30 characters
+            </p>
+          </div>
+          
+          <div>
+            <label htmlFor="displayName" className="block text-sm font-medium text-gray-300 mb-1">
               Display Name
             </label>
             <input
-              type="text"
               id="displayName"
+              type="text"
               value={formData.displayName}
-              onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-              className="block w-full rounded-md border-0 bg-zinc-800/70 py-2.5 px-4 text-white shadow-sm ring-1 ring-inset ring-zinc-700 focus:ring-2 focus:ring-inset focus:ring-purple-500"
-              placeholder="Your display name"
-              disabled={submitting}
+              onChange={(e) => setFormData({...formData, displayName: e.target.value})}
+              className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none ios-form-input"
+              placeholder="Your public display name"
             />
-            <p className="mt-2 text-sm text-zinc-500 text-left">
-              This name will be displayed to others in rooms.
-            </p>
-          </m.div>
+          </div>
           
-          <m.div 
-            className="relative"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <label htmlFor="bio" className="block text-sm font-medium text-zinc-400 mb-2 text-left">
-              Bio
+          <div>
+            <label htmlFor="bio" className="block text-sm font-medium text-gray-300 mb-1">
+              Bio <span className="text-gray-500">(optional)</span>
             </label>
             <textarea
               id="bio"
               value={formData.bio}
-              onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-              className="block w-full rounded-md border-0 bg-zinc-800/70 py-2.5 px-4 text-white shadow-sm ring-1 ring-inset ring-zinc-700 focus:ring-2 focus:ring-inset focus:ring-purple-500 min-h-[100px]"
-              placeholder="Tell us a bit about yourself..."
-              disabled={submitting}
-              maxLength={160}
+              onChange={(e) => setFormData({...formData, bio: e.target.value})}
+              className="w-full bg-white/5 border border-white/10 rounded-lg p-3 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none h-24 ios-form-input"
+              placeholder="A short description about yourself"
             />
-            <p className="mt-2 text-sm text-zinc-500 text-left">
-              {160 - (formData.bio?.length || 0)} characters remaining
-            </p>
-          </m.div>
+          </div>
         </div>
       </m.div>,
       
-      // Step 3: Music Genres
-      <m.div key="step3" className="text-center px-4">
-        <m.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <Music2 className="w-16 h-16 mx-auto mb-6 text-purple-500" />
-          <h1 className="text-3xl sm:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 mb-4">
-            What music do you like?
-          </h1>
-          <p className="text-lg text-zinc-400 max-w-md mx-auto mb-8">
-            Select your favorite genres to help you discover rooms you'll enjoy.
-          </p>
-        </m.div>
+      // Step 3: Musical preferences
+      <m.div 
+        key="genres" 
+        className="px-4 py-8 md:p-8 backdrop-blur-sm bg-white/[0.03] rounded-xl border border-white/10 max-w-xl mx-auto ios-form-padding"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold mb-2">Your Interests</h1>
+          <p className="text-gray-400">Select music genres you enjoy</p>
+        </div>
         
-        <m.div 
-          className="max-w-md mx-auto"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+        <div className="mt-6">
+          <div className="flex flex-wrap gap-2">
             {genreOptions.map((genre) => (
               <m.button
                 key={genre}
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => {
-                  if (formData.preferredGenres.includes(genre)) {
-                    setFormData({
-                      ...formData,
-                      preferredGenres: formData.preferredGenres.filter(g => g !== genre)
-                    })
-                  } else {
-                    setFormData({
-                      ...formData,
-                      preferredGenres: [...formData.preferredGenres, genre]
-                    })
-                  }
-                  if (window.navigator.vibrate) window.navigator.vibrate(3)
+                  const currentGenres = formData.preferredGenres;
+                  const updated = currentGenres.includes(genre)
+                    ? currentGenres.filter(g => g !== genre)
+                    : [...currentGenres, genre];
+                  
+                  setFormData({...formData, preferredGenres: updated});
+                  
+                  // Add haptic feedback for iOS
+                  if (window.navigator.vibrate) window.navigator.vibrate(3);
                 }}
                 className={cn(
-                  "px-4 py-3 rounded-lg border transition-all",
+                  "py-2 px-4 rounded-full text-sm transition-all ios-touch-fix",
                   formData.preferredGenres.includes(genre)
-                    ? "bg-purple-500/20 border-purple-500/50 text-white"
-                    : "bg-zinc-800/50 border-zinc-700/50 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                    ? "bg-purple-500 text-white"
+                    : "bg-white/5 border border-white/10 text-white hover:bg-white/10"
                 )}
-                disabled={submitting}
               >
                 {genre}
               </m.button>
             ))}
           </div>
-          <p className="text-sm text-zinc-500">
-            {formData.preferredGenres.length === 0 
-              ? "Select at least one genre that interests you"
-              : `${formData.preferredGenres.length} genre${formData.preferredGenres.length !== 1 ? 's' : ''} selected`
-            }
-          </p>
-        </m.div>
+        </div>
+        
+        <div className="mt-6 text-center text-sm text-gray-500">
+          {formData.preferredGenres.length 
+            ? `Selected: ${formData.preferredGenres.length} genres` 
+            : "Select at least one genre to continue"
+          }
+        </div>
       </m.div>,
       
-      // Step 4: Theme Color
-      <m.div key="step4" className="text-center px-4">
-        <m.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <Mic className="w-16 h-16 mx-auto mb-6 text-purple-500" />
-          <h1 className="text-3xl sm:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 mb-4">
-            Pick your theme color
-          </h1>
-          <p className="text-lg text-zinc-400 max-w-md mx-auto mb-8">
-            Choose a color to personalize your profile. This will appear in rooms you create.
-          </p>
-        </m.div>
+      // Step 4: Theme selection
+      <m.div 
+        key="theme" 
+        className="px-4 py-8 md:p-8 backdrop-blur-sm bg-white/[0.03] rounded-xl border border-white/10 max-w-xl mx-auto ios-form-padding"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold mb-2">Choose Your Style</h1>
+          <p className="text-gray-400">Select a theme color that represents you</p>
+        </div>
         <m.div 
           className="grid grid-cols-4 gap-3 max-w-xs mx-auto mt-8"
           initial={{ opacity: 0, y: 10 }}
@@ -508,7 +525,7 @@ export default function OnboardingForm() {
                 }
               }}
               className={cn(
-                "w-12 h-12 rounded-full transition-transform",
+                "w-12 h-12 rounded-full transition-transform ios-touch-fix",
                 formData.themeColor === color && "ring-2 ring-white ring-offset-2 ring-offset-black"
               )}
               style={{ backgroundColor: color }}
@@ -540,21 +557,27 @@ export default function OnboardingForm() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <div className="flex flex-col min-h-screen">
-        <div className="flex-1 max-w-4xl mx-auto px-4 py-8">
+    <div 
+      className="min-h-screen bg-black text-white ios-safe-area"
+      style={{
+        minHeight: isIOSDevice ? `calc(var(--vh, 1vh) * 100)` : '100vh',
+        height: isIOSDevice ? viewportHeight : 'auto'
+      }}
+    >
+      <div className="flex flex-col min-h-[inherit]">
+        <div className="flex-1 max-w-4xl mx-auto px-4 py-8 pt-safe">
           <div className="relative">
             {renderStep()}
           </div>
         </div>
 
-        <div className="sticky bottom-0 bg-black/80 backdrop-blur-lg border-t border-white/10">
+        <div className="sticky bottom-0 bg-black/80 backdrop-blur-lg border-t border-white/10 pb-safe">
           <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
             <Button
               onClick={handleBack}
               disabled={page === 0 || submitting}
               variant="outline"
-              className="text-white hover:bg-white/10 border-white/20"
+              className="text-white hover:bg-white/10 border-white/20 ios-touch-fix px-5 py-3"
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
@@ -582,7 +605,7 @@ export default function OnboardingForm() {
               disabled={submitting || (page === 1 && !formData.username)}
               variant={page === totalSteps - 1 ? "default" : "secondary"}
               className={cn(
-                "min-w-[100px] transition-all",
+                "min-w-[100px] transition-all ios-touch-fix px-5 py-3",
                 page === totalSteps - 1 
                   ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
                   : "bg-purple-500 hover:bg-purple-600 text-white"
