@@ -1,3 +1,5 @@
+'use client';
+
 // This file is imported in layout.tsx to properly handle favicon
 export const Favicon = () => (
   <>

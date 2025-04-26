@@ -1,10 +1,15 @@
 import "./globals.css"
-import "./pwa.css"
+import "./pwa.css"  // Import the PWA optimizations
 import { Inter } from "next/font/google"
 import { ReactNode } from 'react'
 import Providers from './providers'
 import { Viewport } from 'next'
-import { Favicon } from './favicon'
+import dynamic from 'next/dynamic'
+
+// Dynamically import the Favicon component with no SSR
+const Favicon = dynamic(() => import('./favicon').then(mod => mod.Favicon), {
+  ssr: false
+});
 
 const inter = Inter({ 
   subsets: ["latin"],
