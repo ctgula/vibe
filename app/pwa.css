@@ -1,0 +1,90 @@
+/* Mobile PWA optimizations */
+
+/* Use full viewport heights including safe areas for notched devices */
+html, body {
+  min-height: 100%;
+  min-height: -webkit-fill-available;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  touch-action: manipulation;
+}
+
+/* Fix for iOS Safari 100vh issue */
+@supports (-webkit-touch-callout: none) {
+  html, body {
+    height: -webkit-fill-available;
+  }
+}
+
+/* Full-height containers */
+#app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  height: 100vh;
+  height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  position: fixed;
+  inset: 0;
+}
+
+/* Apply safe area insets for notched devices */
+.safe-area-insets {
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+/* Scrollable content container with momentum scrolling */
+.pwa-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  position: relative;
+  height: 100%;
+}
+
+/* Keep inputs visible when keyboard is shown on mobile */
+input, textarea, select, button {
+  font-size: 16px; /* Prevents iOS zoom on focus */
+}
+
+@media (display-mode: standalone) {
+  /* Styles for when the app is installed as PWA */
+  .pwa-only {
+    display: block;
+  }
+  
+  .browser-only {
+    display: none;
+  }
+  
+  /* Add extra bottom padding for notched devices in standalone mode */
+  .pwa-bottom-safe {
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+}
+
+/* Hide browser UI elements when in PWA mode */
+@media (display-mode: standalone) {
+  .app-header {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+  
+  .app-footer {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+}
+
+/* Fix blurry text during animations on iOS */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transform: translateZ(0);
+}

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" rx="128" fill="#000000"/>
+  
+  <!-- Blue gradient overlay -->
+  <rect width="512" height="512" rx="128" fill="url(#blue-gradient)" opacity="0.9"/>
+  
+  <!-- Logo -->
+  <g transform="translate(106, 106) scale(0.6)">
+    <!-- Sound wave elements -->
+    <circle cx="256" cy="256" r="120" stroke="#FFFFFF" stroke-width="24" fill="none" />
+    <circle cx="256" cy="256" r="180" stroke="#FFFFFF" stroke-width="16" fill="none" opacity="0.7" />
+    <circle cx="256" cy="256" r="240" stroke="#FFFFFF" stroke-width="12" fill="none" opacity="0.4" />
+    
+    <!-- V letter in center -->
+    <path d="M216 176L256 336L296 176" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  
+  <!-- Gradients -->
+  <defs>
+    <linearGradient id="blue-gradient" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+  </defs>
+</svg>

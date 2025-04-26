@@ -6,7 +6,7 @@
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#38bdf8",
-  "orientation": "portrait-primary",
+  "orientation": "portrait",
   "categories": ["social", "entertainment", "communication"],
   "screenshots": [
     {
@@ -70,6 +70,12 @@
       "purpose": "any maskable"
     },
     {
+      "src": "/icons/icon-167x167.png",
+      "sizes": "167x167",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
@@ -101,24 +107,16 @@
   },
   "handle_links": "preferred",
   "launch_handler": {
-    "client_mode": "auto"
+    "client_mode": ["navigate-existing", "auto"]
   },
   "scope": "/",
   "id": "vibe-live-audio-rooms",
   "dir": "ltr",
   "lang": "en",
-  "iarc_rating_id": "",
-  "share_target": {
-    "action": "/share-target",
-    "method": "GET",
-    "params": {
-      "title": "title",
-      "text": "text",
-      "url": "url"
-    }
-  },
   "display_override": [
-    "window-controls-overlay",
-    "standalone"
-  ]
+    "standalone",
+    "minimal-ui",
+    "fullscreen"
+  ],
+  "capture_links": "existing-client-navigate"
 }
