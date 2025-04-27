@@ -113,78 +113,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    // Only run on client side
+    // Only run in the client
     if (!isClient) return;
     
+    console.log('AUTH STATE: Starting auth initialization');
+    
+    // Initialize auth state
     const initializeAuth = async () => {
+      console.log('AUTH STATE: Running initializeAuth');
       try {
-        console.log('Initializing auth...');
-        setIsLoading(true); 
-
-        // 1. Check for authenticated session first
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        setIsLoading(true);
+        setAuthLoading(true);
+        
+        // 1. First check for an active session
+        console.log('AUTH STATE: Checking for active session');
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
-          console.error('Error getting session:', sessionError);
-          setIsLoading(false); // Make sure to set loading to false even if there's an error
-          return;
+          console.error('AUTH STATE: Session error:', sessionError);
+          throw sessionError;
         }
         
-        // 2. Set up auth state change listener
-        const { data: authListener } = supabase.auth.onAuthStateChange(
-          async (event, newSession) => {
-            console.log('Auth state changed:', event, newSession?.user?.id);
-            
-            // Update user state
-            const newUser = newSession?.user || null;
-            setUser((prev: any) => {
-              // Only update if actually different to avoid re-renders
-              if (JSON.stringify(prev?.id) !== JSON.stringify(newUser?.id)) {
-                return newUser;
-              }
-              return prev;
-            });
-            
-            // If user logs in or changes, fetch their profile
-            if (newUser) {
-              try {
-                // Try to fetch profile
-                const userProfile = await fetchUserProfile(newUser.id);
-                
-                // If no profile exists, create an empty one
-                if (!userProfile) {
-                  console.log('No profile found, creating empty profile');
-                  await createEmptyProfile(newUser.id);
-                  // Fetch again after creation
-                  await fetchUserProfile(newUser.id);
-                }
-              } catch (err) {
-                console.error('Error handling profile change:', err);
-              }
-            } else {
-              // Clear profile state when user signs out
-              setProfile(null);
-            }
-          }
-        );
+        const session = sessionData?.session;
         
-        // 3. Update initial user state
-        if (session?.user) {
-          console.log('Session exists, setting user', session.user.id);
-          setUser(session.user);
+        // 2. If we have a session, get the user and profile
+        if (session) {
+          console.log('AUTH STATE: Session found, user:', session.user.id);
+          setUser(session.user); // Set user immediately
+          
+          // 3. Set up auth state change listener
+          console.log('AUTH STATE: Setting up auth listener');
+          const {
+            data: { subscription },
+          } = supabase.auth.onAuthStateChange((event, newSession) => {
+            console.log('AUTH STATE: Auth state changed:', event, newSession?.user?.id);
+            
+            if (event === 'SIGNED_IN' && newSession) {
+              setUser(newSession.user);
+              // Fetch user profile after sign-in
+              fetchUserProfile(newSession.user.id);
+            } else if (event === 'SIGNED_OUT') {
+              setUser(null);
+              setProfile(null);
+              // Clear any stored guest session
+              clearGuestSession();
+            }
+          });
           
           // 4. Try to fetch user profile
+          console.log('AUTH STATE: Fetching user profile');
           const userProfile = await fetchUserProfile(session.user.id);
           
           // 5. Create empty profile if needed
           if (!userProfile) {
-            console.log('No profile found for authenticated user, creating');
+            console.log('AUTH STATE: No profile found, creating empty profile');
             await createEmptyProfile(session.user.id);
             // Refresh profile after creation
             await fetchUserProfile(session.user.id);
           }
+          
+          // Cleanup subscription on unmount
+          return () => {
+            console.log('AUTH STATE: Cleaning up auth subscription');
+            subscription.unsubscribe();
+          };
         } else {
-          console.log('No session, checking for guest');
+          console.log('AUTH STATE: No session, checking for guest');
           setUser(null);
           
           // 6. Check for guest session
@@ -193,11 +187,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         setAuthInitialized(true);
       } catch (err) {
-        console.error('Auth initialization error:', err);
+        console.error('AUTH STATE: Init error:', err);
       } finally {
         // Always set loading to false after initialization attempt
-        console.log('Auth initialization complete, setting isLoading to false');
+        console.log('AUTH STATE: Init complete, setting isLoading to false');
         setIsLoading(false);
+        setAuthLoading(false);
       }
     };
 
@@ -209,11 +204,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // This prevents the app from being stuck in a loading state
     const safetyTimeout = setTimeout(() => {
       if (isLoading) {
-        console.log('Safety timeout triggered: forcing isLoading to false');
+        console.log('AUTH STATE: Safety timeout triggered: forcing isLoading to false');
         setIsLoading(false);
       }
       if (authLoading) {
-        console.log('Safety timeout triggered: forcing authLoading to false');
+        console.log('AUTH STATE: Safety timeout triggered: forcing authLoading to false');
         setAuthLoading(false);
       }
     }, 5000); // 5 second maximum loading time
@@ -247,39 +242,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Helper to check for guest session
+  // Utility to check for guest session
   const checkGuestSession = async () => {
-    if (!isClient) return null;
+    if (!isClient) return;
     
     try {
-      // First check for guestProfileId (primary) then guest_id (legacy)
-      const storedGuestId = localStorage.getItem('guestProfileId') || localStorage.getItem('guest_id');
-      if (!storedGuestId) return null;
+      const guestProfileId = localStorage.getItem('guestProfileId');
+      console.log('Checking for guest session:', guestProfileId);
       
-      console.log('Checking guest session:', storedGuestId);
-      setGuestId(storedGuestId);
-      
-      // Fetch guest profile
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', storedGuestId)
-        .eq('is_guest', true)
-        .single();
-      
-      if (error || !data) {
-        console.error('Guest profile error or not found:', error);
-        await clearGuestSession();
-        return null;
+      if (guestProfileId) {
+        // Only proceed if we don't already have an authenticated user
+        if (!user) {
+          console.log('Found guest profile ID, fetching profile');
+          
+          const { data: guestProfile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', guestProfileId)
+            .eq('is_guest', true)
+            .maybeSingle();
+          
+          if (profileError) {
+            console.error('Error fetching guest profile:', profileError);
+            return;
+          }
+          
+          if (guestProfile) {
+            console.log('Found valid guest profile:', guestProfile);
+            // Set guest profile as the active profile
+            setProfile(guestProfile);
+            
+            // Mark that we have a valid guest session
+            setGuestId(guestProfileId);
+          } else {
+            console.log('Guest profile not found or is not a guest, clearing localStorage');
+            localStorage.removeItem('guestProfileId');
+          }
+        } else {
+          console.log('Already have authenticated user, ignoring guest session');
+        }
+      } else {
+        console.log('No guestProfileId found in localStorage');
       }
-      
-      console.log('Guest profile loaded:', data);
-      setProfile(data);
-      return data;
-    } catch (error) {
-      console.error('Exception checking guest session:', error);
-      await clearGuestSession();
-      return null;
+    } catch (err) {
+      console.error('Error checking guest session:', err);
     }
   };
 
