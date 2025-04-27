@@ -114,7 +114,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Only run in the client
-    if (!isClient) return;
+    if (!isClient) {
+      console.log('AUTH STATE: Skipping auth initialization on server');
+      return;
+    }
     
     console.log('AUTH STATE: Starting auth initialization');
     
@@ -174,15 +177,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           // Cleanup subscription on unmount
           return () => {
-            console.log('AUTH STATE: Cleaning up auth subscription');
-            subscription.unsubscribe();
+            if (isClient) {
+              console.log('AUTH STATE: Cleaning up auth subscription');
+              subscription.unsubscribe();
+            }
           };
         } else {
           console.log('AUTH STATE: No session, checking for guest');
           setUser(null);
           
           // 6. Check for guest session
-          await checkGuestSession();
+          if (isClient) {
+            await checkGuestSession();
+          }
         }
         
         setAuthInitialized(true);
@@ -196,25 +203,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    if (!authInitialized) {
+    if (!authInitialized && isClient) {
       initializeAuth();
     }
     
     // Add a safety timeout to ensure isLoading is reset after a maximum time
     // This prevents the app from being stuck in a loading state
-    const safetyTimeout = setTimeout(() => {
-      if (isLoading) {
-        console.log('AUTH STATE: Safety timeout triggered: forcing isLoading to false');
-        setIsLoading(false);
-      }
-      if (authLoading) {
-        console.log('AUTH STATE: Safety timeout triggered: forcing authLoading to false');
-        setAuthLoading(false);
-      }
-    }, 5000); // 5 second maximum loading time
+    let safetyTimeout: NodeJS.Timeout;
+    if (isClient) {
+      safetyTimeout = setTimeout(() => {
+        if (isLoading) {
+          console.log('AUTH STATE: Safety timeout triggered: forcing isLoading to false');
+          setIsLoading(false);
+        }
+        if (authLoading) {
+          console.log('AUTH STATE: Safety timeout triggered: forcing authLoading to false');
+          setAuthLoading(false);
+        }
+      }, 5000); // 5 second maximum loading time
+    }
     
     return () => {
-      clearTimeout(safetyTimeout);
+      if (isClient && safetyTimeout) {
+        clearTimeout(safetyTimeout);
+      }
     };
   }, [authInitialized, isClient]); // Add isClient dependency
 

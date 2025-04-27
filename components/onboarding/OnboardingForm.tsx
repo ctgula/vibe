@@ -9,8 +9,21 @@ import { m, AnimatePresence } from 'framer-motion'
 import { Mic, Music2, User, Sparkles, ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { type SupabaseClient } from '@supabase/supabase-js'
 
-const supabase = createClientComponentClient()
+// Initialize supabase client lazily to prevent SSR issues
+let supabaseClient: SupabaseClient | null = null;
+
+// Function to get the Supabase client safely
+const getSupabase = () => {
+  if (typeof window === 'undefined') return null;
+  if (!supabaseClient) {
+    supabaseClient = createClientComponentClient();
+  }
+  return supabaseClient;
+}
+
+const supabase = getSupabase();
 
 const slideVariants = {
   enter: (direction: number) => ({
@@ -61,6 +74,7 @@ export default function OnboardingForm() {
 
   // Handle iOS viewport issues
   useEffect(() => {
+    // Only run on client side
     if (typeof window === 'undefined') return;
     
     // iOS detection
@@ -217,6 +231,15 @@ export default function OnboardingForm() {
     try {
       setLoading(true);
       
+      // Get the Supabase client
+      const supabase = getSupabase();
+      if (!supabase) {
+        console.error('[Onboarding] Failed to initialize Supabase client');
+        setErrorMessage('Could not connect to the database. Please try again later.');
+        setLoading(false);
+        return;
+      }
+      
       // Get the most up-to-date values directly
       const currentUser = user;
       const currentGuestId = guestId || localStorage.getItem('guestProfileId');
@@ -280,14 +303,14 @@ export default function OnboardingForm() {
           
           // Pre-fill form with data from the new profile
           if (newProfile) {
-            setFormData({
-              ...formData,
+            setFormData(prevData => ({
+              ...prevData,
               username: newProfile.username || '',
               displayName: newProfile.display_name || '',
               bio: newProfile.bio || '',
               preferredGenres: newProfile.preferred_genres || [],
               themeColor: newProfile.theme_color || '#6366f1'
-            });
+            }));
           }
         } catch (err) {
           console.error('[Onboarding] Error creating profile:', err);
@@ -339,6 +362,15 @@ export default function OnboardingForm() {
     try {
       setSubmitting(true);
       setErrorMessage(null);
+      
+      // Get the Supabase client
+      const supabase = getSupabase();
+      if (!supabase) {
+        console.error('[Onboarding] Failed to initialize Supabase client');
+        setErrorMessage('Could not connect to the database. Please try again later.');
+        setSubmitting(false);
+        return;
+      }
       
       // Get the right ID (authenticated or guest)
       const profileId = user?.id || guestId;
