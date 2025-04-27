@@ -101,7 +101,7 @@ export default function CallbackPage() {
             try {
               const { data: profileData, error: profileError } = await supabase
                 .from('profiles')
-                .select('onboarding_completed')
+                .select('onboarded')
                 .eq('id', data.session.user.id)
                 .single();
                 
@@ -110,14 +110,14 @@ export default function CallbackPage() {
               }
               
               // Determine redirect path
-              let finalRedirectPath = '/dashboard';
+              let finalRedirectPath = '/directory';
               
               // If redirectPath is specified, use that
               if (redirectPath) {
                 finalRedirectPath = redirectPath;
               } 
               // If onboarding not completed, redirect to onboarding
-              else if (profileData && profileData.onboarding_completed === false) {
+              else if (!profileData || profileData.onboarded === false) {
                 finalRedirectPath = '/onboarding';
               }
               
@@ -135,7 +135,7 @@ export default function CallbackPage() {
             } catch (err) {
               console.error('Error determining redirect path:', err);
               // Default redirect to dashboard
-              window.location.href = '/dashboard';
+              window.location.href = '/directory';
             }
           } else {
             setError('No session found after authentication');
@@ -196,10 +196,10 @@ export default function CallbackPage() {
         
         {message.includes('longer') && (
           <button 
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push('/directory' as Route)}
             className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white font-medium transition-colors"
           >
-            Continue to Dashboard
+            Continue to Directory
           </button>
         )}
       </motion.div>

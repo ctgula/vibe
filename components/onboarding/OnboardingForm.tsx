@@ -124,11 +124,25 @@ export default function OnboardingForm() {
     console.log('[Onboarding] loading:', loading, 'authLoading:', authLoading, 'user:', user, 'guestId:', guestId)
   }, [loading, authLoading, user, guestId])
 
-  // Check for guest profile
   useEffect(() => {
-    const storedGuestId = localStorage.getItem('guestProfileId')
-    if (storedGuestId) {
-      setGuestId(storedGuestId)
+    // Check if there's a guest session in localStorage
+    const checkGuestSession = () => {
+      try {
+        const guestProfileId = localStorage.getItem('guestProfileId');
+        if (guestProfileId) {
+          console.log('[Onboarding] Found guest profile ID:', guestProfileId);
+          setGuestId(guestProfileId);
+        } else {
+          console.log('[Onboarding] No guest profile ID found in localStorage');
+        }
+      } catch (err) {
+        console.error('[Onboarding] Error checking guest session:', err);
+      }
+    };
+    
+    // Only check for guest session on the client
+    if (typeof window !== 'undefined') {
+      checkGuestSession();
     }
   }, [])
 
@@ -152,17 +166,17 @@ export default function OnboardingForm() {
           throw new Error('No profile ID available');
         }
         
-        console.log('[Onboarding] Using profile ID:', profileId, 'isGuest:', !!guestId);
+        console.log('[Onboarding] Using profile ID:', profileId, 'isGuest:', !!guestId, 'isUser:', !!user);
         
         // First check if the profile exists
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', profileId)
-          .maybeSingle() // Use maybeSingle instead of single to avoid errors when no profile exists
+          .maybeSingle(); // Use maybeSingle instead of single to avoid errors when no profile exists
         
         if (error) {
-          console.error('Error checking profile:', error);
+          console.error('[Onboarding] Error checking profile:', error);
           throw error;
         }
         
@@ -173,6 +187,7 @@ export default function OnboardingForm() {
             // Use the createEmptyProfile from useAuth which handles proper profile creation
             if (user) {
               await createEmptyProfile(user.id);
+              console.log('[Onboarding] Created empty profile for user:', user.id);
             } else if (guestId) {
               // For guest profiles, create directly
               await supabase.from('profiles').insert({
@@ -183,6 +198,7 @@ export default function OnboardingForm() {
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
               });
+              console.log('[Onboarding] Created guest profile for:', guestId);
             }
             
             // Re-fetch the newly created profile
@@ -193,7 +209,7 @@ export default function OnboardingForm() {
               .single();
             
             if (newProfileError) {
-              console.error('Error fetching new profile:', newProfileError);
+              console.error('[Onboarding] Error fetching new profile:', newProfileError);
               throw newProfileError;
             }
             
@@ -211,7 +227,7 @@ export default function OnboardingForm() {
               });
             }
           } catch (err) {
-            console.error('Error creating profile:', err);
+            console.error('[Onboarding] Error creating profile:', err);
             setErrorMessage('Failed to initialize your profile. Please try again or sign out and sign back in.');
           }
         } else {
@@ -235,7 +251,7 @@ export default function OnboardingForm() {
           });
         }
       } catch (err) {
-        console.error('Error in initializeProfile:', err);
+        console.error('[Onboarding] Error in initializeProfile:', err);
         setErrorMessage('Something went wrong while loading your profile');
       } finally {
         setLoading(false);
