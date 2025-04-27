@@ -195,8 +195,21 @@ export default function OnboardingForm() {
     console.log('[Onboarding] Auth check - isFullyLoaded:', isFullyLoaded, 
       'user:', !!user, 'guestId:', !!guestId, 'hasAuthMethod:', hasAuthMethod);
 
+    // Check for just authenticated flag
+    const checkJustAuthenticated = () => {
+      if (typeof window === 'undefined') return false;
+      const justAuth = localStorage.getItem('justAuthenticated') === 'true';
+      if (justAuth) {
+        console.log('[Onboarding] User just authenticated, clearing flag');
+        localStorage.removeItem('justAuthenticated');
+      }
+      return justAuth;
+    };
+    
+    const justAuthenticated = checkJustAuthenticated();
+
     // If loaded and no auth methods found, redirect with delay
-    if (isFullyLoaded && !hasAuthMethod) {
+    if (isFullyLoaded && !hasAuthMethod && !justAuthenticated) {
       console.warn('[Onboarding] No authentication found after loading completed');
       
       // Use a longer delay to account for possible localStorage/auth initialization
@@ -220,9 +233,14 @@ export default function OnboardingForm() {
       return () => clearTimeout(redirectTimeout);
     }
     
-    // If we have an auth method, initialize profile
-    if (isFullyLoaded && hasAuthMethod) {
-      initializeProfile();
+    // If we have an auth method or just authenticated, initialize profile
+    if ((isFullyLoaded && hasAuthMethod) || justAuthenticated) {
+      // If user just authenticated, give a little extra time for Supabase session to be fully established
+      const initDelay = justAuthenticated ? 500 : 0;
+      setTimeout(() => {
+        console.log('[Onboarding] Initializing profile after auth check');
+        initializeProfile();
+      }, initDelay);
     }
   }, [authLoading, loading, user, guestId]);
 

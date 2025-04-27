@@ -101,13 +101,15 @@ export default function CallbackPage() {
             try {
               const { data: profileData, error: profileError } = await supabase
                 .from('profiles')
-                .select('onboarded')
+                .select('onboarded, id')
                 .eq('id', data.session.user.id)
                 .single();
                 
               if (profileError) {
                 console.error('Error checking onboarding status:', profileError);
               }
+              
+              console.log('Profile data in callback:', profileData);
               
               // Determine redirect path
               let finalRedirectPath = '/directory';
@@ -116,9 +118,10 @@ export default function CallbackPage() {
               if (redirectPath) {
                 finalRedirectPath = redirectPath;
               } 
-              // If onboarding not completed, redirect to onboarding
+              // If profile doesn't exist or onboarding not completed, redirect to onboarding
               else if (!profileData || profileData.onboarded === false) {
                 finalRedirectPath = '/onboarding';
+                console.log('Redirecting to onboarding because onboarded =', profileData?.onboarded);
               }
               
               console.log('Redirecting to:', finalRedirectPath);
@@ -126,6 +129,9 @@ export default function CallbackPage() {
               // Clear stored redirect paths
               localStorage.removeItem('redirectAfterAuth');
               sessionStorage.removeItem('redirectAfterAuth');
+              
+              // Store auth success flag
+              localStorage.setItem('justAuthenticated', 'true');
               
               // Use direct window.location for more reliable redirect
               setTimeout(() => {
