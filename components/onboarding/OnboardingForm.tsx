@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/use-supabase-auth'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
@@ -71,6 +71,8 @@ export default function OnboardingForm() {
   const [viewportHeight, setViewportHeight] = useState('100vh')
   const [isIOSDevice, setIsIOSDevice] = useState(false)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
+  const initAttemptedRef = useRef(false)
+  const safetyTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Handle iOS viewport issues
   useEffect(() => {
@@ -244,9 +246,34 @@ export default function OnboardingForm() {
     }
   }, [authLoading, loading, user, guestId]);
 
+  // Add safety timeout to ensure we don't get stuck loading forever
+  useEffect(() => {
+    // Only set a safety timeout on the client
+    if (typeof window === 'undefined') return;
+    
+    // Create a safety timeout to prevent indefinite loading
+    safetyTimeoutRef.current = setTimeout(() => {
+      console.log('[Onboarding] Safety timeout triggered - forcing loading=false');
+      setLoading(false);
+      
+      // Only show error if we attempted initialization but it didn't complete
+      if (initAttemptedRef.current) {
+        setErrorMessage('The profile took too long to load. Please try refreshing the page.');
+      }
+    }, 10000); // 10 second safety timeout
+    
+    return () => {
+      // Clean up the timeout
+      if (safetyTimeoutRef.current) {
+        clearTimeout(safetyTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Move initializeProfile outside the effect for clarity
   const initializeProfile = async () => {
     try {
+      console.log('[Onboarding] Starting initializeProfile, setting loading=true');
       setLoading(true);
       
       // Get the Supabase client
@@ -267,12 +294,14 @@ export default function OnboardingForm() {
       if (!profileId) {
         console.error('[Onboarding] No profile ID available, aborting');
         setErrorMessage('Could not determine your identity. Please try signing in again.');
+        setLoading(false);
         throw new Error('No profile ID available');
       }
       
       console.log('[Onboarding] Using profile ID:', profileId, 'isGuest:', !currentUser, 'isUser:', !!currentUser);
       
       // First check if the profile exists
+      console.log('[Onboarding] Checking if profile exists...');
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
@@ -281,6 +310,7 @@ export default function OnboardingForm() {
       
       if (error) {
         console.error('[Onboarding] Error checking profile:', error);
+        setLoading(false);
         throw error;
       }
       
@@ -306,6 +336,7 @@ export default function OnboardingForm() {
           }
           
           // Re-fetch the newly created profile
+          console.log('[Onboarding] Fetching newly created profile');
           const { data: newProfile, error: newProfileError } = await supabase
             .from('profiles')
             .select('*')
@@ -314,6 +345,7 @@ export default function OnboardingForm() {
           
           if (newProfileError) {
             console.error('[Onboarding] Error fetching new profile:', newProfileError);
+            setLoading(false);
             throw newProfileError;
           }
           
@@ -329,10 +361,14 @@ export default function OnboardingForm() {
               preferredGenres: newProfile.preferred_genres || [],
               themeColor: newProfile.theme_color || '#6366f1'
             }));
+          } else {
+            console.warn('[Onboarding] New profile is null after creation');
           }
         } catch (err) {
           console.error('[Onboarding] Error creating profile:', err);
           setErrorMessage('Failed to initialize your profile. Please try again or sign out and sign back in.');
+          setLoading(false);
+          return;
         }
       } else {
         console.log('[Onboarding] Found existing profile:', profile);
@@ -358,7 +394,9 @@ export default function OnboardingForm() {
       console.error('[Onboarding] Error in initializeProfile:', err);
       setErrorMessage('Something went wrong while loading your profile');
     } finally {
+      console.log('[Onboarding] initializeProfile complete, setting loading=false');
       setLoading(false);
+      initAttemptedRef.current = true;
     }
   };
 
@@ -451,9 +489,11 @@ export default function OnboardingForm() {
   const renderStep = () => {
     // Show loading state
     if (loading || authLoading) {
+      console.log('[Onboarding] Rendering loading state - loading:', loading, 'authLoading:', authLoading);
       return (
-        <div className="flex items-center justify-center min-h-[50vh]">
-          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-purple-500" />
+        <div className="flex flex-col items-center justify-center min-h-[50vh] p-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mb-4" />
+          <p className="text-white/70 text-sm">Loading your profile...</p>
         </div>
       )
     }
