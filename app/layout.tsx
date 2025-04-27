@@ -5,47 +5,47 @@ import { Inter } from "next/font/google"
 import { ReactNode } from 'react'
 import Providers from './providers'
 import { Viewport } from 'next'
-import dynamic from 'next/dynamic'
 
-// Dynamically import the Favicon component with no SSR
-const Favicon = dynamic(() => import('./favicon'), {
-  ssr: false
-});
-
-const inter = Inter({ 
-  subsets: ["latin"],
-  display: 'swap',
-  preload: true,
-  fallback: ['system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI'],
-})
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: "Vibe",
-  description: "Next generation audio collaboration",
-  manifest: "/manifest.json",
-  // Theme color moved to viewport export
+  title: 'Vibe | Live Audio Rooms',
+  description: 'Connect through live audio rooms with spatial audio',
+  manifest: '/manifest.json',
+  themeColor: '#38bdf8',
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
-    title: "Vibe",
+    statusBarStyle: 'black-translucent',
+    title: 'Vibe'
   },
-  other: {
-    "mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-title": "Vibe",
-    "application-name": "Vibe",
-    "msapplication-TileColor": "#38bdf8",
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icons/icon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/icons/icon-32x32.png', sizes: '32x32', type: 'image/png' }
+    ],
+    apple: [
+      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+      { url: '/icons/icon-152x152.png', sizes: '152x152', type: 'image/png' },
+      { url: '/icons/icon-167x167.png', sizes: '167x167', type: 'image/png' }
+    ]
+  },
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 5,
+    userScalable: true,
+    viewportFit: 'cover'
   }
 }
 
 export const viewport: Viewport = {
-  width: "device-width",
+  width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
-  minimumScale: 1,
   userScalable: true,
-  viewportFit: "cover",
-  themeColor: "#38bdf8", // Match theme color with manifest.json
+  viewportFit: 'cover',
+  themeColor: '#38bdf8'
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -60,7 +60,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       }}
     >
       <head>
-        {typeof window !== 'undefined' && <Favicon />}
+        {/* Static favicon links - no dynamic component needed */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/icons/icon-32x32.png" type="image/png" sizes="32x32" />
+        <link rel="icon" href="/icons/icon-16x16.png" type="image/png" sizes="16x16" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="Vibe" />
         <meta name="mobile-web-app-capable" content="yes" />
@@ -89,7 +94,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link rel="apple-touch-startup-image" href="/icons/apple-splash-dark-750-1334.png" media="(prefers-color-scheme: dark) and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
         <link rel="apple-touch-startup-image" href="/icons/apple-splash-dark-640-1136.png" media="(prefers-color-scheme: dark) and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
         
-        {/* Add iOS height fix script */}
+        {/* Add iOS height fix script - safely wrapped for SSR */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -125,16 +130,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           isolation: "isolate",
         }}
       >
-        {/* Remove direct access to DOM during SSR */}
-        {typeof window !== 'undefined' && (
-          <div id="ios-splash-screen" className="ios-splash-screen">
-            <div className="ios-splash-logo">
-              <div className="ios-splash-logo-inner">V</div>
-            </div>
-            <div className="ios-splash-app-name">Vibe</div>
-            <div className="ios-splash-loader"></div>
+        {/* Client-side only splash screen */}
+        <div id="ios-splash-screen" className="ios-splash-screen" style={{ display: 'none' }}>
+          <div className="ios-splash-logo">
+            <div className="ios-splash-logo-inner">V</div>
           </div>
-        )}
+          <div className="ios-splash-app-name">Vibe</div>
+          <div className="ios-splash-loader"></div>
+        </div>
         
         <Providers>
           <div id="app-root" className="relative ios-safe-area">
@@ -142,11 +145,32 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           </div>
         </Providers>
         
-        {/* iOS scripts - client side only */}
-        {typeof window !== 'undefined' && (
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
+        {/* iOS scripts - safely wrapped for SSR */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (typeof window !== 'undefined') {
+                // Show splash screen for iOS PWA
+                const splashScreen = document.getElementById('ios-splash-screen');
+                if (splashScreen) {
+                  // Only show on iOS PWA mode
+                  if (
+                    window.navigator.standalone || 
+                    window.matchMedia('(display-mode: standalone)').matches
+                  ) {
+                    splashScreen.style.display = 'flex';
+                    
+                    // Hide splash screen after app loaded
+                    setTimeout(function() {
+                      splashScreen.classList.add('loaded');
+                      // Remove from DOM after animation completes
+                      setTimeout(function() {
+                        splashScreen.remove();
+                      }, 500);
+                    }, 1500);
+                  }
+                }
+                
                 // Prevent iOS double-tap zoom
                 document.addEventListener('touchend', function(e) {
                   var targetElement = e.target;
@@ -176,35 +200,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 }, {passive: false});
                 
                 // Handle guest auth persistence
-                function checkGuestSession() {
-                  const guestId = localStorage.getItem('guestProfileId');
-                  if (guestId) {
-                    console.log('Found guest session:', guestId);
-                    // Guest session will be handled by the app's auth context
-                  }
+                const guestId = localStorage.getItem('guestProfileId');
+                if (guestId) {
+                  console.log('Found guest session:', guestId);
+                  // Guest session will be handled by the app's auth context
                 }
-                
-                // Handle iOS splash screen
-                document.addEventListener('DOMContentLoaded', function() {
-                  const splashScreen = document.getElementById('ios-splash-screen');
-                  if (splashScreen) {
-                    // Hide splash screen after app loaded
-                    setTimeout(function() {
-                      splashScreen.classList.add('loaded');
-                      // Remove from DOM after animation completes
-                      setTimeout(function() {
-                        splashScreen.remove();
-                      }, 500);
-                    }, 1500);
-                  }
-                  
-                  // Check for guest session
-                  checkGuestSession();
-                });
-              `,
-            }}
-          />
-        )}
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   )
