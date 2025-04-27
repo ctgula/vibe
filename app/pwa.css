@@ -304,3 +304,51 @@ input, textarea, select, button {
     }
   }
 }
+
+/* iOS body fixes - prevent infinite scroll and bounce */
+.ios-fixed-body {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  overscroll-behavior: none;
+  overflow: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* iOS scroll container */
+.ios-scroll-fix {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: none;
+  scroll-behavior: smooth;
+}
+
+/* Specific styles for when keyboard is active */
+.ios-keyboard-active {
+  /* Prevent content jumping when keyboard appears */
+  height: 100% !important;
+  position: fixed;
+  overflow: hidden;
+}
+
+.ios-keyboard-active .ios-scroll-fix {
+  /* Allow scrolling within container when keyboard is open */
+  overflow-y: auto;
+  max-height: calc(100vh - 60px);
+}
+
+.ios-keyboard-open {
+  /* Prevent body scrolling when keyboard is active */
+  overflow: hidden !important;
+}
+
+/* Prevent rubber-banding/bounce effects */
+html, body {
+  overscroll-behavior-y: none;
+}
+
+@media screen and (orientation: portrait) {
+  .ios-keyboard-active .fixed {
+    /* Keep fixed elements visible above keyboard */
+    bottom: var(--keyboard-height, 0px) !important;
+  }
+}

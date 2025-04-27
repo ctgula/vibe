@@ -57,9 +57,12 @@ export default function OnboardingForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [viewportHeight, setViewportHeight] = useState('100vh')
   const [isIOSDevice, setIsIOSDevice] = useState(false)
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
 
   // Handle iOS viewport issues
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     // iOS detection
     const checkIOSDevice = () => {
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
@@ -68,11 +71,19 @@ export default function OnboardingForm() {
       return isIOS;
     };
 
-    // Set viewport height
+    // Set viewport height - fix for iOS
     const updateViewportHeight = () => {
-      const vh = window.innerHeight * 0.01;
-      document.documentElement.style.setProperty('--vh', `${vh}px`);
-      setViewportHeight(`${window.innerHeight}px`);
+      // Use a more reliable calculation for viewport height
+      const vh = window.innerHeight;
+      setViewportHeight(`${vh}px`);
+      
+      // Store it as a CSS variable for use in styled components
+      document.documentElement.style.setProperty('--vh', `${vh * 0.01}px`);
+      
+      // Add a class to body for fixed positioning
+      if (isIOSDevice) {
+        document.body.classList.add('ios-fixed-body');
+      }
     };
 
     const isIOS = checkIOSDevice();
@@ -81,19 +92,31 @@ export default function OnboardingForm() {
     // Update on resize and orientation change
     window.addEventListener('resize', updateViewportHeight);
     window.addEventListener('orientationchange', () => {
-      // Small timeout to ensure the browser has updated the viewport
-      setTimeout(updateViewportHeight, 100);
+      // Longer timeout to ensure the browser has updated the viewport
+      setTimeout(updateViewportHeight, 300);
     });
 
-    // If iOS, add specific fixes
+    // If iOS, add specific fixes for keyboard
     if (isIOS) {
-      // Prevent scrolling of the body when inputs are focused
+      // Track when keyboard is open
       const handleFocus = () => {
+        setKeyboardOpen(true);
         document.body.classList.add('ios-keyboard-open');
+        // When keyboard opens, scroll to the focused element
+        setTimeout(() => {
+          const activeElement = document.activeElement as HTMLElement;
+          if (activeElement) {
+            // Scroll the active element into view
+            activeElement.scrollIntoView({behavior: 'smooth', block: 'center'});
+          }
+        }, 300);
       };
       
       const handleBlur = () => {
+        setKeyboardOpen(false);
         document.body.classList.remove('ios-keyboard-open');
+        // When keyboard closes, scroll back to top
+        window.scrollTo(0, 0);
       };
       
       const inputElements = document.querySelectorAll('input, textarea');
@@ -105,6 +128,8 @@ export default function OnboardingForm() {
       return () => {
         window.removeEventListener('resize', updateViewportHeight);
         window.removeEventListener('orientationchange', updateViewportHeight);
+        document.body.classList.remove('ios-fixed-body');
+        document.body.classList.remove('ios-keyboard-open');
         
         inputElements.forEach(el => {
           el.removeEventListener('focus', handleFocus);
@@ -116,6 +141,7 @@ export default function OnboardingForm() {
     return () => {
       window.removeEventListener('resize', updateViewportHeight);
       window.removeEventListener('orientationchange', updateViewportHeight);
+      document.body.classList.remove('ios-fixed-body');
     };
   }, []);
 
@@ -629,20 +655,32 @@ export default function OnboardingForm() {
 
   return (
     <div 
-      className="min-h-screen bg-black text-white ios-safe-area"
+      className={cn(
+        "bg-black text-white ios-safe-area",
+        keyboardOpen ? "ios-keyboard-active" : ""
+      )}
       style={{
-        minHeight: isIOSDevice ? `calc(var(--vh, 1vh) * 100)` : '100vh',
-        height: isIOSDevice ? viewportHeight : 'auto'
+        height: isIOSDevice ? viewportHeight : '100vh',
+        maxHeight: isIOSDevice ? viewportHeight : '100vh',
+        overflow: 'hidden',
+        position: isIOSDevice ? 'fixed' : 'relative',
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
+        width: '100%'
       }}
     >
-      <div className="flex flex-col min-h-[inherit]">
-        <div className="flex-1 max-w-4xl mx-auto px-4 py-8 pt-safe">
-          <div className="relative">
-            {renderStep()}
+      <div className="flex flex-col h-full overflow-hidden">
+        <div className="flex-1 overflow-y-auto ios-scroll-fix pb-[70px]">
+          <div className="max-w-4xl mx-auto px-4 py-8 pt-safe">
+            <div className="relative">
+              {renderStep()}
+            </div>
           </div>
         </div>
 
-        <div className="sticky bottom-0 bg-black/80 backdrop-blur-lg border-t border-white/10 pb-safe">
+        <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-lg border-t border-white/10 pb-safe">
           <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
             <Button
               onClick={handleBack}
