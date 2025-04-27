@@ -52,7 +52,7 @@ export default function OnboardingForm() {
   })
   const totalSteps = 4
   const router = useRouter()
-  const { user, isLoading: authLoading, createEmptyProfile } = useAuth()
+  const { user, isLoading: authLoading, createEmptyProfile, profile, setProfile } = useAuth()
   const [guestId, setGuestId] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [viewportHeight, setViewportHeight] = useState('100vh')
