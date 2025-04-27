@@ -133,24 +133,26 @@ export default function OnboardingForm() {
   }, [])
 
   useEffect(() => {
-    if (authLoading) return
+    if (authLoading) return;
     
     // If neither authenticated user nor guest user, redirect to signin
     if (!user && !guestId) {
-      console.warn('[Onboarding] No user or guest found, redirecting to /auth/signin')
-      router.push('/auth/signin')
-      return
+      console.warn('[Onboarding] No user or guest found, redirecting to /auth/signin');
+      router.push('/auth/signin');
+      return;
     }
 
     const initializeProfile = async () => {
       try {
-        setLoading(true)
+        setLoading(true);
         
         // Determine which ID to use (auth user or guest)
-        const profileId = user?.id || guestId
+        const profileId = user?.id || guestId;
         if (!profileId) {
-          throw new Error('No profile ID available')
+          throw new Error('No profile ID available');
         }
+        
+        console.log('[Onboarding] Using profile ID:', profileId, 'isGuest:', !!guestId);
         
         // First check if the profile exists
         const { data: profile, error } = await supabase
@@ -160,17 +162,17 @@ export default function OnboardingForm() {
           .maybeSingle() // Use maybeSingle instead of single to avoid errors when no profile exists
         
         if (error) {
-          console.error('Error checking profile:', error)
-          throw error
+          console.error('Error checking profile:', error);
+          throw error;
         }
         
         // If no profile exists, create an empty one
         if (!profile) {
-          console.log('[Onboarding] No profile found, creating empty profile')
+          console.log('[Onboarding] No profile found, creating empty profile');
           try {
             // Use the createEmptyProfile from useAuth which handles proper profile creation
             if (user) {
-              await createEmptyProfile(user.id)
+              await createEmptyProfile(user.id);
             } else if (guestId) {
               // For guest profiles, create directly
               await supabase.from('profiles').insert({
@@ -180,7 +182,7 @@ export default function OnboardingForm() {
                 is_guest: true,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
-              })
+              });
             }
             
             // Re-fetch the newly created profile
@@ -188,41 +190,61 @@ export default function OnboardingForm() {
               .from('profiles')
               .select('*')
               .eq('id', profileId)
-              .single()
+              .single();
             
             if (newProfileError) {
-              console.error('Error fetching new profile:', newProfileError)
-              throw newProfileError
+              console.error('Error fetching new profile:', newProfileError);
+              throw newProfileError;
             }
             
-            console.log('[Onboarding] Created new profile:', newProfile)
+            console.log('[Onboarding] Created new profile:', newProfile);
+            
+            // Pre-fill form with data from the new profile
+            if (newProfile) {
+              setFormData({
+                ...formData,
+                username: newProfile.username || '',
+                displayName: newProfile.display_name || '',
+                bio: newProfile.bio || '',
+                preferredGenres: newProfile.preferred_genres || [],
+                themeColor: newProfile.theme_color || '#6366f1'
+              });
+            }
           } catch (err) {
-            console.error('Error creating profile:', err)
-            setErrorMessage('Failed to initialize your profile. Please try again or sign out and sign back in.')
+            console.error('Error creating profile:', err);
+            setErrorMessage('Failed to initialize your profile. Please try again or sign out and sign back in.');
           }
         } else {
-          console.log('[Onboarding] Found existing profile:', profile)
-          // If we have a username already, use it (for guest accounts)
-          if (profile.username) {
-            setFormData(prevData => ({
-              ...prevData,
-              username: profile.username || '',
-              displayName: profile.display_name || '',
-              bio: profile.bio || ''
-            }))
+          console.log('[Onboarding] Found existing profile:', profile);
+          
+          // Check if user has already completed onboarding
+          if (profile.onboarded) {
+            console.log('[Onboarding] User already completed onboarding, redirecting to /directory');
+            router.push('/directory');
+            return;
           }
+          
+          // Pre-fill form with existing profile data
+          setFormData({
+            ...formData,
+            username: profile.username || '',
+            displayName: profile.display_name || '',
+            bio: profile.bio || '',
+            preferredGenres: profile.preferred_genres || [],
+            themeColor: profile.theme_color || '#6366f1'
+          });
         }
       } catch (err) {
-        console.error('Error in initializeProfile:', err)
-        setErrorMessage('Something went wrong while loading your profile')
+        console.error('Error in initializeProfile:', err);
+        setErrorMessage('Something went wrong while loading your profile');
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
     
-    initializeProfile()
-  }, [authLoading, user, guestId, createEmptyProfile, router])
-  
+    initializeProfile();
+  }, [authLoading, user, guestId, createEmptyProfile, router, formData]);
+
   // Helper to move between steps
   const paginate = (newDirection: number) => {
     setPage([page + newDirection, newDirection])
@@ -239,14 +261,14 @@ export default function OnboardingForm() {
   // Final submit handler
   const handleSubmit = async () => {
     try {
-      setSubmitting(true)
-      setErrorMessage(null)
+      setSubmitting(true);
+      setErrorMessage(null);
       
       // Get the right ID (authenticated or guest)
-      const profileId = user?.id || guestId
+      const profileId = user?.id || guestId;
       
       if (!profileId) {
-        throw new Error('No profile ID available')
+        throw new Error('No profile ID available');
       }
       
       // Prepare data for the database (convert camelCase to snake_case)
@@ -258,47 +280,46 @@ export default function OnboardingForm() {
         theme_color: formData.themeColor,
         onboarded: true,
         updated_at: new Date().toISOString()
-      }
+      };
       
-      console.log('[Onboarding] Submitting profile data:', profileData)
+      console.log('[Onboarding] Submitting profile data:', profileData);
       
       // Update the profile in Supabase
       const { error } = await supabase
         .from('profiles')
         .update(profileData)
-        .eq('id', profileId)
+        .eq('id', profileId);
       
       if (error) {
-        console.error('Error updating profile:', error)
-        throw error
+        console.error('Error updating profile:', error);
+        throw error;
       }
       
-      toast.success('Profile updated successfully')
+      toast.success('Profile updated successfully');
       
-      // Re-fetch the profile to ensure we have latest data
-      const { data: updatedProfile, error: fetchError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', profileId)
-        .single()
-      
-      if (fetchError) {
-        console.error('Error fetching updated profile:', fetchError)
-        throw fetchError
+      // Update local state to match database
+      if (profile) {
+        const updatedProfile = {
+          ...profile,
+          ...profileData
+        };
+        setProfile(updatedProfile);
       }
       
-      console.log('[Onboarding] Updated profile:', updatedProfile)
-      
-      // Redirect to the appropriate page based on account type
-      router.push('/directory')
+      // Wait a moment before redirect to allow toast to show
+      setTimeout(() => {
+        // Redirect to the directory page
+        console.log('[Onboarding] Redirecting to directory page...');
+        window.location.href = '/directory';
+      }, 1000);
     } catch (err) {
-      console.error('Error in handleSubmit:', err)
-      setErrorMessage('Failed to update your profile. Please try again.')
-      toast.error('Something went wrong while updating your profile')
+      console.error('Error in handleSubmit:', err);
+      setErrorMessage('Failed to update your profile. Please try again.');
+      toast.error('Something went wrong while updating your profile');
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
   
   // Render the current step
   const renderStep = () => {

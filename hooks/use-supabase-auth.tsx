@@ -392,18 +392,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Sign up with email and password
    */
   const signUp = async (email: string, password: string): Promise<AuthResponse> => {
-    setIsLoading(true);
-    
-    // Create a safety timeout to prevent hanging
     const safetyTimeout = setTimeout(() => {
-      console.log('Safety timeout reached in signUp');
       setIsLoading(false);
-      toast.error('Request timed out. Please try again.');
-    }, 10000);
+    }, 10000); // Safety timeout in case something hangs
     
     try {
-      console.log('Starting sign up...', { email });
-      toast.info('Creating your account...');
+      console.log('Signing up...');
+      setIsLoading(true);
       
       // Clear any guest session
       await clearGuestSession();
@@ -435,6 +430,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Create an empty profile for the new user
         await createEmptyProfile(response.data.user.id);
         console.log('Empty profile created for new user');
+        
+        // Set the user and authentication state
+        setUser(response.data.user);
+        
+        // Fetch and set the profile
+        const userProfile = await fetchUserProfile(response.data.user.id);
+        if (userProfile) {
+          setProfile(userProfile);
+        }
       } catch (profileError) {
         console.error('Error creating profile, but signup succeeded:', profileError);
         // Don't block the signup flow, continue anyway
