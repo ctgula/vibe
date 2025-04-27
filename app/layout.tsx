@@ -8,7 +8,7 @@ import { Viewport } from 'next'
 import dynamic from 'next/dynamic'
 
 // Dynamically import the Favicon component with no SSR
-const Favicon = dynamic(() => import('./favicon').then(mod => mod.Favicon), {
+const Favicon = dynamic(() => import('./favicon'), {
   ssr: false
 });
 
@@ -60,7 +60,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       }}
     >
       <head>
-        <Favicon />
+        {typeof window !== 'undefined' && <Favicon />}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="Vibe" />
         <meta name="mobile-web-app-capable" content="yes" />
@@ -90,73 +90,23 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link rel="apple-touch-startup-image" href="/icons/apple-splash-dark-640-1136.png" media="(prefers-color-scheme: dark) and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
         
         {/* Add iOS height fix script */}
-        <script dangerouslySetInnerHTML={{
-          __html: `
-            // iOS height calculation fix
-            function setAppHeight() {
-              document.documentElement.style.setProperty('--app-height', window.innerHeight + 'px');
-            }
-            window.addEventListener('resize', setAppHeight);
-            setAppHeight();
-            
-            // Prevent iOS double-tap zoom
-            document.addEventListener('touchend', function(e) {
-              var targetElement = e.target;
-              
-              // Allow taps on inputs and controls
-              if (
-                targetElement.tagName === 'INPUT' || 
-                targetElement.tagName === 'TEXTAREA' || 
-                targetElement.tagName === 'SELECT' || 
-                targetElement.tagName === 'BUTTON' ||
-                targetElement.tagName === 'A' ||
-                targetElement.getAttribute('role') === 'button'
-              ) {
-                return true;
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // iOS height calculation fix
+              function setAppHeight() {
+                document.documentElement.style.setProperty('--app-height', window.innerHeight + 'px');
               }
               
-              var now = Date.now();
-              var lastTouch = targetElement.dataset.lastTouch || 0;
-              var delta = now - lastTouch;
-              
-              if (delta < 500) {
-                e.preventDefault(); // Prevent zoom
-                return false;
+              // Run on page load
+              if (typeof window !== 'undefined') {
+                window.addEventListener('resize', setAppHeight);
+                window.addEventListener('orientationchange', setAppHeight);
+                setAppHeight();
               }
-              
-              targetElement.dataset.lastTouch = now;
-            }, {passive: false});
-            
-            // Handle guest auth persistence
-            function checkGuestSession() {
-              const guestId = localStorage.getItem('guestProfileId');
-              if (guestId) {
-                console.log('Found guest session:', guestId);
-                // Guest session will be handled by the app's auth context
-              }
-            }
-            
-            // Run on page load
-            document.addEventListener('DOMContentLoaded', function() {
-              checkGuestSession();
-            });
-            
-            // Handle iOS splash screen
-            document.addEventListener('DOMContentLoaded', function() {
-              const splashScreen = document.getElementById('ios-splash-screen');
-              if (splashScreen) {
-                // Hide splash screen after app loaded
-                setTimeout(function() {
-                  splashScreen.classList.add('loaded');
-                  // Remove from DOM after animation completes
-                  setTimeout(function() {
-                    splashScreen.remove();
-                  }, 500);
-                }, 1500);
-              }
-            });
-          `
-        }} />
+            `,
+          }}
+        />
       </head>
       <body 
         className="bg-black text-white overflow-x-hidden ios-prevent-bounce ios-safe-area prevent-ios-tap"
@@ -175,20 +125,86 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           isolation: "isolate",
         }}
       >
-        {/* iOS Splash Screen */}
-        <div id="ios-splash-screen" className="ios-splash-screen">
-          <div className="ios-splash-logo">
-            <div className="ios-splash-logo-inner">V</div>
+        {/* Remove direct access to DOM during SSR */}
+        {typeof window !== 'undefined' && (
+          <div id="ios-splash-screen" className="ios-splash-screen">
+            <div className="ios-splash-logo">
+              <div className="ios-splash-logo-inner">V</div>
+            </div>
+            <div className="ios-splash-app-name">Vibe</div>
+            <div className="ios-splash-loader"></div>
           </div>
-          <div className="ios-splash-app-name">Vibe</div>
-          <div className="ios-splash-loader"></div>
-        </div>
+        )}
         
         <Providers>
           <div id="app-root" className="relative ios-safe-area">
             {children}
           </div>
         </Providers>
+        
+        {/* iOS scripts - client side only */}
+        {typeof window !== 'undefined' && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                // Prevent iOS double-tap zoom
+                document.addEventListener('touchend', function(e) {
+                  var targetElement = e.target;
+                  
+                  // Allow taps on inputs and controls
+                  if (
+                    targetElement.tagName === 'INPUT' || 
+                    targetElement.tagName === 'TEXTAREA' || 
+                    targetElement.tagName === 'SELECT' || 
+                    targetElement.tagName === 'BUTTON' ||
+                    targetElement.tagName === 'A' ||
+                    targetElement.getAttribute('role') === 'button'
+                  ) {
+                    return true;
+                  }
+                  
+                  var now = Date.now();
+                  var lastTouch = targetElement.dataset.lastTouch || 0;
+                  var delta = now - lastTouch;
+                  
+                  if (delta < 500) {
+                    e.preventDefault(); // Prevent zoom
+                    return false;
+                  }
+                  
+                  targetElement.dataset.lastTouch = now;
+                }, {passive: false});
+                
+                // Handle guest auth persistence
+                function checkGuestSession() {
+                  const guestId = localStorage.getItem('guestProfileId');
+                  if (guestId) {
+                    console.log('Found guest session:', guestId);
+                    // Guest session will be handled by the app's auth context
+                  }
+                }
+                
+                // Handle iOS splash screen
+                document.addEventListener('DOMContentLoaded', function() {
+                  const splashScreen = document.getElementById('ios-splash-screen');
+                  if (splashScreen) {
+                    // Hide splash screen after app loaded
+                    setTimeout(function() {
+                      splashScreen.classList.add('loaded');
+                      // Remove from DOM after animation completes
+                      setTimeout(function() {
+                        splashScreen.remove();
+                      }, 500);
+                    }, 1500);
+                  }
+                  
+                  // Check for guest session
+                  checkGuestSession();
+                });
+              `,
+            }}
+          />
+        )}
       </body>
     </html>
   )
