@@ -119,11 +119,12 @@ export default function OnboardingForm() {
     };
   }, []);
 
-  // DEBUG LOGGING
+  // Debug state
   useEffect(() => {
     console.log('[Onboarding] loading:', loading, 'authLoading:', authLoading, 'user:', user, 'guestId:', guestId)
   }, [loading, authLoading, user, guestId])
 
+  // Check for guest profile
   useEffect(() => {
     // Check if there's a guest session in localStorage
     const checkGuestSession = () => {
@@ -147,13 +148,28 @@ export default function OnboardingForm() {
   }, [])
 
   useEffect(() => {
-    if (authLoading) return;
+    // Don't do anything until both loading states are resolved
+    if (authLoading || loading) return;
+    
+    console.log('[Onboarding] Auth checks complete - user:', !!user, 'guestId:', !!guestId);
     
     // If neither authenticated user nor guest user, redirect to signin
+    // Add a small delay to avoid redirects during auth state transitions
     if (!user && !guestId) {
-      console.warn('[Onboarding] No user or guest found, redirecting to /auth/signin');
-      router.push('/auth/signin');
-      return;
+      console.warn('[Onboarding] No user or guest found, redirecting to /auth/signin in 1 second');
+      
+      // Use a timeout to ensure we don't redirect during a race condition
+      const redirectTimeout = setTimeout(() => {
+        // Double-check the auth state before redirecting
+        if (!user && !guestId) {
+          console.warn('[Onboarding] Confirming no auth - redirecting to signin');
+          router.push('/auth/signin');
+        } else {
+          console.log('[Onboarding] Auth state changed - cancelling redirect');
+        }
+      }, 1000);
+      
+      return () => clearTimeout(redirectTimeout);
     }
 
     const initializeProfile = async () => {
