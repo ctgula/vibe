@@ -27,7 +27,7 @@ import { RoomHeader } from '@/components/room/RoomHeader';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Room({ params }: { params: { id: string } }) {
-  const { user, profile, guestId, isGuest, isAuthenticated, ensureSessionToken } = useAuth();
+  const { user, profile, isAuthenticated, ensureSessionToken } = useAuth();
   const router = useRouter();
   const [room, setRoom] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -64,13 +64,13 @@ export default function Room({ params }: { params: { id: string } }) {
   const [inviteLink, setInviteLink] = useState('');
 
   // Get the user ID with proper type safety
-  const id = user?.id ?? guestId;
+  const id = user?.id;
 
   // If no user ID is available, return early - fixes TypeScript error
   if (!id) {
     toast({
       title: "Session required",
-      description: "Please login or use guest mode to join a room.",
+      description: "Please login to join a room.",
       variant: "destructive"
     });
     useEffect(() => {
@@ -78,16 +78,8 @@ export default function Room({ params }: { params: { id: string } }) {
     }, [router]);
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-900 p-4">
-        <div className="bg-zinc-800 rounded-lg p-6 max-w-md w-full">
-          <h2 className="text-xl font-semibold text-white mb-4">Authentication Required</h2>
-          <p className="text-zinc-300 mb-4">You must be logged in or in guest mode to join this room.</p>
-          <button
-            className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold"
-            onClick={() => router.replace('/')}
-          >
-            Go Home
-          </button>
-        </div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
+        <p className="text-white/70">Redirecting to login...</p>
       </div>
     );
   }
@@ -173,7 +165,7 @@ export default function Room({ params }: { params: { id: string } }) {
           
           // Handle participant removal
           if (payload.eventType === 'DELETE' && 
-              (payload.old.user_id === user?.id || payload.old.user_id === guestId)) {
+              (payload.old.user_id === user?.id)) {
             setError('You have been removed from this room');
             router.push('/');
           }
@@ -192,7 +184,7 @@ export default function Room({ params }: { params: { id: string } }) {
       console.error('Error in participants subscription:', err);
       setError('Failed to subscribe to participant updates');
     }
-  }, [params.id, room, user?.id, guestId, router]);
+  }, [params.id, room, user?.id, router]);
 
   // Fetch participants
   const fetchParticipants = async () => {
@@ -237,7 +229,7 @@ export default function Room({ params }: { params: { id: string } }) {
       setAudience(audience);
 
       // Check current user's status
-      const currentUserId = user?.id || guestId;
+      const currentUserId = user?.id;
       const currentParticipant = participantsData.find(p => p.user_id === currentUserId);
       
       if (currentParticipant) {
@@ -355,10 +347,10 @@ export default function Room({ params }: { params: { id: string } }) {
     const optimisticMessage = {
       id: Date.now().toString(),
       room_id: params.id,
-      user_id: user?.id || guestId,
+      user_id: user?.id,
       content: messageText,
       created_at: new Date().toISOString(),
-      profiles: { name: profile?.display_name || profile?.username || 'Guest' },
+      profiles: { name: profile?.display_name || profile?.username || 'Anonymous' },
       is_optimistic: true
     };
 
@@ -372,7 +364,7 @@ export default function Room({ params }: { params: { id: string } }) {
         .from('room_messages')
         .insert({
           room_id: params.id,
-          user_id: user?.id || guestId,
+          user_id: user?.id,
           content: messageText,
           created_at: new Date().toISOString()
         });
@@ -445,7 +437,7 @@ export default function Room({ params }: { params: { id: string } }) {
         .from('room_participants')
         .update({ is_muted: !currentMuteState })
         .eq('room_id', params.id)
-        .eq('user_id', user?.id || guestId);
+        .eq('user_id', user?.id);
 
       if (error) {
         console.error('❌ Failed to toggle mute:', error);
@@ -480,7 +472,7 @@ export default function Room({ params }: { params: { id: string } }) {
           has_raised_hand: !hasRaisedHand
         })
         .eq('room_id', params.id)
-        .eq('user_id', user?.id || guestId);
+        .eq('user_id', user?.id);
 
       if (error) {
         console.error('Failed to raise/lower hand:', error);
@@ -596,14 +588,14 @@ export default function Room({ params }: { params: { id: string } }) {
         .from('room_participants')
         .update({ is_active: false })
         .eq('room_id', params.id)
-        .eq('user_id', user?.id || guestId);
+        .eq('user_id', user?.id);
 
       // Log activity
       await supabase
         .from('activity_logs')
         .insert({
           room_id: params.id,
-          user_id: user?.id || guestId,
+          user_id: user?.id,
           action: 'room_left',
           created_at: new Date().toISOString()
         });
@@ -740,10 +732,10 @@ export default function Room({ params }: { params: { id: string } }) {
 
   // Update room activity when joining
   useEffect(() => {
-    if (user || guestId) {
+    if (user) {
       updateRoomActivity();
     }
-  }, [user, guestId]);
+  }, [user]);
 
   // Type-safe room ID handling
   const roomId = params.id || '';
@@ -796,12 +788,12 @@ export default function Room({ params }: { params: { id: string } }) {
   
   // Function to log activity
   const logActivity = async (action: string, details: any = {}) => {
-    if (!user?.id && !guestId) return;
+    if (!user?.id) return;
     
     try {
       await supabase.from("activity_logs").insert({
         room_id: roomId,
-        user_id: user?.id || guestId,
+        user_id: user?.id,
         action,
         details,
         created_at: new Date().toISOString()
@@ -815,7 +807,7 @@ export default function Room({ params }: { params: { id: string } }) {
   useEffect(() => {
     // This will run when the component unmounts
     return () => {
-      if (user?.id || guestId) {
+      if (user?.id) {
         // Clean up room participation when user leaves
         const cleanup = async () => {
           try {
@@ -824,7 +816,7 @@ export default function Room({ params }: { params: { id: string } }) {
               .from('room_participants')
               .delete()
               .eq('room_id', roomId)
-              .eq('user_id', user?.id || guestId);
+              .eq('user_id', user?.id);
               
             if (error) {
               console.error('Error cleaning up room participation:', error);
@@ -837,7 +829,7 @@ export default function Room({ params }: { params: { id: string } }) {
         cleanup();
       }
     };
-  }, [user?.id, guestId]);
+  }, [user?.id]);
 
   // Update active participants
   useEffect(() => {
@@ -956,7 +948,7 @@ export default function Room({ params }: { params: { id: string } }) {
 
   // Get user data safely
   const displayName = profile?.display_name || userName;
-  const avatarUrl = profile?.avatar_url || `https://api.dicebear.com/6.x/avataaars/svg?seed=${user?.id || guestId}`;
+  const avatarUrl = profile?.avatar_url || `https://api.dicebear.com/6.x/avataaars/svg?seed=${user?.id}`;
 
   return (
     <PageTransition>
@@ -988,7 +980,7 @@ export default function Room({ params }: { params: { id: string } }) {
               {/* Audience Section */}
               <Audience
                 listeners={audience}
-                currentUserId={user?.id || guestId || ''}
+                currentUserId={user?.id || ''}
                 promoteToSpeaker={handlePromoteToSpeaker}
                 updateRoomActivity={updateRoomActivity}
                 onRaiseHand={handleAudienceRaiseHand}
