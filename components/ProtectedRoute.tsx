@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/auth';
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requireAuth?: boolean; // If true, requires authenticated user (not guest)
+  requireAuth?: boolean; // If true, requires authenticated user
   fallbackRoute?: string; // Where to redirect if not authenticated
 }
 
@@ -15,19 +15,17 @@ export function ProtectedRoute({
   requireAuth = false,
   fallbackRoute = '/onboarding'
 }: ProtectedRouteProps) {
-  const { user, guestId, isLoading, isAuthenticated, isGuest } = useAuth();
+  const { user, isLoading, isAuthenticated } = useAuth();
   const router = useRouter();
 
   // Log auth state for debugging
   useEffect(() => {
     console.log('Protected route auth state:', { 
       user: !!user, 
-      guestId, 
       isLoading, 
-      isAuthenticated,
-      isGuest 
+      isAuthenticated
     });
-  }, [user, guestId, isLoading, isAuthenticated, isGuest]);
+  }, [user, isLoading, isAuthenticated]);
 
   // Show loading state
   if (isLoading) {
@@ -42,21 +40,21 @@ export function ProtectedRoute({
 
   // Handle authentication requirements
   if (requireAuth && !user) {
-    // If auth is required and user is not authenticated (guest doesn't count)
+    // If auth is required and user is not authenticated
     console.log('Auth required but user not authenticated, redirecting to:', fallbackRoute);
     router.push(fallbackRoute as any);
     return null;
   }
 
-  // Handle basic authentication (user or guest required)
+  // Handle basic authentication
   if (!isAuthenticated) {
-    // If no user and no guest ID
-    console.error("No user or guest ID available for protected route");
+    // If no authentication
+    console.error("No user available for protected route");
     console.log('No authentication found, redirecting to:', fallbackRoute);
     router.push(fallbackRoute as any);
     return null;
   }
 
-  // User is authenticated (either as user or guest)
+  // User is authenticated
   return <>{children}</>;
 }
