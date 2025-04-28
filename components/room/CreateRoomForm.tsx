@@ -17,11 +17,11 @@ import { PageTransition } from '@/components/transitions/PageTransition';
 
 export default function CreateRoomForm() {
   const router = useRouter();
-  let user, profile, guestId, authLoading, ensureSessionToken;
+  let user, profile, authLoading, ensureSessionToken;
   try {
-    ({ user, profile, guestId, authLoading, ensureSessionToken } = useAuth());
+    ({ user, profile, authLoading, ensureSessionToken } = useAuth());
   } catch {
-    user = profile = guestId = ensureSessionToken = null;
+    user = profile = ensureSessionToken = null;
     authLoading = true;
   }
   const [name, setName] = useState('');
@@ -40,7 +40,7 @@ export default function CreateRoomForm() {
 
   // Redirect if neither authenticated user nor guest
   useEffect(() => {
-    if (mounted && !authLoading && !user && !guestId) {
+    if (mounted && !authLoading && !user) {
       toast({
         title: "No session found",
         description: "Please refresh or re-login to create a room.",
@@ -48,7 +48,7 @@ export default function CreateRoomForm() {
       });
       router.replace('/');
     }
-  }, [mounted, authLoading, user, guestId, router, toast]);
+  }, [mounted, authLoading, user, router, toast]);
 
   // Don't render anything while checking auth or before mounting
   if (!mounted || authLoading) {
@@ -63,7 +63,7 @@ export default function CreateRoomForm() {
   }
 
   // Don't render form if not authenticated
-  if (!user && !guestId) {
+  if (!user) {
     return null;
   }
 
@@ -95,77 +95,53 @@ export default function CreateRoomForm() {
         return;
       }
 
-      // Get current user ID (either regular user or guest)
-      const userId = user?.id || guestId;
+      // Get current user ID 
+      const userId = user?.id;
       
       if (!userId) {
         setError('Authentication required to create a room');
         toast({
           title: "Authentication required",
-          description: "Please login or use guest mode to create a room.",
+          description: "Please login to create a room.",
           variant: "destructive"
         });
         setIsCreating(false);
         return;
       }
 
-      // If this is a guest user, ensure we have their profile
-      let creatorUsername = profile?.username;
-      if (!user && guestId) {
-        const { data: guestProfile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', guestId)
-          .eq('is_guest', true)
-          .single();
-        
-        if (profileError) {
-          setError(`Guest profile error: ${profileError.message}`);
-          toast({
-            title: "Guest profile error",
-            description: profileError.message,
-            variant: "destructive"
-          });
-          setIsCreating(false);
-          return;
-        }
-        if (!guestProfile) {
-           setError('Guest profile not found');
-           toast({ title: "Guest profile not found", variant: "destructive" });
-           setIsCreating(false);
-           return;
-        }
-        creatorUsername = guestProfile.username;
-      }
+      const creatorUsername = profile?.username;
       
-       if (!creatorUsername) {
+      if (!creatorUsername) {
           setError('Could not determine creator username.');
           toast({ title: "Username error", description: "Unable to find username.", variant: "destructive" });
           setIsCreating(false);
           return;
       }
 
+      // Generate a room ID
       const roomId = uuidv4();
-      const newRoom = {
-        id: roomId,
-        name,
-        description: description || null,
-        tags: tags || [],
-        is_private: isPrivate,
-        created_by: userId,
-        is_active: true,
-      };
-
-      // 1. Create the room
+      
+      // Handle audio room creation
       const { data: roomData, error: roomError } = await supabase
         .from('rooms')
-        .insert(newRoom)
+        .insert([
+          {
+            id: roomId,
+            room_name: name.trim(),
+            description: description.trim() || null,
+            is_private: isPrivate,
+            is_live: false,
+            enable_video: false,
+            created_by: userId,
+            max_participants: 50, // Default maximum
+            tags: tags.length > 0 ? tags : null,
+          }
+        ])
         .select()
         .single();
 
       if (roomError) {
-        console.error('Room creation error:', roomError);
-        setError(`Failed to create room: ${roomError.message}`);
+        setError(`Room creation error: ${roomError.message}`);
         toast({
           title: "Room creation failed",
           description: roomError.message,
@@ -178,20 +154,23 @@ export default function CreateRoomForm() {
       // 2. Add the creator as a participant
       const { error: participantError } = await supabase
         .from('room_participants')
-        .insert({
-          room_id: roomId,
-          user_id: userId,
-          is_admin: true,
-          is_active: true, 
-          joined_at: new Date().toISOString()
-        });
+        .insert([
+          {
+            room_id: roomId,
+            user_id: userId,
+            is_speaker: true,  // Room creator is automatically a speaker
+            is_moderator: true,  // Room creator is automatically a moderator
+          }
+        ]);
 
       if (participantError) {
-        console.error('Participant error:', participantError);
-        // Consider rollback or cleanup if participant fails?
-        setError(`Room created, but failed to add participant: ${participantError.message}`);
-        toast({ title: "Participant add failed", description: participantError.message, variant: "default" });
-        // Continue to redirect, as room exists
+        setError(`Participant creation error: ${participantError.message}`);
+        toast({
+          title: "Participant assignment failed",
+          description: participantError.message,
+          variant: "destructive"
+        });
+        // We don't return here - the room was created successfully
       }
 
       toast({
