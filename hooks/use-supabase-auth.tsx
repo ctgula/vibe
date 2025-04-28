@@ -347,7 +347,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await createEmptyProfile(response.data.user.id);
         console.log('Empty profile created for new user');
         
-        // Set the user and authentication state
+        // Set the user in state immediately
         setUser(response.data.user);
         
         // Fetch and set the profile
@@ -355,9 +355,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (userProfile) {
           setProfile(userProfile);
         }
+        
+        // Update the onboarded flag to ensure it's set properly
+        if (userProfile) {
+          // Ensure onboarded flag is explicitly set to false
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ 
+              onboarded: false 
+            })
+            .eq('id', response.data.user.id);
+          
+          if (updateError) {
+            console.error('Error ensuring onboarded flag:', updateError);
+          } else {
+            console.log('Ensured onboarded flag is set to false');
+          }
+        }
       } catch (profileError) {
         console.error('Error creating profile, but signup succeeded:', profileError);
         // Don't block the signup flow, continue anyway
+      }
+      
+      // Add an explicit marker for a new signup to help the onboarding page
+      if (isClient) {
+        localStorage.setItem('justSignedUp', 'true');
+        localStorage.setItem('authUserId', response.data.user.id);
       }
       
       if (!response.data.user.email_confirmed_at) {
@@ -374,7 +397,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log('Redirecting to onboarding...');
           // Using direct window.location for more reliable redirect
           window.location.href = '/onboarding';
-        }, 1000);
+        }, 1500); // Slightly longer delay to ensure profile is created
       }
 
       return response;

@@ -302,6 +302,60 @@ export default function OnboardingForm() {
         return;
       }
       
+      // Force loading to false after a safety timeout period
+      const safetyTimeout = setTimeout(() => {
+        if (loading) {
+          console.warn('[Onboarding] Safety timeout triggered in initializeProfile');
+          setLoading(false);
+          setErrorMessage('Loading took too long. Please try refreshing the page or continue without loading.');
+        }
+      }, 15000); // 15 second safety timeout
+      
+      // Get the auth info - check for just signed up marker first
+      const justSignedUp = localStorage.getItem('justSignedUp') === 'true';
+      const authUserId = localStorage.getItem('authUserId');
+      
+      // Check if we have auth info from localStorage (for fresh signups)
+      if (justSignedUp && authUserId) {
+        console.log('[Onboarding] Using auth info from localStorage (fresh signup)');
+        
+        // Clear the marker
+        localStorage.removeItem('justSignedUp');
+        
+        try {
+          // Get the profile directly
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', authUserId)
+            .single();
+            
+          if (profileError) {
+            console.error('[Onboarding] Error fetching profile for fresh signup:', profileError);
+            // Continue to normal flow, don't return
+          } else if (profileData) {
+            console.log('[Onboarding] Found profile for fresh signup:', profileData);
+            
+            // Pre-fill form with data from the profile
+            setFormData(prevData => ({
+              ...prevData,
+              username: profileData.username || '',
+              displayName: profileData.display_name || '',
+              bio: profileData.bio || '',
+              preferredGenres: profileData.preferred_genres || [],
+              themeColor: profileData.theme_color || '#6366f1'
+            }));
+            
+            setLoading(false);
+            clearTimeout(safetyTimeout);
+            return;
+          }
+        } catch (error) {
+          console.error('[Onboarding] Error in fresh signup flow:', error);
+          // Continue to normal flow, don't return
+        }
+      }
+      
       // Get the most up-to-date values directly
       const currentUser = user;
       
@@ -312,16 +366,18 @@ export default function OnboardingForm() {
         console.warn('[Onboarding] No auth method found, stopping initialization');
         setErrorMessage('Could not determine your identity. Please try signing in again.');
         setLoading(false);
+        clearTimeout(safetyTimeout);
         return;
       }
       
-      // Determine which ID to use (authenticated or guest)
+      // Determine which ID to use (authenticated user)
       const profileId = currentUser.id;
       
       if (!profileId) {
         console.error('[Onboarding] No profile ID available, aborting');
         setErrorMessage('Could not determine your identity. Please try signing in again.');
         setLoading(false);
+        clearTimeout(safetyTimeout);
         return;
       }
       
@@ -329,105 +385,104 @@ export default function OnboardingForm() {
       
       // First check if the profile exists
       console.log('[Onboarding] Checking if profile exists...');
-      const { data: profile, error } = await supabase
+      const { data: existingProfile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', profileId)
-        .maybeSingle(); // Use maybeSingle instead of single to avoid errors when no profile exists
+        .single();
       
-      if (error) {
-        console.error('[Onboarding] Error checking profile:', error);
-        setErrorMessage(`Error checking profile: ${error.message}`);
+      if (profileError && profileError.code !== 'PGRST116') { // PGRST116 is "No rows returned"
+        console.error('[Onboarding] Error fetching profile:', profileError);
+        setErrorMessage(`Error loading your profile: ${profileError.message}`);
         setLoading(false);
+        clearTimeout(safetyTimeout);
         return;
       }
       
-      // If no profile exists, create an empty one
-      if (!profile) {
-        console.log('[Onboarding] No profile found, creating empty profile');
-        try {
-          // Use the createEmptyProfile from useAuth which handles proper profile creation
-          await createEmptyProfile(currentUser.id);
-          console.log('[Onboarding] Created empty profile for user:', currentUser.id);
-        } catch (createError) {
-          console.error('[Onboarding] Error in createEmptyProfile:', createError);
-          setErrorMessage(`Error creating profile: ${String(createError)}`);
-          setLoading(false);
-          return;
-        }
+      // Handle the case where profile exists and has data
+      if (existingProfile) {
+        console.log('[Onboarding] Found existing profile:', existingProfile);
         
-        // Re-fetch the newly created profile
-        console.log('[Onboarding] Fetching newly created profile');
-        try {
-          const { data: newProfile, error: newProfileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', profileId)
-            .single();
-          
-          if (newProfileError) {
-            console.error('[Onboarding] Error fetching new profile:', newProfileError);
-            setErrorMessage(`Error fetching your profile: ${newProfileError.message}`);
-            setLoading(false);
-            return;
-          }
-          
-          if (!newProfile) {
-            console.error('[Onboarding] New profile is null after creation');
-            setErrorMessage('Error creating your profile. Profile not found after creation.');
-            setLoading(false);
-            return;
-          }
-          
-          console.log('[Onboarding] Created new profile:', newProfile);
-          
-          // Pre-fill form with data from the new profile
-          setFormData(prevData => ({
-            ...prevData,
-            username: newProfile.username || '',
-            displayName: newProfile.display_name || '',
-            bio: newProfile.bio || '',
-            preferredGenres: newProfile.preferred_genres || [],
-            themeColor: newProfile.theme_color || '#6366f1'
-          }));
-        } catch (fetchError) {
-          console.error('[Onboarding] Exception fetching new profile:', fetchError);
-          setErrorMessage(`Error retrieving your profile: ${String(fetchError)}`);
-          setLoading(false);
-          return;
-        }
-      } else {
-        console.log('[Onboarding] Found existing profile:', profile);
-        
-        // Check if user has already completed onboarding
-        if (profile.onboarded) {
-          console.log('[Onboarding] User already completed onboarding, redirecting to /directory');
-          window.location.href = '/directory'; // Use direct navigation
-          return;
-        }
-        
-        // Pre-fill form with existing profile data
+        // Pre-fill form with data from the existing profile
         setFormData(prevData => ({
           ...prevData,
-          username: profile.username || '',
-          displayName: profile.display_name || '',
-          bio: profile.bio || '',
-          preferredGenres: profile.preferred_genres || [],
-          themeColor: profile.theme_color || '#6366f1'
+          username: existingProfile.username || '',
+          displayName: existingProfile.display_name || '',
+          bio: existingProfile.bio || '',
+          preferredGenres: existingProfile.preferred_genres || [],
+          themeColor: existingProfile.theme_color || '#6366f1'
         }));
+        
+        setLoading(false);
+        clearTimeout(safetyTimeout);
+        return;
       }
       
-      // Set loading to false at the end if we got here successfully
-      console.log('[Onboarding] Profile initialization completed successfully');
+      // If we get here, profile doesn't exist, need to create one
+      console.log('[Onboarding] No profile found, creating empty profile');
+      try {
+        // Use the createEmptyProfile from useAuth which handles proper profile creation
+        await createEmptyProfile(currentUser.id);
+        console.log('[Onboarding] Created empty profile for user:', currentUser.id);
+      } catch (createError) {
+        console.error('[Onboarding] Error in createEmptyProfile:', createError);
+        setErrorMessage(`Error creating profile: ${String(createError)}`);
+        setLoading(false);
+        clearTimeout(safetyTimeout);
+        return;
+      }
+      
+      // Re-fetch the newly created profile
+      console.log('[Onboarding] Fetching newly created profile');
+      try {
+        const { data: newProfile, error: newProfileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', profileId)
+          .single();
+        
+        if (newProfileError) {
+          console.error('[Onboarding] Error fetching new profile:', newProfileError);
+          setErrorMessage(`Error fetching your profile: ${newProfileError.message}`);
+          setLoading(false);
+          clearTimeout(safetyTimeout);
+          return;
+        }
+        
+        if (!newProfile) {
+          console.error('[Onboarding] New profile is null after creation');
+          setErrorMessage('Error creating your profile. Profile not found after creation.');
+          setLoading(false);
+          clearTimeout(safetyTimeout);
+          return;
+        }
+        
+        console.log('[Onboarding] Created new profile:', newProfile);
+        
+        // Pre-fill form with data from the new profile
+        setFormData(prevData => ({
+          ...prevData,
+          username: newProfile.username || '',
+          displayName: newProfile.display_name || '',
+          bio: newProfile.bio || '',
+          preferredGenres: newProfile.preferred_genres || [],
+          themeColor: newProfile.theme_color || '#6366f1'
+        }));
+      } catch (fetchError) {
+        console.error('[Onboarding] Exception fetching new profile:', fetchError);
+        setErrorMessage(`Error retrieving your profile: ${String(fetchError)}`);
+        setLoading(false);
+        clearTimeout(safetyTimeout);
+        return;
+      }
+      
+      // Successfully loaded profile data, set loading to false
       setLoading(false);
-    } catch (err) {
-      console.error('[Onboarding] Error in initializeProfile:', err);
-      setErrorMessage(`Something went wrong: ${String(err)}`);
+      clearTimeout(safetyTimeout);
+    } catch (error) {
+      console.error('[Onboarding] Unhandled error in initializeProfile:', error);
+      setErrorMessage('An unexpected error occurred. Please try again later.');
       setLoading(false);
-    } finally {
-      console.log('[Onboarding] initializeProfile complete, setting loading=false');
-      setLoading(false);
-      initAttemptedRef.current = true;
     }
   };
 
