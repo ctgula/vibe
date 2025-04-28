@@ -36,7 +36,7 @@ export function AppHeader({ title, showBackButton }: AppHeaderProps) {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const { theme, setTheme } = useTheme()
-  const { user, profile, signOut, guestId, isGuest } = useAuth()
+  const { user, profile, signOut } = useAuth()
 
   useEffect(() => {
     setMounted(true)
@@ -69,11 +69,11 @@ export function AppHeader({ title, showBackButton }: AppHeaderProps) {
   }
 
   const handleProfileClick = () => {
-    // Check if user is authenticated or a guest
-    if (user || guestId) {
+    // Check if user is authenticated 
+    if (user) {
       router.push('/profile');
     } else {
-      // If no authenticated user or guest, redirect to login
+      // If no authenticated user, redirect to login
       router.push('/auth/login');
     }
   }
@@ -94,8 +94,6 @@ export function AppHeader({ title, showBackButton }: AppHeaderProps) {
       return profile.username.substring(0, 2).toUpperCase();
     } else if (user?.email) {
       return user.email.substring(0, 2).toUpperCase();
-    } else if (isGuest) {
-      return "GU";
     }
     return "U";
   }
@@ -104,7 +102,7 @@ export function AppHeader({ title, showBackButton }: AppHeaderProps) {
     if (profile?.avatar_url) {
       return profile.avatar_url;
     }
-    return `https://api.dicebear.com/6.x/avataaars/svg?seed=${user?.id || guestId || 'guest'}`;
+    return `https://api.dicebear.com/6.x/avataaars/svg?seed=${user?.id || 'user'}`;
   }
 
   return (
@@ -225,7 +223,7 @@ export function AppHeader({ title, showBackButton }: AppHeaderProps) {
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56 mr-2 bg-zinc-900/95 backdrop-blur-xl border-zinc-800">
                 <DropdownMenuLabel>
-                  {profile?.display_name || (isGuest ? "Guest User" : "My Account")}
+                  {profile?.display_name || "My Account"}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleProfileClick} className="cursor-pointer">
@@ -239,7 +237,7 @@ export function AppHeader({ title, showBackButton }: AppHeaderProps) {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-red-500 hover:text-red-400">
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>{isGuest ? "Exit Guest Mode" : "Sign Out"}</span>
+                  <span>Sign Out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

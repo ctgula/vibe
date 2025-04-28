@@ -9,16 +9,14 @@ import type { Route } from 'next';
 
 interface RequireAuthProps {
   children: React.ReactNode;
-  allowGuest?: boolean;
   redirectTo?: string;
 }
 
 export function RequireAuth({ 
   children, 
-  allowGuest = false,
-  redirectTo = '/auth/login'
+  redirectTo = '/auth/signin'
 }: RequireAuthProps) {
-  const { user, guestId, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -34,17 +32,16 @@ export function RequireAuth({
         setIsCheckingAuth(true);
 
         const currentPath = window.location.pathname;
-        const isLoginPage = currentPath.startsWith('/auth/login');
+        const isLoginPage = currentPath.startsWith('/auth/signin');
         const isSignupPage = currentPath.startsWith('/auth/signup');
         const isVerifyPage = currentPath.startsWith('/auth/verify');
         const isCallbackPage = currentPath.startsWith('/auth/callback');
         const isOnAuthFlowPage = isLoginPage || isSignupPage || isVerifyPage || isCallbackPage;
 
         const hasAuth = user !== null;
-        const hasGuestAccess = allowGuest && guestId !== null;
-        const isAllowed = hasAuth || hasGuestAccess;
+        const isAllowed = hasAuth;
 
-        console.log('[RequireAuth]', { currentPath, hasAuth, hasGuestAccess, isAllowed, allowGuest, guestId, isOnAuthFlowPage });
+        console.log('[RequireAuth]', { currentPath, hasAuth, isAllowed, isOnAuthFlowPage });
 
         if (!isAllowed && !isOnAuthFlowPage) {
           console.log(`[RequireAuth] Not allowed on ${currentPath}, redirecting to ${redirectTo}`);
@@ -66,7 +63,7 @@ export function RequireAuth({
     };
 
     checkAuth();
-  }, [user, guestId, authLoading, allowGuest, redirectTo, router]);
+  }, [user, authLoading, redirectTo, router]);
 
   if (isCheckingAuth || authLoading) {
     return (

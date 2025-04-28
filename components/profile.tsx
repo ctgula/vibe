@@ -41,7 +41,7 @@ export function Profile() {
   const [isClient, setIsClient] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const { user, guestId, isGuest, profile, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
 
   // Set isClient to true once component mounts
   useEffect(() => {
@@ -54,10 +54,10 @@ export function Profile() {
         setIsLoading(true);
         
         // Handle both authenticated users and guests
-        const currentUserId = user?.id || guestId;
+        const currentUserId = user?.id;
         
         if (!currentUserId) {
-          toast.error('Please sign in or continue as guest to view your profile');
+          toast.error('Please sign in to view your profile');
           router.push('/');
           return;
         }
@@ -79,10 +79,6 @@ export function Profile() {
             setDisplayName(data.display_name || '');
             setAvatarUrl(data.avatar_url || '');
           }
-        } else if (isGuest) {
-          // For guests, set default values or fetch from guest profiles if applicable
-          setDisplayName('Guest User');
-          setAvatarUrl(`https://api.dicebear.com/6.x/avataaars/svg?seed=${guestId}`);
         }
         
         // Fetch rooms created by user or guest
@@ -95,7 +91,7 @@ export function Profile() {
             enable_video,
             participants:room_participants(count)
           `)
-          .or(`created_by.eq.${user?.id || null},created_by_guest.eq.${guestId || null}`);
+          .eq('created_by', user?.id);
           
         if (createdRoomsError) {
           console.error('Error fetching created rooms:', createdRoomsError);
@@ -120,7 +116,7 @@ export function Profile() {
               participants:room_participants(count)
             )
           `)
-          .or(`user_id.eq.${user?.id || null},guest_id.eq.${guestId || null}`);
+          .eq('user_id', user?.id);
           
         if (joinedRoomsError) {
           console.error('Error fetching joined rooms:', joinedRoomsError);
@@ -133,7 +129,7 @@ export function Profile() {
             })
             .filter((room): room is RoomType => 
               !!room && !!room.id && !!room.room_name && 
-              (user ? room.created_by !== user.id : true) // For guests, don't filter
+              room.created_by !== user?.id
             )
             .map(room => ({
               ...room,
@@ -153,7 +149,7 @@ export function Profile() {
     if (isClient) {
       fetchProfile();
     }
-  }, [router, user, guestId, isGuest, isClient]);
+  }, [router, user, isClient]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,12 +207,12 @@ export function Profile() {
     if (isClient && window.navigator && window.navigator.vibrate) {
       window.navigator.vibrate(10);
     }
-    const logoutToast = toast.loading(isGuest ? 'Exiting guest mode...' : 'Signing out...');
+    const logoutToast = toast.loading('Signing out...');
     try {
       // Use context-driven logout for both user and guest
       await signOut();
       toast.dismiss(logoutToast);
-      toast.success(isGuest ? 'Exited guest mode' : 'Signed out successfully');
+      toast.success('Signed out successfully');
       router.push('/');
     } catch (error) {
       toast.dismiss(logoutToast);
@@ -563,31 +559,18 @@ export function Profile() {
       >
         <div className="mb-6">
           <h1 className="text-2xl font-bold mb-2">
-            {isGuest ? 'Guest Profile' : 'My Profile'}
+            My Profile
           </h1>
           <p className="text-zinc-400">
-            {isGuest 
-              ? 'You\'re browsing as a guest. Create an account to save your profile and rooms.' 
-              : 'Manage your profile and see your activity.'}
+            Manage your profile and see your activity.
           </p>
-          
-          {isGuest && (
-            <div className="mt-4">
-              <Button
-                onClick={() => router.push('/auth/signup')}
-                className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg font-medium"
-              >
-                Create Account
-              </Button>
-            </div>
-          )}
         </div>
         <Button 
           variant="destructive" 
           className="w-full bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
           onClick={handleLogout}
         >
-          <LogOut className="mr-2 h-4 w-4" /> {isGuest ? 'Exit Guest Mode' : 'Sign Out'}
+          <LogOut className="mr-2 h-4 w-4" /> Sign Out
         </Button>
       </motion.div>
     </div>

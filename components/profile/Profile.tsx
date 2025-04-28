@@ -59,7 +59,7 @@ export function Profile() {
   const [isUploading, setIsUploading] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState("");
   
-  const { user, profile: authProfile, guestId, isGuest, signOut } = useAuth();
+  const { user, profile: authProfile, signOut } = useAuth();
   const supabase = createClientComponentClient();
   const { toast } = useToast();
   
@@ -78,14 +78,14 @@ export function Profile() {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!user && !guestId) return;
+      if (!user) return;
       
       setIsLoading(true);
       try {
         const { data, error } = await supabase
           .from("profiles")
           .select("*")
-          .or(`id.eq.${user?.id},id.eq.${guestId}`)
+          .eq("id", user?.id)
           .single();
         
         if (error) {
@@ -115,7 +115,7 @@ export function Profile() {
     };
 
     fetchProfile();
-  }, [user, guestId, supabase, toast]);
+  }, [user, supabase, toast]);
 
   // Prevent auth redirect if we're just loading
   if (isLoading) {
@@ -135,8 +135,8 @@ export function Profile() {
     );
   }
 
-  // Only show auth required if we're definitely not logged in and not a guest
-  if (!user && !guestId && !isLoading) {
+  // Only show auth required if we're definitely not logged in
+  if (!user && !isLoading) {
     return (
       <div className="p-4 text-center">
         <p className="text-zinc-400">Please sign in to view your profile</p>
@@ -281,25 +281,18 @@ export function Profile() {
                 {profile.full_name && (
                   <p className="text-zinc-400">{profile.full_name}</p>
                 )}
-                {isGuest && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-600 text-white">
-                    Guest
-                  </span>
-                )}
               </div>
             </div>
             
             <div className="flex gap-2">
-              {!isGuest && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setEditOpen(true)}
-                >
-                  <Edit className="w-4 h-4 mr-1" />
-                  Edit
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditOpen(true)}
+              >
+                <Edit className="w-4 h-4 mr-1" />
+                Edit
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
