@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Lock, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Loader2, Lock, ArrowRight, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import {
@@ -24,32 +24,29 @@ export default function UpdatePasswordForm() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [missingToken, setMissingToken] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClientComponentClient();
 
   // Safely handle client-side operations
   useEffect(() => {
     setIsClient(true);
     
-    // Check if we have a session
-    const checkSession = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        
-        // If no session, redirect to reset password page
-        if (!data.session) {
-          toast.error('Invalid or expired password reset link');
-          router.push('/auth/reset-password');
-        }
-      } catch (err) {
-        console.error('Error checking session:', err);
-        toast.error('Something went wrong. Please try again.');
-        router.push('/auth/reset-password');
+    // Check if we have the access token in URL params
+    const checkToken = () => {
+      // Look for either access_token or code parameter
+      const accessToken = searchParams.get('access_token') || searchParams.get('code');
+      
+      if (!accessToken) {
+        console.error('Missing access token in URL params');
+        setMissingToken(true);
+        toast.error('Invalid or expired password reset link');
       }
     };
     
-    checkSession();
-  }, [router, supabase.auth]);
+    checkToken();
+  }, [searchParams]);
 
   const validatePassword = () => {
     setError('');
@@ -74,6 +71,16 @@ export default function UpdatePasswordForm() {
       return;
     }
     
+    // Get the access token from URL
+    const accessToken = searchParams.get('access_token') || searchParams.get('code');
+    
+    if (!accessToken) {
+      console.error('Missing access token in URL params');
+      setError('Invalid or expired password reset link. Please request a new password reset link.');
+      toast.error('Missing access token');
+      return;
+    }
+    
     setIsLoading(true);
     
     // Add safety timeout
@@ -83,30 +90,44 @@ export default function UpdatePasswordForm() {
     }, 10000);
     
     try {
-      console.log('Updating password');
-      const { error } = await supabase.auth.updateUser({ password });
+      console.log('Updating password using access token');
       
-      if (error) {
-        console.error('Error updating password:', error);
-        setError(error.message || 'Failed to update password');
-        toast.error(error.message || 'Failed to update password');
-      } else {
-        setSuccess(true);
-        toast.success('Password updated successfully!');
+      try {
+        // First try to verify the token by exchanging it for a session
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(accessToken);
         
-        // Clear form
-        setPassword('');
-        setConfirmPassword('');
+        if (exchangeError) {
+          console.error('Error exchanging token for session:', exchangeError);
+          setError('Your password reset link has expired. Please request a new link.');
+          toast.error('Password reset link expired');
+          return;
+        }
         
-        // Redirect after a short delay
-        setTimeout(() => {
-          router.push('/auth/signin');
-        }, 2000);
+        // Now update the password using the newly established session
+        const { error: updateError } = await supabase.auth.updateUser({ password });
+        
+        if (updateError) {
+          console.error('Error updating password:', updateError);
+          setError(updateError.message || 'Failed to update password');
+          toast.error(updateError.message || 'Failed to update password');
+        } else {
+          setSuccess(true);
+          toast.success('Password updated successfully!');
+          
+          // Clear form
+          setPassword('');
+          setConfirmPassword('');
+          
+          // Redirect after a short delay
+          setTimeout(() => {
+            router.push('/auth/signin');
+          }, 2000);
+        }
+      } catch (err: any) {
+        console.error('Exception updating password:', err);
+        setError(err.message || 'An unexpected error occurred');
+        toast.error(err.message || 'An unexpected error occurred');
       }
-    } catch (err: any) {
-      console.error('Exception updating password:', err);
-      setError(err.message || 'An unexpected error occurred');
-      toast.error(err.message || 'An unexpected error occurred');
     } finally {
       clearTimeout(safetyTimeout);
       setIsLoading(false);
@@ -161,6 +182,22 @@ export default function UpdatePasswordForm() {
                   Go to Sign In
                 </Button>
               </div>
+            ) : missingToken ? (
+              <div className="text-center py-8">
+                <div className="flex justify-center mb-4">
+                  <AlertTriangle className="h-16 w-16 text-red-500" />
+                </div>
+                <h3 className="text-xl font-medium mb-2">Invalid or Expired Link</h3>
+                <p className="text-zinc-400 mb-6">
+                  The password reset link is invalid or has expired. Please request a new password reset link.
+                </p>
+                <Button 
+                  onClick={() => router.push('/auth/reset-password')}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  Request New Link
+                </Button>
+              </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
@@ -199,6 +236,7 @@ export default function UpdatePasswordForm() {
                 
                 {error && (
                   <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md text-red-400 text-sm">
+                    <AlertTriangle size={16} className="mr-2" />
                     {error}
                   </div>
                 )}
@@ -224,7 +262,7 @@ export default function UpdatePasswordForm() {
             )}
           </CardContent>
           
-          {!success && (
+          {!success && !missingToken && (
             <CardFooter className="flex justify-center border-t border-zinc-800 pt-4">
               <div className="text-sm text-zinc-400">
                 <Link href="/auth/signin" className="text-indigo-400 hover:text-indigo-300">
