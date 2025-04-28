@@ -15,7 +15,6 @@ export interface Profile {
   avatar_url?: string;
   created_at: string;
   updated_at: string;
-  is_guest?: boolean;
   username?: string;
   display_name?: string;
   preferred_genres?: string[];
@@ -27,9 +26,7 @@ export interface Profile {
 interface AuthContextType {
   user: any;
   profile: Profile | null;
-  guestId: string | null;
   isLoading: boolean;
-  isGuest: boolean;
   isAuthenticated: boolean;
   authLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
@@ -37,7 +34,6 @@ interface AuthContextType {
   signInWithOAuth: (provider: Provider) => Promise<void>; 
   signOut: () => Promise<void>;
   setProfile: (profile: Profile | null) => void;
-  clearGuestSession: () => Promise<void>; 
   createEmptyProfile: (userId: string) => Promise<void>;
   ensureSessionToken: () => Promise<string | null>;
 }
@@ -46,9 +42,7 @@ interface AuthContextType {
 const defaultContextValue: AuthContextType = {
   user: null,
   profile: null,
-  guestId: null,
   isLoading: true,
-  isGuest: false,
   isAuthenticated: false,
   authLoading: true,
   signIn: async () => { throw new Error('Not implemented') },
@@ -56,7 +50,6 @@ const defaultContextValue: AuthContextType = {
   signInWithOAuth: async () => { throw new Error('Not implemented') },
   signOut: async () => { throw new Error('Not implemented') },
   setProfile: () => {},
-  clearGuestSession: async () => {},
   createEmptyProfile: async () => {},
   ensureSessionToken: async () => null
 };
@@ -68,7 +61,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [guestId, setGuestId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authLoading, setAuthLoading] = useState(true);
   const [authInitialized, setAuthInitialized] = useState(false);
@@ -78,15 +70,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setIsClient(true);
   }, []);
-
-  // Clear guest session helper
-  const clearGuestSession = async () => {
-    if (isClient) {
-      localStorage.removeItem('guestProfileId');
-      localStorage.removeItem('guest_id'); // Clear legacy key too
-    }
-    setGuestId(null);
-  };
 
   // Create an empty profile for a user
   const createEmptyProfile = async (userId: string): Promise<void> => {
@@ -118,335 +101,203 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         display_name: 'New User',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        is_guest: false,
         onboarded: false,
         preferred_genres: [],
         bio: '',
-        theme_color: '#6366f1'
+        theme_color: '#6366F1', // Default theme color (indigo)
       };
       
-      // Insert the profile with all necessary fields
+      console.log('AUTH STATE: Inserting new profile with data:', profileData);
+      
+      // Create the profile
       const { error: insertError } = await supabase
         .from('profiles')
-        .insert(profileData);
-
+        .insert([profileData]);
+      
       if (insertError) {
-        console.error('AUTH STATE: Error creating empty profile:', insertError);
+        console.error('AUTH STATE: Error creating profile:', insertError);
         throw insertError;
       }
       
-      console.log('AUTH STATE: Empty profile created successfully');
+      console.log('AUTH STATE: Profile created successfully');
       
-      // Immediately fetch the profile to ensure it's properly created
-      const { data: createdProfile, error: fetchError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-        
-      if (fetchError) {
-        console.error('AUTH STATE: Error fetching newly created profile:', fetchError);
-        // Don't throw, we've already created the profile
-      } else if (!createdProfile) {
-        console.error('AUTH STATE: Profile created but could not be fetched');
-      } else {
-        console.log('AUTH STATE: Created profile fetched successfully', createdProfile);
-        // Set the profile in the state directly
-        setProfile(createdProfile);
-      }
-    } catch (err) {
-      console.error('AUTH STATE: Exception creating empty profile:', err);
-      throw err;
+      // Fetch the newly created profile and update state
+      await fetchUserProfile(userId);
+      
+    } catch (error) {
+      console.error('AUTH STATE: Failed to create empty profile:', error);
+      throw error;
     }
   };
 
+  // Initialize auth state
   useEffect(() => {
-    // Only run in the client
-    if (!isClient) {
-      console.log('AUTH STATE: Skipping auth initialization on server');
-      return;
-    }
-    
-    console.log('AUTH STATE: Starting auth initialization');
-    
-    // Initialize auth state
+    if (!isClient || authInitialized) return;
+
     const initializeAuth = async () => {
-      console.log('AUTH STATE: Running initializeAuth');
       try {
-        setIsLoading(true);
         setAuthLoading(true);
-        
-        // 1. First check for an active session
-        console.log('AUTH STATE: Checking for active session');
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        console.log('AUTH STATE: Initializing auth state');
+
+        // Get session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
-          console.error('AUTH STATE: Session error:', sessionError);
           throw sessionError;
         }
-        
-        const session = sessionData?.session;
-        
-        // 2. If we have a session, get the user and profile
-        if (session) {
-          console.log('AUTH STATE: Session found, user:', session.user.id);
-          setUser(session.user); // Set user immediately
+
+        if (session?.user) {
+          console.log('AUTH STATE: Session found, user is authenticated');
+          setUser(session.user);
           
-          // 3. Set up auth state change listener
-          console.log('AUTH STATE: Setting up auth listener');
-          const {
-            data: { subscription },
-          } = supabase.auth.onAuthStateChange((event, newSession) => {
-            console.log('AUTH STATE: Auth state changed:', event, newSession?.user?.id);
+          try {
+            // Fetch profile for the authenticated user
+            await fetchUserProfile(session.user.id);
+          } catch (profileError) {
+            console.error('AUTH STATE: Error fetching profile:', profileError);
+            // Non-fatal error, continue with auth flow
+          }
+        } else {
+          console.log('AUTH STATE: No session found, user is not authenticated');
+          setUser(null);
+          setProfile(null);
+        }
+
+        // Set up auth state change listener
+        const { data: { subscription } } = await supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            console.log('AUTH STATE: Auth state changed:', event, session?.user?.id);
             
-            if (event === 'SIGNED_IN' && newSession) {
-              setUser(newSession.user);
-              // Fetch user profile after sign-in
-              fetchUserProfile(newSession.user.id);
-            } else if (event === 'SIGNED_OUT') {
+            // Update user state based on session
+            if (session?.user) {
+              setUser(session.user);
+              
+              try {
+                // Fetch profile when auth state changes to signed in
+                if (['SIGNED_IN', 'TOKEN_REFRESHED', 'USER_UPDATED'].includes(event)) {
+                  await fetchUserProfile(session.user.id);
+                }
+              } catch (profileError) {
+                console.error('AUTH STATE: Error fetching profile on auth change:', profileError);
+              }
+            } else {
+              // Clear user and profile state when signed out
               setUser(null);
               setProfile(null);
-              // Clear any stored guest session
-              clearGuestSession();
             }
-          });
-          
-          // 4. Try to fetch user profile
-          console.log('AUTH STATE: Fetching user profile');
-          const userProfile = await fetchUserProfile(session.user.id);
-          
-          // 5. Create empty profile if needed
-          if (!userProfile) {
-            console.log('AUTH STATE: No profile found, creating empty profile');
-            await createEmptyProfile(session.user.id);
-            // Refresh profile after creation
-            await fetchUserProfile(session.user.id);
           }
-          
-          // Cleanup subscription on unmount
-          return () => {
-            if (isClient) {
-              console.log('AUTH STATE: Cleaning up auth subscription');
-              subscription.unsubscribe();
-            }
-          };
-        } else {
-          console.log('AUTH STATE: No session, checking for guest');
-          setUser(null);
-          
-          // 6. Check for guest session
-          if (isClient) {
-            await checkGuestSession();
-          }
-        }
+        );
         
-        setAuthInitialized(true);
-      } catch (err) {
-        console.error('AUTH STATE: Init error:', err);
+        // Clean up subscription on unmount
+        return () => {
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error('AUTH STATE: Error initializing auth:', error);
       } finally {
-        // Always set loading to false after initialization attempt
-        console.log('AUTH STATE: Init complete, setting isLoading to false');
-        setIsLoading(false);
         setAuthLoading(false);
+        setAuthInitialized(true);
       }
     };
 
-    if (!authInitialized && isClient) {
-      initializeAuth();
-    }
-    
-    // Add a safety timeout to ensure isLoading is reset after a maximum time
-    // This prevents the app from being stuck in a loading state
-    let safetyTimeout: NodeJS.Timeout;
-    if (isClient) {
-      safetyTimeout = setTimeout(() => {
-        if (isLoading) {
-          console.log('AUTH STATE: Safety timeout triggered: forcing isLoading to false');
-          setIsLoading(false);
-        }
-        if (authLoading) {
-          console.log('AUTH STATE: Safety timeout triggered: forcing authLoading to false');
-          setAuthLoading(false);
-        }
-      }, 5000); // 5 second maximum loading time
-    }
-    
-    return () => {
-      if (isClient && safetyTimeout) {
-        clearTimeout(safetyTimeout);
-      }
-    };
-  }, [authInitialized, isClient]); // Add isClient dependency
+    initializeAuth();
+  }, [supabase, isClient, authInitialized]);
 
   // Helper to fetch user profile from database
   const fetchUserProfile = async (userId: string) => {
     try {
-      console.log('Fetching profile for user:', userId);
+      console.log('AUTH STATE: Fetching profile for user:', userId);
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
-
+        .maybeSingle();
+      
       if (error) {
-        console.error('Error fetching user profile:', error);
+        console.error('AUTH STATE: Error fetching profile:', error);
+        throw error;
+      }
+      
+      if (data) {
+        console.log('AUTH STATE: Profile found:', data.id);
+        setProfile(data);
+        return data;
+      } else {
+        console.log('AUTH STATE: No profile found for user:', userId);
         return null;
       }
-
-      console.log('Profile fetched successfully:', data);
-      setProfile(data);
-      return data;
     } catch (error) {
-      console.error('Exception fetching user profile:', error);
+      console.error('AUTH STATE: Error in fetchUserProfile:', error);
       return null;
-    }
-  };
-
-  // Utility to check for guest session
-  const checkGuestSession = async () => {
-    if (!isClient) return;
-    
-    try {
-      const guestProfileId = localStorage.getItem('guestProfileId');
-      console.log('Checking for guest session:', guestProfileId);
-      
-      if (guestProfileId) {
-        // Only proceed if we don't already have an authenticated user
-        if (!user) {
-          console.log('Found guest profile ID, fetching profile');
-          
-          const { data: guestProfile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', guestProfileId)
-            .eq('is_guest', true)
-            .maybeSingle();
-          
-          if (profileError) {
-            console.error('Error fetching guest profile:', profileError);
-            return;
-          }
-          
-          if (guestProfile) {
-            console.log('Found valid guest profile:', guestProfile);
-            // Set guest profile as the active profile
-            setProfile(guestProfile);
-            
-            // Mark that we have a valid guest session
-            setGuestId(guestProfileId);
-          } else {
-            console.log('Guest profile not found or is not a guest, clearing localStorage');
-            localStorage.removeItem('guestProfileId');
-          }
-        } else {
-          console.log('Already have authenticated user, ignoring guest session');
-        }
-      } else {
-        console.log('No guestProfileId found in localStorage');
-      }
-    } catch (err) {
-      console.error('Error checking guest session:', err);
     }
   };
 
   // Ensure we have a valid session token
   const ensureSessionToken = async (): Promise<string | null> => {
     try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
       return session?.access_token || null;
-    } catch (err) {
-      console.error('Error getting session token:', err);
+    } catch (error) {
+      console.error('Error getting session token:', error);
       return null;
     }
   };
 
-  /**
-   * Sign in with email and password
-   */
+  // Sign in with email and password
   const signIn = async (email: string, password: string) => {
-    setIsLoading(true);
-    
-    // Create a safety timeout to prevent hanging
     const safetyTimeout = setTimeout(() => {
-      console.log('Safety timeout reached in signIn');
+      console.log('AUTH STATE: Sign in safety timeout triggered');
       setIsLoading(false);
-      toast.error('Request timed out. Please try again.');
-    }, 10000);
+    }, 15000); // 15s safety timeout
     
     try {
-      console.log('Signing in...', { email });
-      
-      // First, clear any existing guest session
-      await clearGuestSession();
-      
+      console.log('AUTH STATE: Signing in with email...');
+      setIsLoading(true);
+
+      // Sign in with Supabase auth
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
-        console.error('Sign in error:', error);
         throw error;
       }
 
-      console.log('Sign in successful:', data.user?.id);
-      
-      // Try to fetch the user profile
-      try {
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
-          
-        if (profileError || !profileData) {
-          console.log('Profile not found, creating one');
-          await createEmptyProfile(data.user.id);
-        } else {
-          setProfile(profileData);
-        }
-      } catch (err) {
-        console.error('Error handling profile during sign in:', err);
-        await createEmptyProfile(data.user.id);
-      }
-      
-      // Profile should be fetched automatically via the auth state change listener
-      toast.success('Signed in successfully');
-      
-      // Handle redirect if needed
-      if (isClient) {
-        // Check if user has completed onboarding
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('onboarded')
-          .eq('id', data.user.id)
-          .single();
-          
-        let redirectPath = '/';
-        
-        // If redirectAfterAuth is set, use that
-        const storedRedirect = localStorage.getItem('redirectAfterAuth');
-        if (storedRedirect) {
-          redirectPath = storedRedirect;
-          localStorage.removeItem('redirectAfterAuth');
-        } 
-        // Otherwise, if onboarding not completed, redirect to onboarding
-        else if (profileData && profileData.onboarded === false) {
-          redirectPath = '/onboarding';
-        }
-        // Otherwise, redirect to dashboard
-        else {
-          redirectPath = '/dashboard';
-        }
-        
-        console.log('Redirecting to:', redirectPath);
-        router.push(redirectPath as Route);
+      if (!data?.user) {
+        throw new Error('No user data returned from login');
       }
 
+      // Set user state
+      setUser(data.user);
+      
+      // Fetch and set profile
+      const userProfile = await fetchUserProfile(data.user.id);
+      
+      // Check if the user has completed onboarding
+      if (userProfile && userProfile.onboarded !== true) {
+        console.log('AUTH STATE: User has not completed onboarding, redirecting...');
+        toast.success('Welcome back! Please complete your profile.');
+        
+        // Use router for better navigation
+        setTimeout(() => {
+          console.log('Redirecting to onboarding...');
+          router.push('/onboarding' as Route);
+        }, 500);
+      } else {
+        console.log('AUTH STATE: User has completed onboarding');
+        toast.success('Signed in successfully');
+        
+        // Use router for better navigation
+        setTimeout(() => {
+          console.log('Redirecting to home...');
+          router.push('/' as Route);
+        }, 500);
+      }
     } catch (error: any) {
-      console.error('Error signing in:', error);
-      toast.error(error?.message || 'Error signing in. Please check your credentials.');
+      console.error('AUTH STATE: Sign in error:', error);
+      toast.error(error?.message || 'Error signing in. Please try again.');
       throw error;
     } finally {
       clearTimeout(safetyTimeout);
@@ -454,27 +305,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  /**
-   * Sign up with email and password
-   */
+  // Sign up with email and password
   const signUp = async (email: string, password: string): Promise<AuthResponse> => {
     const safetyTimeout = setTimeout(() => {
+      console.log('AUTH STATE: Sign up safety timeout triggered');
       setIsLoading(false);
-    }, 10000); // Safety timeout in case something hangs
-    
+    }, 15000); // 15s safety timeout
+
     try {
-      console.log('Signing up...');
+      console.log('AUTH STATE: Signing up with email...');
       setIsLoading(true);
-      
-      // Clear any guest session
-      await clearGuestSession();
-      
-      // Sign up with Supabase Auth
+
+      // Sign up with Supabase auth
       const response = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            full_name: '',
+          }
         }
       });
 
@@ -545,9 +395,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithOAuth = async (provider: Provider) => {
     try {
       console.log(`Signing in with ${provider}...`);
-      
-      // Clear any guest session
-      await clearGuestSession();
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
@@ -580,9 +427,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setProfile(null);
       
-      // Also clear any guest session
-      await clearGuestSession();
-      
       toast.success('Signed out successfully');
       router.push('/' as Route); 
 
@@ -598,10 +442,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = isClient ? {
     user,
     profile,
-    guestId,
     isLoading,
     authLoading,
-    isGuest: !!guestId,
     isAuthenticated: !!user,
     signIn,
     signUp,
@@ -610,7 +452,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile: (newProfile: Profile | null) => {
       setProfile(newProfile);
     },
-    clearGuestSession,
     createEmptyProfile,
     ensureSessionToken
   } : defaultContextValue;
