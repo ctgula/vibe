@@ -1,69 +1,21 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { motion } from "framer-motion";
-import { SignUpForm } from "@/components/auth/sign-up-form";
-import { ArrowLeft } from "lucide-react";
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-export default function RegisterPage() {
+export default function RegisterRedirect() {
+  const router = useRouter();
+  
+  useEffect(() => {
+    router.replace('/auth/signup');
+  }, [router]);
+  
+  // Simple loading state while redirect happens
   return (
-    <div className="min-h-screen flex flex-col bg-black text-white">
-      <div className="flex-1 flex flex-col p-6">
-        <motion.div 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="mb-8"
-        >
-          <Link 
-            href="/" 
-            className="flex items-center text-white/80 hover:text-white transition-colors"
-            onClick={() => {
-              // Add haptic feedback
-              if (window.navigator && window.navigator.vibrate) {
-                window.navigator.vibrate(3);
-              }
-            }}
-          >
-            <ArrowLeft className="h-5 w-5 mr-2" />
-            <span>Back</span>
-          </Link>
-        </motion.div>
-        
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="text-center mb-8"
-        >
-          <h1 className="text-3xl font-bold mb-2">Create an account</h1>
-          <p className="text-white/60">Join the conversation</p>
-        </motion.div>
-        
-        <SignUpForm />
-        
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.4, delay: 0.3 }}
-          className="mt-6 text-center"
-        >
-          <p className="text-white/60">
-            Already have an account?{" "}
-            <Link 
-              href="/auth/login" 
-              className="text-indigo-400 hover:text-indigo-300 font-medium"
-              onClick={() => {
-                // Add haptic feedback
-                if (window.navigator && window.navigator.vibrate) {
-                  window.navigator.vibrate(3);
-                }
-              }}
-            >
-              Sign in
-            </Link>
-          </p>
-        </motion.div>
+    <div className="min-h-screen bg-black text-white flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white mx-auto"></div>
+        <p className="mt-4 text-zinc-400">Redirecting to sign up...</p>
       </div>
     </div>
   );
