@@ -342,7 +342,7 @@ export default function Room({ params }: { params: { id: string } }) {
             setError('This room has been deleted');
             return;
           }
-          setRoomData(payload.new);
+          setRoomData(payload.new as RoomData);
         })
         .subscribe((status) => {
           console.log('Room subscription status:', status);
