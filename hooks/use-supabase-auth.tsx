@@ -42,9 +42,9 @@ interface AuthContextType {
 const defaultContextValue: AuthContextType = {
   user: null,
   profile: null,
-  isLoading: true,
+  isLoading: false,
   isAuthenticated: false,
-  authLoading: true,
+  authLoading: false,
   signIn: async () => { throw new Error('Not implemented') },
   signUp: async () => { throw new Error('Not implemented') },
   signInWithOAuth: async () => { throw new Error('Not implemented') },

@@ -53,10 +53,11 @@ function ErrorFallback({ error, resetErrorBoundary }: { error: Error, resetError
 }
 
 export default function SignInForm() {
-  const { signInWithOAuth, signIn, isLoading } = useAuth();
+  const { signInWithOAuth, signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({ email: '', password: '' });
+  const [localLoading, setLocalLoading] = useState(false);
   const router = useRouter();
 
   const validateForm = () => {
@@ -102,11 +103,14 @@ export default function SignInForm() {
     }
     
     try {
+      setLocalLoading(true);
       await signIn(email, password);
       // Auth provider will handle redirect and success toast
     } catch (error: any) {
       // Most errors are handled in the auth provider
       console.error('Email Sign In Error:', error);
+    } finally {
+      setLocalLoading(false);
     }
   };
 
@@ -125,10 +129,10 @@ export default function SignInForm() {
               <Button 
                 type="button"
                 onClick={handleGoogleSignIn}
-                disabled={isLoading}
+                disabled={localLoading}
                 className="w-full bg-white text-black hover:bg-gray-200 border-zinc-300 transition-all duration-300"
               >
-                {isLoading ? (
+                {localLoading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <GoogleIcon />
@@ -162,7 +166,7 @@ export default function SignInForm() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-indigo-500 focus:ring-indigo-500"
-                    disabled={isLoading}
+                    disabled={localLoading}
                     aria-invalid={!!errors.email}
                   />
                   {errors.email && (
@@ -188,7 +192,7 @@ export default function SignInForm() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-indigo-500 focus:ring-indigo-500"
-                    disabled={isLoading}
+                    disabled={localLoading}
                     aria-invalid={!!errors.password}
                   />
                   {errors.password && (
@@ -198,9 +202,9 @@ export default function SignInForm() {
                 <Button 
                   type="submit" 
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white transition-all duration-300" 
-                  disabled={isLoading}
+                  disabled={localLoading}
                 >
-                  {isLoading ? (
+                  {localLoading ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <ArrowRight size={16} className="mr-2" />

@@ -52,7 +52,7 @@ function ErrorFallback({ error, resetErrorBoundary }: { error: Error, resetError
 }
 
 export default function SignUpForm() {
-  const { signUp, signInWithOAuth, isLoading } = useAuth();
+  const { signUp, signInWithOAuth } = useAuth();
   const supabase = createClientComponentClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -124,55 +124,49 @@ export default function SignUpForm() {
     if (!validateForm()) {
       return;
     }
-    
+
     setLocalLoading(true);
     
     try {
-      // Add an additional check for username availability
-      const { data: existingUsers, error: checkError } = await supabase
+      // First check if username is available
+      const { data: usernameCheck, error: usernameError } = await supabase
         .from('profiles')
         .select('username')
         .eq('username', username)
-        .limit(1);
-        
-      if (checkError) {
-        console.error('Error checking username:', checkError);
-        throw new Error('Unable to check username availability');
-      }
+        .maybeSingle();
       
-      if (existingUsers && existingUsers.length > 0) {
-        setErrors(prev => ({ ...prev, username: 'This username is already taken' }));
+      if (usernameError) {
+        console.error('Error checking username:', usernameError);
+        toast.error('Error checking username availability. Please try again.');
         setLocalLoading(false);
         return;
       }
       
-      // Store the form data in localStorage for later use in onboarding
-      localStorage.setItem('signupData', JSON.stringify({
-        username,
-        display_name: displayName || username,
-      }));
-      
-      // All checks passed, proceed with signup (only pass email and password)
-      await signUp(email, password);
-      
-      // Sign up success, redirect to check email page
-      router.push('/auth/check-email');
-      toast.success('Account created! Please check your email for verification.');
-      
-    } catch (error: any) {
-      console.error('Sign Up Error:', error);
-      
-      // Handle specific errors
-      if (error.message?.includes('email')) {
-        setErrors(prev => ({ ...prev, email: error.message }));
-      } else if (error.message?.includes('password')) {
-        setErrors(prev => ({ ...prev, password: error.message }));
-      } else if (error.message?.includes('username')) {
-        setErrors(prev => ({ ...prev, username: error.message }));
-      } else {
-        // Generic error handling
-        toast.error(error.message || 'Failed to create account. Please try again.');
+      if (usernameCheck) {
+        setErrors({
+          ...errors,
+          username: 'This username is already taken'
+        });
+        toast.error('Username is already taken. Please choose another.');
+        setLocalLoading(false);
+        return;
       }
+      
+      // Username is available, proceed with signup
+      const { error: signupError } = await signUp(email, password);
+      
+      if (signupError) {
+        console.error('Signup error:', signupError);
+        toast.error(signupError.message || 'Error creating account');
+        return;
+      }
+      
+      toast.success('Account created! Redirecting to onboarding...');
+      
+      // Rest of the signup process is handled by the auth provider
+    } catch (error: any) {
+      console.error('Signup form error:', error);
+      toast.error(error?.message || 'An unexpected error occurred');
     } finally {
       setLocalLoading(false);
     }
@@ -195,10 +189,10 @@ export default function SignUpForm() {
               <Button 
                 type="button"
                 onClick={handleGoogleSignIn}
-                disabled={isLoading || localLoading}
+                disabled={localLoading}
                 className="w-full bg-white text-black hover:bg-gray-200 border-zinc-300 transition-all duration-300"
               >
-                {(isLoading || localLoading) ? (
+                {(localLoading) ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <GoogleIcon />
@@ -231,7 +225,7 @@ export default function SignUpForm() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className={inputStyles}
-                    disabled={isLoading || localLoading}
+                    disabled={localLoading}
                     aria-invalid={!!errors.email}
                   />
                   {errors.email && (
@@ -250,7 +244,7 @@ export default function SignUpForm() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                     className={inputStyles}
-                    disabled={isLoading || localLoading}
+                    disabled={localLoading}
                     aria-invalid={!!errors.username}
                   />
                   {errors.username ? (
@@ -270,7 +264,7 @@ export default function SignUpForm() {
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     className={inputStyles}
-                    disabled={isLoading || localLoading}
+                    disabled={localLoading}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -285,7 +279,7 @@ export default function SignUpForm() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className={inputStyles}
-                    disabled={isLoading || localLoading}
+                    disabled={localLoading}
                     aria-invalid={!!errors.password}
                   />
                   {errors.password ? (
@@ -298,9 +292,9 @@ export default function SignUpForm() {
                 <Button 
                   type="submit" 
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white transition-all duration-300 mt-2" 
-                  disabled={isLoading || localLoading}
+                  disabled={localLoading}
                 >
-                  {(isLoading || localLoading) ? (
+                  {(localLoading) ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <ArrowRight size={16} className="mr-2" />

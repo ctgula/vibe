@@ -1,21 +1,14 @@
 // app/auth/signup/page.tsx
-// This is a server component (no "use client" directive)
-import dynamic from 'next/dynamic';
+// This is a client component
+'use client';
 
-// Dynamically import the form component with no SSR
-const SignUpForm = dynamic(() => import('@/components/auth/SignUpForm'), {
-  ssr: false,
-  loading: () => (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white mx-auto"></div>
-        <p className="mt-4 text-zinc-400">Loading sign up form...</p>
-      </div>
-    </div>
-  ),
-});
+import { SignUpForm } from '@/components/auth/SimpleSignUpForm';
 
 // Server component that renders the client component
 export default function SignUpPage() {
-  return <SignUpForm />;
+  return (
+    <div className="min-h-screen bg-zinc-900">
+      <SignUpForm />
+    </div>
+  );
 }
