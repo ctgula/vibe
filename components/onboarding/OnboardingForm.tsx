@@ -190,6 +190,30 @@ export default function OnboardingForm() {
   }, [])
 
   useEffect(() => {
+    // For more verbose debugging
+    if (typeof window !== 'undefined') {
+      // Add global debug function
+      (window as any).debugOnboarding = {
+        resetLoading: () => {
+          setLoading(false);
+          console.log('Forced loading state reset via debug function');
+        },
+        getState: () => {
+          return {
+            loading,
+            authLoading,
+            user,
+            guestId,
+            formData,
+            keyboardOpen,
+            errorMessage
+          };
+        }
+      };
+    }
+  }, [loading, authLoading, user, guestId, formData, keyboardOpen, errorMessage]);
+
+  useEffect(() => {
     // Full check for both auth methods with explicit loading state
     const isFullyLoaded = !authLoading && !loading;
     const hasAuthMethod = !!user || !!guestId;
@@ -289,13 +313,23 @@ export default function OnboardingForm() {
       const currentUser = user;
       const currentGuestId = guestId || localStorage.getItem('guestProfileId');
       
-      // Determine which ID to use (authenticated user or guest)
+      console.log('[Onboarding] Auth info - user:', !!currentUser, 'guestId:', !!currentGuestId);
+      
+      // Force loading to false if we don't have any auth method
+      if (!currentUser && !currentGuestId) {
+        console.warn('[Onboarding] No auth method found, stopping initialization');
+        setErrorMessage('Could not determine your identity. Please try signing in again.');
+        setLoading(false);
+        return;
+      }
+      
+      // Determine which ID to use (authenticated or guest)
       const profileId = currentUser?.id || currentGuestId;
       if (!profileId) {
         console.error('[Onboarding] No profile ID available, aborting');
         setErrorMessage('Could not determine your identity. Please try signing in again.');
         setLoading(false);
-        throw new Error('No profile ID available');
+        return;
       }
       
       console.log('[Onboarding] Using profile ID:', profileId, 'isGuest:', !currentUser, 'isUser:', !!currentUser);
@@ -310,8 +344,9 @@ export default function OnboardingForm() {
       
       if (error) {
         console.error('[Onboarding] Error checking profile:', error);
+        setErrorMessage(`Error checking profile: ${error.message}`);
         setLoading(false);
-        throw error;
+        return;
       }
       
       // If no profile exists, create an empty one
@@ -320,39 +355,71 @@ export default function OnboardingForm() {
         try {
           // Use the createEmptyProfile from useAuth which handles proper profile creation
           if (currentUser) {
-            await createEmptyProfile(currentUser.id);
-            console.log('[Onboarding] Created empty profile for user:', currentUser.id);
+            console.log('[Onboarding] Creating profile for user', currentUser.id);
+            try {
+              await createEmptyProfile(currentUser.id);
+              console.log('[Onboarding] Created empty profile for user:', currentUser.id);
+            } catch (createError) {
+              console.error('[Onboarding] Error in createEmptyProfile:', createError);
+              setErrorMessage(`Error creating profile: ${String(createError)}`);
+              setLoading(false);
+              return;
+            }
           } else if (currentGuestId) {
             // For guest profiles, create directly
-            await supabase.from('profiles').insert({
-              id: currentGuestId,
-              username: `guest_${Date.now().toString(36)}`,
-              display_name: 'Guest User',
-              is_guest: true,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
-            console.log('[Onboarding] Created guest profile for:', currentGuestId);
+            console.log('[Onboarding] Creating guest profile');
+            try {
+              const { error: insertError } = await supabase.from('profiles').insert({
+                id: currentGuestId,
+                username: `guest_${Date.now().toString(36)}`,
+                display_name: 'Guest User',
+                is_guest: true,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              });
+              
+              if (insertError) {
+                console.error('[Onboarding] Error inserting guest profile:', insertError);
+                setErrorMessage(`Error creating guest profile: ${insertError.message}`);
+                setLoading(false);
+                return;
+              }
+              
+              console.log('[Onboarding] Created guest profile for:', currentGuestId);
+            } catch (insertError) {
+              console.error('[Onboarding] Exception inserting guest profile:', insertError);
+              setErrorMessage(`Error creating guest profile: ${String(insertError)}`);
+              setLoading(false);
+              return;
+            }
           }
           
           // Re-fetch the newly created profile
           console.log('[Onboarding] Fetching newly created profile');
-          const { data: newProfile, error: newProfileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', profileId)
-            .single();
-          
-          if (newProfileError) {
-            console.error('[Onboarding] Error fetching new profile:', newProfileError);
-            setLoading(false);
-            throw newProfileError;
-          }
-          
-          console.log('[Onboarding] Created new profile:', newProfile);
-          
-          // Pre-fill form with data from the new profile
-          if (newProfile) {
+          try {
+            const { data: newProfile, error: newProfileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', profileId)
+              .single();
+            
+            if (newProfileError) {
+              console.error('[Onboarding] Error fetching new profile:', newProfileError);
+              setErrorMessage(`Error fetching your profile: ${newProfileError.message}`);
+              setLoading(false);
+              return;
+            }
+            
+            if (!newProfile) {
+              console.error('[Onboarding] New profile is null after creation');
+              setErrorMessage('Error creating your profile. Profile not found after creation.');
+              setLoading(false);
+              return;
+            }
+            
+            console.log('[Onboarding] Created new profile:', newProfile);
+            
+            // Pre-fill form with data from the new profile
             setFormData(prevData => ({
               ...prevData,
               username: newProfile.username || '',
@@ -361,8 +428,11 @@ export default function OnboardingForm() {
               preferredGenres: newProfile.preferred_genres || [],
               themeColor: newProfile.theme_color || '#6366f1'
             }));
-          } else {
-            console.warn('[Onboarding] New profile is null after creation');
+          } catch (fetchError) {
+            console.error('[Onboarding] Exception fetching new profile:', fetchError);
+            setErrorMessage(`Error retrieving your profile: ${String(fetchError)}`);
+            setLoading(false);
+            return;
           }
         } catch (err) {
           console.error('[Onboarding] Error creating profile:', err);
@@ -390,9 +460,14 @@ export default function OnboardingForm() {
           themeColor: profile.theme_color || '#6366f1'
         }));
       }
+      
+      // Set loading to false at the end if we got here successfully
+      console.log('[Onboarding] Profile initialization completed successfully');
+      setLoading(false);
     } catch (err) {
       console.error('[Onboarding] Error in initializeProfile:', err);
-      setErrorMessage('Something went wrong while loading your profile');
+      setErrorMessage(`Something went wrong: ${String(err)}`);
+      setLoading(false);
     } finally {
       console.log('[Onboarding] initializeProfile complete, setting loading=false');
       setLoading(false);
@@ -493,7 +568,29 @@ export default function OnboardingForm() {
       return (
         <div className="flex flex-col items-center justify-center min-h-[50vh] p-4">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mb-4" />
-          <p className="text-white/70 text-sm">Loading your profile...</p>
+          <p className="text-white/70 text-sm mb-4">Loading your profile...</p>
+          
+          {/* Add a skip button that appears after 5 seconds */}
+          {initAttemptedRef.current && (
+            <Button 
+              onClick={() => {
+                console.log('[Onboarding] User manually skipped loading');
+                setLoading(false);
+                // Create an empty form state
+                setFormData({
+                  username: '',
+                  displayName: '',
+                  bio: '',
+                  preferredGenres: [],
+                  themeColor: '#6366f1'
+                });
+              }}
+              variant="outline"
+              className="mt-4 text-xs bg-zinc-800/50 hover:bg-zinc-700/50 text-white/60"
+            >
+              Continue without loading
+            </Button>
+          )}
         </div>
       )
     }
@@ -504,13 +601,32 @@ export default function OnboardingForm() {
         <div className="text-center p-6 rounded-lg bg-red-500/10 border border-red-500/20">
           <h2 className="text-lg font-bold text-red-400 mb-2">Something went wrong</h2>
           <p className="text-white/80 mb-4">{errorMessage}</p>
-          <Button 
-            onClick={() => router.push('/auth/signin')}
-            variant="outline"
-            className="bg-white/5 hover:bg-white/10 text-white border-white/20"
-          >
-            Return to Sign In
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button 
+              onClick={() => router.push('/auth/signin')}
+              variant="outline"
+              className="bg-white/5 hover:bg-white/10 text-white border-white/20"
+            >
+              Go back to sign in
+            </Button>
+            <Button
+              onClick={() => {
+                setErrorMessage(null);
+                setLoading(false);
+                // Provide a fresh start with empty form
+                setFormData({
+                  username: '',
+                  displayName: '',
+                  bio: '',
+                  preferredGenres: [],
+                  themeColor: '#6366f1'
+                });
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              Start fresh
+            </Button>
+          </div>
         </div>
       )
     }

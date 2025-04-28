@@ -18,6 +18,10 @@ export interface Profile {
   is_guest?: boolean;
   username?: string;
   display_name?: string;
+  preferred_genres?: string[];
+  bio?: string;
+  theme_color?: string;
+  onboarded?: boolean;
 }
 
 interface AuthContextType {
@@ -87,27 +91,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Create an empty profile for a user
   const createEmptyProfile = async (userId: string): Promise<void> => {
     try {
-      console.log('Creating empty profile for user:', userId);
-      const { data, error } = await supabase
+      console.log('AUTH STATE: Creating empty profile for user:', userId);
+      
+      // First check if a profile already exists to avoid duplicates
+      const { data: existingProfile, error: checkError } = await supabase
         .from('profiles')
-        .upsert({
-          id: userId,
-          username: `user_${Date.now().toString(36)}`, // Generate a temporary username
-          display_name: 'New User',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          is_guest: false,
-          onboarding_completed: false
-        });
-
-      if (error) {
-        console.error('Error creating empty profile:', error);
-        throw error;
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (checkError) {
+        console.error('AUTH STATE: Error checking existing profile:', checkError);
+        throw checkError;
       }
       
-      console.log('Empty profile created successfully');
+      // If the profile already exists, don't overwrite it
+      if (existingProfile) {
+        console.log('AUTH STATE: Profile already exists for user, skipping creation');
+        return;
+      }
+      
+      // Create base profile data
+      const profileData = {
+        id: userId,
+        username: `user_${Date.now().toString(36)}`, // Generate a temporary username
+        display_name: 'New User',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_guest: false,
+        onboarded: false,
+        preferred_genres: [],
+        bio: '',
+        theme_color: '#6366f1'
+      };
+      
+      // Insert the profile with all necessary fields
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert(profileData);
+
+      if (insertError) {
+        console.error('AUTH STATE: Error creating empty profile:', insertError);
+        throw insertError;
+      }
+      
+      console.log('AUTH STATE: Empty profile created successfully');
+      
+      // Immediately fetch the profile to ensure it's properly created
+      const { data: createdProfile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+        
+      if (fetchError) {
+        console.error('AUTH STATE: Error fetching newly created profile:', fetchError);
+        // Don't throw, we've already created the profile
+      } else if (!createdProfile) {
+        console.error('AUTH STATE: Profile created but could not be fetched');
+      } else {
+        console.log('AUTH STATE: Created profile fetched successfully', createdProfile);
+        // Set the profile in the state directly
+        setProfile(createdProfile);
+      }
     } catch (err) {
-      console.error('Exception creating empty profile:', err);
+      console.error('AUTH STATE: Exception creating empty profile:', err);
       throw err;
     }
   };
@@ -371,7 +419,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Check if user has completed onboarding
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('onboarding_completed')
+          .select('onboarded')
           .eq('id', data.user.id)
           .single();
           
@@ -384,7 +432,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.removeItem('redirectAfterAuth');
         } 
         // Otherwise, if onboarding not completed, redirect to onboarding
-        else if (profileData && profileData.onboarding_completed === false) {
+        else if (profileData && profileData.onboarded === false) {
           redirectPath = '/onboarding';
         }
         // Otherwise, redirect to dashboard
