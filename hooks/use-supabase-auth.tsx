@@ -244,111 +244,111 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Sign in with email and password
+  /**
+   * Sign in with email and password
+   */
   const signIn = async (email: string, password: string) => {
+    setIsLoading(true);
+    
+    // Safety timeout to prevent indefinite loading state
     const safetyTimeout = setTimeout(() => {
-      console.log('AUTH STATE: Sign in safety timeout triggered');
       setIsLoading(false);
-    }, 15000); // 15s safety timeout
+      console.warn('AUTH: Safety timeout triggered - auth operation took too long');
+    }, 15000); // 15 second timeout
     
     try {
-      console.log('AUTH STATE: Signing in with email...');
-      setIsLoading(true);
-
-      // Sign in with Supabase auth
+      console.log('Signing in with email...');
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-
-      if (error) {
-        throw error;
+      
+      if (error) throw error;
+      
+      const { user: authUser, session } = data;
+      
+      if (!authUser) {
+        throw new Error('Sign in succeeded but no user was returned');
       }
-
-      if (!data?.user) {
-        throw new Error('No user data returned from login');
-      }
-
-      // Set user state
-      setUser(data.user);
+      
+      // Update auth state
+      setUser(authUser);
       
       // Fetch and set profile
-      const userProfile = await fetchUserProfile(data.user.id);
-      
-      // Check if the user has completed onboarding
-      if (userProfile && userProfile.onboarded !== true) {
-        console.log('AUTH STATE: User has not completed onboarding, redirecting...');
-        toast.success('Welcome back! Please complete your profile.');
+      try {
+        const userProfile = await fetchUserProfile(authUser.id);
+        setProfile(userProfile);
         
-        // Use router for better navigation
-        setTimeout(() => {
-          console.log('Redirecting to onboarding...');
-          router.push('/onboarding' as Route);
-        }, 500);
-      } else {
-        console.log('AUTH STATE: User has completed onboarding');
+        // Determine where to redirect based on profile status
+        if (userProfile?.onboarded === false) {
+          toast.success('Welcome back! Completing your profile...');
+          router.push('/onboarding');
+        } else {
+          toast.success('Signed in successfully');
+          router.push('/directory');
+        }
+      } catch (profileError) {
+        console.error('Error fetching profile after signin:', profileError);
+        // If we can't fetch the profile, still consider the login successful
+        // but redirect to onboarding in case they need to create a profile
         toast.success('Signed in successfully');
-        
-        // Use router for better navigation
-        setTimeout(() => {
-          console.log('Redirecting to home...');
-          router.push('/' as Route);
-        }, 500);
+        router.push('/directory');
       }
+      
     } catch (error: any) {
-      console.error('AUTH STATE: Sign in error:', error);
-      toast.error(error?.message || 'Error signing in. Please try again.');
-      throw error;
+      console.error('Sign in error:', error);
+      toast.error(error?.message || 'Invalid email or password');
+      throw error; // Rethrow so the form can handle it if needed
     } finally {
       clearTimeout(safetyTimeout);
       setIsLoading(false);
     }
   };
 
-  // Sign up with email and password
+  /**
+   * Sign up with email and password
+   */
   const signUp = async (email: string, password: string): Promise<AuthResponse> => {
+    setIsLoading(true);
+    
+    // Safety timeout to prevent infinite loading
     const safetyTimeout = setTimeout(() => {
-      console.log('AUTH STATE: Sign up safety timeout triggered');
       setIsLoading(false);
-    }, 15000); // 15s safety timeout
-
+      console.warn('AUTH: Safety timeout triggered - signup operation took too long');
+      toast.error('The signup process is taking longer than expected. Please try again.');
+    }, 15000); // 15 second timeout
+    
     try {
-      console.log('AUTH STATE: Signing up with email...');
-      setIsLoading(true);
-
-      // Sign up with Supabase auth
+      console.log('Signing up with email...');
+      
+      // Sign up with Supabase Auth
       const response = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data: {
-            full_name: '',
-          }
-        }
+        },
       });
-
-      console.log('Signup response:', response);
-
+      
       if (response.error) {
-        console.error('Sign up error:', response.error);
         throw response.error;
       }
-
-      if (!response.data?.user) {
-        console.error('No user data in successful response:', response);
-        throw new Error('No user data returned from signup');
-      }
-
-      console.log('Signup successful:', response.data.user?.id);
       
+      // If we don't have a user, something went wrong
+      if (!response.data?.user) {
+        throw new Error('Sign up succeeded but no user was returned');
+      }
+      
+      // Create a profile for the new user
       try {
-        // Create an empty profile for the new user
-        await createEmptyProfile(response.data.user.id);
-        console.log('Empty profile created for new user');
+        console.log('Creating profile for new user:', response.data.user.id);
         
-        // Set the user in state immediately
+        // Set user in state
         setUser(response.data.user);
+        
+        // Create profile
+        await createEmptyProfile(response.data.user.id);
         
         // Fetch and set the profile
         const userProfile = await fetchUserProfile(response.data.user.id);
@@ -395,8 +395,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Use router for better navigation
         setTimeout(() => {
           console.log('Redirecting to onboarding...');
-          // Using direct window.location for more reliable redirect
-          window.location.href = '/onboarding';
+          router.push('/onboarding');
         }, 1500); // Slightly longer delay to ensure profile is created
       }
 

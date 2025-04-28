@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/auth';
 
 interface ProtectedRouteProps {
@@ -15,20 +15,20 @@ export function ProtectedRoute({
   requireAuth = false,
   fallbackRoute = '/onboarding'
 }: ProtectedRouteProps) {
-  const { user, isLoading, isAuthenticated } = useAuth();
   const router = useRouter();
+  const route = usePathname();
+  const { user, authLoading } = useAuth();
 
   // Log auth state for debugging
   useEffect(() => {
     console.log('Protected route auth state:', { 
       user: !!user, 
-      isLoading, 
-      isAuthenticated
+      authLoading
     });
-  }, [user, isLoading, isAuthenticated]);
+  }, [user, authLoading]);
 
   // Show loading state
-  if (isLoading) {
+  if (authLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-gradient-to-br from-[#0f172a] via-[#18181b] to-[#0e7490] text-white">
         <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -47,7 +47,7 @@ export function ProtectedRoute({
   }
 
   // Handle basic authentication
-  if (!isAuthenticated) {
+  if (!user) {
     // If no authentication
     console.error("No user available for protected route");
     console.log('No authentication found, redirecting to:', fallbackRoute);

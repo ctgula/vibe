@@ -32,8 +32,9 @@ const item = {
 };
 
 export default function Directory() {
-  const router = useRouter();
+  // For protection
   const { user } = useAuth();
+  const router = useRouter();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);

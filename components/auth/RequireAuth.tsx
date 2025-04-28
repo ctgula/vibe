@@ -10,14 +10,18 @@ import type { Route } from 'next';
 interface RequireAuthProps {
   children: React.ReactNode;
   redirectTo?: string;
+  fallback?: React.ReactNode;
+  allowWithoutProfile?: boolean;
 }
 
-export function RequireAuth({ 
-  children, 
-  redirectTo = '/auth/signin'
-}: RequireAuthProps) {
-  const { user, isLoading: authLoading } = useAuth();
+export const RequireAuth: React.FC<RequireAuthProps> = ({
+  children,
+  redirectTo = '/auth/signin',
+  fallback,
+  allowWithoutProfile = false,
+}) => {
   const router = useRouter();
+  const { user, profile, authLoading } = useAuth();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
 

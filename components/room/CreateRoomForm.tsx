@@ -121,27 +121,26 @@ export default function CreateRoomForm() {
       // Generate a room ID
       const roomId = uuidv4();
       
-      // Handle audio room creation
-      const { data: roomData, error: roomError } = await supabase
+      // Create room
+      const { data, error: roomError } = await supabase
         .from('rooms')
-        .insert([
-          {
-            id: roomId,
-            room_name: name.trim(),
-            description: description.trim() || null,
-            is_private: isPrivate,
-            is_live: false,
-            enable_video: false,
-            created_by: userId,
-            max_participants: 50, // Default maximum
-            tags: tags.length > 0 ? tags : null,
-          }
-        ])
+        .insert({
+          id: roomId,
+          room_name: name.trim(),
+          description: description.trim() || null,
+          is_private: isPrivate,
+          created_by: userId,
+          is_live: false,
+          enable_video: false,
+          max_participants: 50, // Default maximum
+          tags: tags.length > 0 ? tags : null,
+        })
         .select()
         .single();
 
       if (roomError) {
-        setError(`Room creation error: ${roomError.message}`);
+        console.error('Room creation error:', roomError);
+        setError(`Failed to create room: ${roomError.message}`);
         toast({
           title: "Room creation failed",
           description: roomError.message,
@@ -151,26 +150,25 @@ export default function CreateRoomForm() {
         return;
       }
 
-      // 2. Add the creator as a participant
+      // Add the creator as a participant
       const { error: participantError } = await supabase
         .from('room_participants')
-        .insert([
-          {
-            room_id: roomId,
-            user_id: userId,
-            is_speaker: true,  // Room creator is automatically a speaker
-            is_moderator: true,  // Room creator is automatically a moderator
-          }
-        ]);
+        .insert({
+          room_id: roomId,
+          user_id: userId,
+          is_speaker: true,
+          is_moderator: true
+        });
 
       if (participantError) {
-        setError(`Participant creation error: ${participantError.message}`);
-        toast({
-          title: "Participant assignment failed",
-          description: participantError.message,
-          variant: "destructive"
+        console.error('Participant error:', participantError);
+        setError(`Room created, but failed to add participant: ${participantError.message}`);
+        toast({ 
+          title: "Participant add failed", 
+          description: participantError.message, 
+          variant: "default" 
         });
-        // We don't return here - the room was created successfully
+        // Continue to redirect, as room exists
       }
 
       toast({

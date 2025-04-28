@@ -26,19 +26,49 @@ import { FileUploader } from '@/components/FileUploader';
 import { RoomHeader } from '@/components/room/RoomHeader';
 import { useToast } from '@/hooks/use-toast';
 
+// Define types for better type safety
+type RoomData = {
+  id: string;
+  room_name: string;
+  description?: string;
+  created_by: string;
+  is_private: boolean;
+  is_live?: boolean;
+  enable_video?: boolean;
+  has_camera?: boolean;
+  name?: string; // For backward compatibility
+};
+
+type Participant = {
+  id: string;
+  user_id: string;
+  room_id: string;
+  is_speaker: boolean;
+  is_moderator: boolean;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+};
+
 export default function Room({ params }: { params: { id: string } }) {
-  const { user, profile, isAuthenticated, ensureSessionToken } = useAuth();
-  const router = useRouter();
-  const [room, setRoom] = useState<any>(null);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [messageText, setMessageText] = useState('');
+  const myRoomId = params.id;
+  const [roomData, setRoomData] = useState<RoomData | null>(null);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [isModerator, setIsModerator] = useState(false);
   const [isSpeaker, setIsSpeaker] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [showChat, setShowChat] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
+  const { user, profile } = useAuth();
+  const router = useRouter();
+  const [messages, setMessages] = useState<any[]>([]);
+  const [messageText, setMessageText] = useState('');
   const [hasRaisedHand, setHasRaisedHand] = useState(false);
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
   const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
@@ -110,7 +140,7 @@ export default function Room({ params }: { params: { id: string } }) {
 
   // If participant is not active (real-time bug case)
   useEffect(() => {
-    if (room && activeParticipants && id && !activeParticipants.includes(id)) {
+    if (roomData && activeParticipants && id && !activeParticipants.includes(id)) {
       toast({
         title: "Inactive Participant",
         description: "You are not an active participant in this room.",
@@ -118,10 +148,10 @@ export default function Room({ params }: { params: { id: string } }) {
       });
       router.replace('/directory');
     }
-  }, [room, activeParticipants, id, router, toast]);
+  }, [roomData, activeParticipants, id, router, toast]);
 
   // Use the participants hook with type-safe ID
-  const { participants, userStatus, loading: participantsLoading } = useParticipants(params.id, id);
+  const { participants: participantsData, userStatus, loading: participantsLoading } = useParticipants(params.id, id);
 
   // Get notification context
   const { addNotification } = useNotification();
@@ -147,7 +177,7 @@ export default function Room({ params }: { params: { id: string } }) {
 
   // Subscribe to participant changes
   useEffect(() => {
-    if (!params.id || !room) return;
+    if (!params.id || !roomData) return;
 
     try {
       const participantsSubscription = supabase
@@ -184,7 +214,7 @@ export default function Room({ params }: { params: { id: string } }) {
       console.error('Error in participants subscription:', err);
       setError('Failed to subscribe to participant updates');
     }
-  }, [params.id, room, user?.id, router]);
+  }, [params.id, roomData, user?.id, router]);
 
   // Fetch participants
   const fetchParticipants = async () => {
@@ -197,8 +227,7 @@ export default function Room({ params }: { params: { id: string } }) {
             id,
             username,
             display_name,
-            avatar_url,
-            is_guest
+            avatar_url
           )
         `)
         .eq('room_id', params.id)
@@ -267,7 +296,7 @@ export default function Room({ params }: { params: { id: string } }) {
           return;
         }
 
-        setRoom(roomData);
+        setRoomData(roomData);
         setRoomHasVideoEnabled(roomData.has_camera || false);
         
         // Set document title to room name for better PWA experience
@@ -297,7 +326,7 @@ export default function Room({ params }: { params: { id: string } }) {
   }, [params.id]);
 
   useEffect(() => {
-    if (!params.id || !room) return;
+    if (!params.id || !roomData) return;
 
     try {
       const roomSubscription = supabase
@@ -313,7 +342,7 @@ export default function Room({ params }: { params: { id: string } }) {
             setError('This room has been deleted');
             return;
           }
-          setRoom(payload.new);
+          setRoomData(payload.new);
         })
         .subscribe((status) => {
           console.log('Room subscription status:', status);
@@ -329,7 +358,7 @@ export default function Room({ params }: { params: { id: string } }) {
       console.error('Error in room subscription:', err);
       setError('Failed to subscribe to room updates');
     }
-  }, [params.id, room]);
+  }, [params.id, roomData]);
 
   // Scroll to bottom of messages
   const scrollToBottom = () => {
@@ -858,7 +887,7 @@ export default function Room({ params }: { params: { id: string } }) {
   }
 
   // Show loading state while room data is being fetched
-  if (!room) {
+  if (!roomData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
         <motion.div 
@@ -874,7 +903,7 @@ export default function Room({ params }: { params: { id: string } }) {
   }
 
   // Handle room not found
-  if (!room.id) {
+  if (!roomData.id) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="text-center p-8 rounded-lg">
@@ -925,7 +954,7 @@ export default function Room({ params }: { params: { id: string } }) {
     );
   }
 
-  if (!room || participantsLoading) {
+  if (!roomData || participantsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-900">
         <div className="text-center">
@@ -957,7 +986,7 @@ export default function Room({ params }: { params: { id: string } }) {
           <div className="relative flex-1 overflow-hidden">
             {/* Room Header */}
             <RoomHeader
-              roomName={room?.name || 'Loading...'}
+              roomName={roomData?.name || 'Loading...'}
               participantCount={activeParticipants.length}
               onShowParticipants={() => setShowParticipants(true)}
             />
