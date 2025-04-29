@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 
+// Specify Node.js runtime for Vercel compatibility
+export const runtime = 'nodejs';
+
 // Define types for mock data to avoid TypeScript errors
 interface ProfileData {
   id: string;
