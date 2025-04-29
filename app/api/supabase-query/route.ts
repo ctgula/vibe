@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createServiceClient } from '@/lib/supabase-server';
 
 // Specify Node.js runtime for Vercel compatibility
 export const runtime = 'nodejs';
@@ -38,7 +39,43 @@ export async function POST(request: Request) {
   try {
     const { query, table, filter } = await request.json();
     
-    // Instead of real DB queries, just return mock data based on the query parameters
+    // Try to use actual Supabase first if in production
+    if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      try {
+        const supabase = createServiceClient();
+        
+        if (query === 'select' && table) {
+          // Use any type to avoid TypeScript deep instantiation errors
+          let supabaseQuery: any = supabase.from(table).select('*');
+          
+          // Apply filters if provided
+          if (filter && filter.column && filter.value) {
+            supabaseQuery = supabaseQuery.eq(filter.column, filter.value);
+          }
+          
+          // Apply limit if provided
+          if (filter && filter.limit && typeof filter.limit === 'number') {
+            supabaseQuery = supabaseQuery.limit(filter.limit);
+          }
+          
+          const { data, error } = await supabaseQuery;
+          
+          if (error) throw error;
+          
+          return NextResponse.json({ 
+            success: true, 
+            data,
+            source: 'supabase' 
+          });
+        }
+      } catch (supabaseError) {
+        console.warn('Error using Supabase, falling back to mock data:', supabaseError);
+        // Continue to mock data as fallback
+      }
+    }
+    
+    // Use mock data as fallback or for development/testing
+    console.log('Using mock data for query:', query, 'table:', table);
     let result;
     
     if (query === 'select') {
@@ -67,7 +104,7 @@ export async function POST(request: Request) {
         mockData = mockData.slice(0, filter.limit);
       }
       
-      result = { success: true, data: mockData };
+      result = { success: true, data: mockData, source: 'mock' };
     }
     else if (query === 'schemas') {
       const schemaData: SchemaData[] = [
@@ -75,7 +112,7 @@ export async function POST(request: Request) {
         { name: 'auth', tables: 8, size: '4.2MB' },
         { name: 'storage', tables: 3, size: '0.8MB' }
       ];
-      result = { success: true, data: schemaData };
+      result = { success: true, data: schemaData, source: 'mock' };
     }
     else if (query === 'tables') {
       const tableData: TableData[] = [
@@ -84,10 +121,10 @@ export async function POST(request: Request) {
         { name: 'room_participants', schema: 'public', rows: '~120', size: '0.4MB' },
         { name: 'messages', schema: 'public', rows: '~1000', size: '3.5MB' }
       ];
-      result = { success: true, data: tableData };
+      result = { success: true, data: tableData, source: 'mock' };
     }
     else {
-      result = { success: false, error: 'Unsupported query type' };
+      result = { success: false, error: 'Unsupported query type', source: 'mock' };
     }
     
     return NextResponse.json(result);
@@ -95,7 +132,7 @@ export async function POST(request: Request) {
   catch (error) {
     console.error('API error:', error);
     return NextResponse.json(
-      { success: false, error: String(error) },
+      { success: false, error: String(error), source: 'error' },
       { status: 500 }
     );
   }

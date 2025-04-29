@@ -1,100 +1,102 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { createServiceClient } from '@/lib/supabase-server';
 
 // Convert from edge to node runtime for better Vercel compatibility
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   try {
-    // Log debugging info
-    console.log('Webhook: handle-new-user called');
+    // Parse the webhook payload
+    const payload = await request.json();
     
-    // Parse the request body
-    const requestData = await request.json();
-    console.log('Webhook payload:', JSON.stringify(requestData));
+    // Log the event for debugging
+    console.log('Webhook received:', payload.type);
     
-    const { user } = requestData;
+    // Only process user.created events
+    if (payload.type !== 'user.created') {
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Event type not handled by this webhook' 
+      });
+    }
     
-    // Validate user data
+    // Extract user data
+    const user = payload.data;
+    
     if (!user || !user.id) {
-      console.error('Invalid user data:', user);
-      return NextResponse.json({ error: 'Invalid user data' }, { status: 400 });
+      return NextResponse.json({ 
+        error: 'Invalid user data in webhook' 
+      }, { status: 400 });
     }
-
-    // Ensure we have the required environment variables
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      console.error('Missing environment variables for Supabase');
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-    }
-
-    // Create a Supabase client with service role key for admin privileges
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        cookies: {
-          get(name: string) {
-            return cookies().get(name)?.value;
-          },
-          set(name: string, value: string, options: any) {
-            cookies().set({ name, value, ...options });
-          },
-          remove(name: string, options: any) {
-            cookies().set({ name, value: '', ...options });
-          },
-        },
-      }
-    );
-
+    
+    console.log('Creating profile for new user:', user.id);
+    
+    // Create Supabase client with service role
+    const supabase = createServiceClient();
+    
     // Check if profile already exists
-    const { data: existingProfile } = await supabase
+    const { data: existingProfile, error: checkError } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id')
       .eq('id', user.id)
-      .single();
-
-    if (existingProfile) {
-      console.log('Profile already exists for user:', user.id);
-      return NextResponse.json({ message: 'Profile already exists' }, { status: 200 });
+      .maybeSingle();
+      
+    if (checkError) {
+      console.error('Error checking for existing profile:', checkError);
+      throw checkError;
     }
-
-    // Create username from email
+    
+    // If profile already exists, return success
+    if (existingProfile) {
+      return NextResponse.json({
+        success: true,
+        message: 'Profile already exists',
+        profile_id: user.id
+      });
+    }
+    
+    // Create username from email or generate a random one
     let username = '';
     if (user.email) {
       username = user.email.split('@')[0];
     } else {
-      username = `user_${Math.floor(Math.random() * 1000000)}`;
+      username = `user_${Date.now().toString(36)}`;
     }
-
-    // Add display name (fallback to username or metadata)
-    const displayName = user.user_metadata?.display_name || 
-                        user.user_metadata?.full_name || 
-                        username;
-
-    // Insert profile using service role (bypasses RLS)
-    const { data, error } = await supabase
+    
+    // Get display name from metadata or use username
+    const displayName = user.user_metadata?.full_name || username;
+    
+    // Create new profile
+    const { error: insertError } = await supabase
       .from('profiles')
-      .insert({
+      .insert([{
         id: user.id,
         email: user.email,
         username: username,
         display_name: displayName,
         avatar_url: user.user_metadata?.avatar_url || null,
-        is_guest: false,
-        created_at: new Date().toISOString()
-      })
-      .select();
-
-    if (error) {
-      console.error('Error creating profile:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        onboarded: false
+      }]);
+      
+    if (insertError) {
+      console.error('Error creating profile:', insertError);
+      throw insertError;
     }
-
-    console.log('Profile created successfully for user:', user.id);
-    return NextResponse.json({ profile: data[0] }, { status: 201 });
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Profile created successfully',
+      profile_id: user.id
+    });
   } catch (error) {
-    console.error('Unexpected error in handle-new-user webhook:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error in webhook handler:', error);
+    return NextResponse.json(
+      { error: String(error) },
+      { status: 500 }
+    );
   }
 }

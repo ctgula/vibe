@@ -1,98 +1,82 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
+import { createServiceClient } from '@/lib/supabase-server';
 
 // Convert from edge to node runtime for better Vercel compatibility
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
-    // Log debugging info 
-    console.log('Edge Function: create-profile called');
-    
-    // Ensure we have the required environment variables
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      console.error('Missing environment variables for Supabase');
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-    }
-
     // Parse the request body
     const requestData = await request.json();
-    console.log('Request body:', JSON.stringify(requestData));
+    const { user_id } = requestData;
     
-    const { user } = requestData;
-    
-    // Validate user data
-    if (!user || !user.id) {
-      console.error('Invalid user data:', user);
-      return NextResponse.json({ error: 'Invalid user data' }, { status: 400 });
+    if (!user_id) {
+      return NextResponse.json(
+        { error: 'User ID is required' },
+        { status: 400 }
+      );
     }
-
-    // Create a Supabase client with service role key for admin privileges
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        cookies: {
-          get(name: string) {
-            return cookies().get(name)?.value;
-          },
-          set(name: string, value: string, options: any) {
-            cookies().set({ name, value, ...options });
-          },
-          remove(name: string, options: any) {
-            cookies().set({ name, value: '', ...options });
-          },
-        },
-      }
-    );
-
-    // Check if profile already exists
-    const { data: existingProfile } = await supabase
+    
+    console.log('Creating profile for user:', user_id);
+    
+    // Create a Supabase service client with admin privileges
+    const supabase = createServiceClient();
+    
+    // Check if profile already exists to avoid duplicates
+    const { data: existingProfile, error: checkError } = await supabase
       .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
+      .select('id')
+      .eq('id', user_id)
+      .maybeSingle();
+      
+    if (checkError) {
+      console.error('Error checking for existing profile:', checkError);
+      throw checkError;
+    }
+    
+    // If profile already exists, return success but note it's an existing profile
     if (existingProfile) {
-      console.log('Profile already exists for user:', user.id);
-      return NextResponse.json({ message: 'Profile already exists' }, { status: 200 });
+      return NextResponse.json({
+        success: true,
+        message: 'Profile already exists',
+        new_profile: false,
+        profile_id: user_id
+      });
     }
-
-    // Create username from email
-    let username = '';
-    if (user.email) {
-      username = user.email.split('@')[0];
-    } else {
-      username = `user_${Math.floor(Math.random() * 1000000)}`;
-    }
-
-    // Add display name (fallback to username)
-    const displayName = user.user_metadata?.full_name || username;
-
-    // Insert profile using service role (bypasses RLS)
-    const { data, error } = await supabase
+    
+    // Create base profile data
+    const profileData = {
+      id: user_id,
+      username: `user_${Date.now().toString(36)}`, // Generate a temporary username
+      display_name: 'New User',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      onboarded: false,
+    };
+    
+    // Create the profile
+    const { error: insertError } = await supabase
       .from('profiles')
-      .insert({
-        id: user.id,
-        email: user.email,
-        username: username,
-        display_name: displayName,
-        avatar_url: user.user_metadata?.avatar_url || null,
-        is_guest: false,
-        created_at: new Date().toISOString()
-      })
-      .select();
-
-    if (error) {
-      console.error('Error creating profile:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      .insert([profileData]);
+    
+    if (insertError) {
+      console.error('Error creating profile:', insertError);
+      throw insertError;
     }
-
-    console.log('Profile created successfully for user:', user.id);
-    return NextResponse.json({ profile: data[0] }, { status: 201 });
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Profile created successfully',
+      new_profile: true,
+      profile_id: user_id
+    });
   } catch (error) {
-    console.error('Unexpected error in create-profile:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error in create-profile API:', error);
+    return NextResponse.json(
+      { error: String(error) },
+      { status: 500 }
+    );
   }
 }
