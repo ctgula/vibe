@@ -4,9 +4,8 @@ import { supabase } from '@/lib/supabase';
 // Add nodejs runtime for better Vercel compatibility
 export const runtime = 'nodejs';
 
-// Replace in-memory storage with database storage for serverless compatibility
-// Define a table name for storing peer information
-const PEERS_TABLE = 'room_peers';
+// In-memory storage for peers (used as fallback if database operations fail)
+const roomPeers: Record<string, string[]> = {};
 
 // GET endpoint to fetch all peers in a room
 export async function GET(
@@ -16,20 +15,27 @@ export async function GET(
   try {
     const roomId = params.id;
     
-    // Query database for peers instead of using in-memory storage
-    const { data, error } = await supabase
-      .from(PEERS_TABLE)
-      .select('peer_id')
-      .eq('room_id', roomId);
-      
-    if (error) throw error;
+    // Try to get peers from the database first
+    try {
+      const { data, error } = await supabase
+        .from('room_participants')  // Use existing room_participants table as fallback
+        .select('user_id, status')
+        .eq('room_id', roomId)
+        .eq('status', 'online');
+        
+      if (!error && data) {
+        // Transform participant data to peerId format (just use user_id)
+        const peers = data.map(item => item.user_id);
+        return NextResponse.json({ peers });
+      }
+    } catch (dbError) {
+      console.warn('Falling back to in-memory peers due to DB error:', dbError);
+      // Continue to in-memory fallback
+    }
     
-    // Transform data to match expected format
-    const peers = data?.map(item => item.peer_id) || [];
-    
-    // Return the list of peers for this room
+    // Fallback to in-memory peers if database operation failed
     return NextResponse.json({
-      peers
+      peers: roomPeers[roomId] || [],
     });
   } catch (error) {
     console.error('Error fetching peers:', error);
@@ -57,51 +63,45 @@ export async function POST(
       );
     }
     
-    // Check if peer already exists in the room
-    const { data: existingPeer, error: checkError } = await supabase
-      .from(PEERS_TABLE)
-      .select('id')
-      .eq('room_id', roomId)
-      .eq('peer_id', peerId)
-      .maybeSingle();
+    // First, try to update the database
+    let dbSuccess = false;
+    try {
+      // Try to update participant status to 'online'
+      const { error: updateError } = await supabase
+        .from('room_participants')
+        .update({ status: 'online' })
+        .eq('room_id', roomId)
+        .eq('user_id', peerId);
       
-    if (checkError) throw checkError;
-    
-    // Only add peer if not already in the room
-    if (!existingPeer) {
-      const { error: insertError } = await supabase
-        .from(PEERS_TABLE)
-        .insert({
-          room_id: roomId,
-          peer_id: peerId,
-          joined_at: new Date().toISOString()
-        });
-        
-      if (insertError) throw insertError;
+      if (!updateError) {
+        dbSuccess = true;
+      }
       
       // Log activity
-      const { data: user } = await supabase.auth.getUser();
-      if (user.user) {
-        await supabase.from("activity_logs").insert({
-          room_id: roomId,
-          user_id: user.user.id,
-          action: "joined_video_call",
-          details: { peerId }
-        });
-      }
+      await supabase.from("activity_logs").insert({
+        room_id: roomId,
+        user_id: peerId,
+        action: "joined_video_call"
+      });
+      
+    } catch (dbError) {
+      console.warn('Using in-memory fallback due to DB error:', dbError);
+      // Continue to in-memory fallback
     }
     
-    // Get all peers in the room after adding
-    const { data: allPeers, error: fetchError } = await supabase
-      .from(PEERS_TABLE)
-      .select('peer_id')
-      .eq('room_id', roomId);
-      
-    if (fetchError) throw fetchError;
+    // Always maintain in-memory state as fallback
+    if (!roomPeers[roomId]) {
+      roomPeers[roomId] = [];
+    }
+    
+    if (!roomPeers[roomId].includes(peerId)) {
+      roomPeers[roomId].push(peerId);
+    }
     
     return NextResponse.json({
       success: true,
-      peers: allPeers?.map(item => item.peer_id) || []
+      source: dbSuccess ? 'database' : 'memory',
+      peers: roomPeers[roomId]
     });
   } catch (error) {
     console.error('Error adding peer:', error);
@@ -129,37 +129,41 @@ export async function DELETE(
       );
     }
     
-    // Delete peer from database
-    const { error: deleteError } = await supabase
-      .from(PEERS_TABLE)
-      .delete()
-      .eq('room_id', roomId)
-      .eq('peer_id', peerId);
+    // First, try to update the database
+    let dbSuccess = false;
+    try {
+      // Try to update participant status to 'offline'
+      const { error: updateError } = await supabase
+        .from('room_participants')
+        .update({ status: 'offline' })
+        .eq('room_id', roomId)
+        .eq('user_id', peerId);
+        
+      if (!updateError) {
+        dbSuccess = true;
+      }
       
-    if (deleteError) throw deleteError;
-    
-    // Log activity
-    const { data: user } = await supabase.auth.getUser();
-    if (user.user) {
+      // Log activity
       await supabase.from("activity_logs").insert({
         room_id: roomId,
-        user_id: user.user.id,
-        action: "left_video_call",
-        details: { peerId }
+        user_id: peerId,
+        action: "left_video_call"
       });
+      
+    } catch (dbError) {
+      console.warn('Using in-memory fallback due to DB error:', dbError);
+      // Continue with in-memory fallback
     }
     
-    // Get updated list of peers
-    const { data: remainingPeers, error: fetchError } = await supabase
-      .from(PEERS_TABLE)
-      .select('peer_id')
-      .eq('room_id', roomId);
-      
-    if (fetchError) throw fetchError;
+    // Always maintain in-memory state as fallback
+    if (roomPeers[roomId]) {
+      roomPeers[roomId] = roomPeers[roomId].filter(id => id !== peerId);
+    }
     
     return NextResponse.json({
       success: true,
-      peers: remainingPeers?.map(item => item.peer_id) || []
+      source: dbSuccess ? 'database' : 'memory',
+      peers: roomPeers[roomId] || []
     });
   } catch (error) {
     console.error('Error removing peer:', error);
