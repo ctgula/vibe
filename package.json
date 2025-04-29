@@ -66,6 +66,7 @@
     "@types/react": "19.0.12",
     "autoprefixer": "^10.4.16",
     "dotenv": "^16.5.0",
+    "openapi-typescript": "^7.6.1",
     "postcss": "^8.4.31",
     "supabase": "^2.22.6",
     "svg-to-png": "^4.0.0",

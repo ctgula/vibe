@@ -22,7 +22,7 @@ const supabase = createClientComponentClient();
 export default function RoomsPage() {
   const router = useRouter();
   const { user, isLoading: authLoading, createEmptyProfile } = useAuth();
-  const { rooms, isLoading: roomsLoading, error, createRoom } = useRooms();
+  const { rooms, isLoading: roomsLoading, error, createRoom, fetchRooms } = useRooms();
   const [isCreating, setIsCreating] = useState(false);
   const [roomData, setRoomData] = useState({
     name: '',
@@ -54,28 +54,86 @@ export default function RoomsPage() {
       try {
         console.log('Checking if user has a profile:', user.id);
         
+        // Set a timeout to prevent infinite loading
+        const timeoutId = setTimeout(() => {
+          console.log('Profile check timed out, proceeding anyway');
+          toast.error('Profile loading took too long', {
+            description: 'Continuing with limited functionality'
+          });
+        }, 5000); // 5 second timeout
+        
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
           .maybeSingle();
         
+        // Clear the timeout since we got a response
+        clearTimeout(timeoutId);
+        
         if (error) {
           console.error('Error checking profile:', error);
+          toast.error('Error loading profile', { 
+            description: 'Using fallback profile data' 
+          });
         } else if (!data) {
           console.log('No profile found, creating one');
           
           // Use the createEmptyProfile function from useAuth context
           if (createEmptyProfile) {
-            await createEmptyProfile(user.id);
-            console.log('Profile created successfully via createEmptyProfile');
+            try {
+              await createEmptyProfile(user.id);
+              console.log('Profile created successfully via createEmptyProfile');
+              
+              // Manually refresh rooms data after profile creation
+              if (rooms.length === 0 && !roomsLoading) {
+                fetchRooms();
+              }
+            } catch (createError) {
+              console.error('Error creating profile:', createError);
+              toast.error('Could not create profile', {
+                description: 'Try refreshing the page'
+              });
+            }
           } else {
             // Fallback to direct creation if createEmptyProfile is not available
             console.error('createEmptyProfile not available');
             toast.error('Error creating profile');
+            
+            // Create a minimal profile directly if the hook method fails
+            try {
+              const { error: insertError } = await supabase
+                .from('profiles')
+                .insert([{
+                  id: user.id,
+                  username: `user_${Date.now().toString(36)}`,
+                  display_name: 'New User',
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                  onboarded: false,
+                  bio: '',
+                  theme_color: '#6366F1',
+                }]);
+                
+              if (!insertError) {
+                console.log('Direct profile creation successful');
+                
+                // Manually refresh rooms data after direct profile creation
+                if (rooms.length === 0 && !roomsLoading) {
+                  fetchRooms();
+                }
+              }
+            } catch (directError) {
+              console.error('Direct profile creation failed:', directError);
+            }
           }
         } else {
           console.log('Profile exists:', data);
+          
+          // Ensure rooms get loaded if profile exists
+          if (rooms.length === 0 && !roomsLoading) {
+            fetchRooms();
+          }
         }
       } catch (err) {
         console.error('Exception checking profile:', err);
@@ -83,7 +141,7 @@ export default function RoomsPage() {
     };
     
     ensureProfile();
-  }, [user, createEmptyProfile, supabase, localAuthChecked]);
+  }, [user, createEmptyProfile, supabase, localAuthChecked, rooms, roomsLoading, fetchRooms]);
 
   const handleCreateRoom = async () => {
     if (!roomData.name.trim()) {

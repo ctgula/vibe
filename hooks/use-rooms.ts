@@ -49,12 +49,18 @@ export function useRooms() {
   const [rooms, setRooms] = useState<RoomWithParticipants[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [fetchAttempted, setFetchAttempted] = useState(false);
   const { user } = useAuth();
 
   const fetchRooms = async () => {
     try {
       setIsLoading(true);
+      setFetchAttempted(true);
       console.log('Fetching rooms...');
+      
+      // Add a delay to help ensure profile creation has completed
+      // This gives time for any profile creation transaction to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Instead of a joined query that's failing, fetch rooms and participants separately
       const { data: roomsData, error: roomsError } = await supabase
@@ -68,6 +74,14 @@ export function useRooms() {
       }
 
       console.log('Rooms data:', roomsData);
+
+      if (!roomsData || roomsData.length === 0) {
+        // No rooms available, set empty array and return early
+        setRooms([]);
+        setError(null);
+        setIsLoading(false);
+        return;
+      }
 
       // Process each room to get participants separately
       const processedRooms = await Promise.all(roomsData.map(async (room) => {
@@ -92,8 +106,26 @@ export function useRooms() {
         
         // Filter active participants and find host
         const activeParticipants = participants?.filter(p => p.is_active === true) || [];
-        const hostParticipant = participants?.find(p => p.user_id === room.created_by);
-        const hostProfile = hostParticipant ? hostParticipant.profile : null;
+        
+        // Find the host profile - try direct method first
+        let hostProfile = null;
+        
+        // Get profile for the room creator
+        if (room.created_by) {
+          const { data: directHostProfile, error: hostProfileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', room.created_by)
+            .maybeSingle();
+            
+          if (!hostProfileError && directHostProfile) {
+            hostProfile = directHostProfile;
+          } else {
+            // Fallback to getting from participants
+            const hostParticipant = participants?.find(p => p.user_id === room.created_by);
+            hostProfile = hostParticipant ? hostParticipant.profile : null;
+          }
+        }
         
         return {
           ...room,
@@ -108,6 +140,9 @@ export function useRooms() {
     } catch (err) {
       console.error("Error fetching rooms:", err);
       setError(err instanceof Error ? err : new Error(String(err)));
+      
+      // Set empty rooms array to prevent endless loading state
+      setRooms([]);
     } finally {
       setIsLoading(false);
     }
@@ -303,7 +338,10 @@ export function useRooms() {
   };
 
   useEffect(() => {
-    fetchRooms();
+    // Only fetch on initial render or if user changes
+    if (user?.id && (!fetchAttempted || rooms.length === 0)) {
+      fetchRooms();
+    }
 
     // Set up real-time subscription for room updates
     const roomsSubscription = supabase
@@ -324,6 +362,18 @@ export function useRooms() {
           fetchRooms();
         }
       )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        (payload: any) => {
+          // Important: Also refresh rooms when profiles change
+          // This handles the case where a profile is created after signup
+          console.log('Profile change detected:', payload);
+          if (user?.id && payload.new && user.id === payload.new.id) {
+            console.log('User profile updated, refreshing rooms');
+            fetchRooms();
+          }
+        }
+      )
       .subscribe((status, error) => {
         if (error) {
           console.error('Subscription error:', error);
@@ -337,7 +387,7 @@ export function useRooms() {
         supabase.removeChannel(roomsSubscription);
       }
     };
-  }, [user?.id]);
+  }, [user?.id, fetchAttempted, rooms.length]);
 
   return {
     rooms,
