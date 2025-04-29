@@ -311,73 +311,51 @@ export default function OnboardingForm() {
         }
       }, 15000); // 15 second safety timeout
       
+      safetyTimeoutRef.current = safetyTimeout;
+      
       // Get the auth info - check for just signed up marker first
       const justSignedUp = localStorage.getItem('justSignedUp') === 'true';
-      const authUserId = localStorage.getItem('authUserId');
+      const justAuthenticated = localStorage.getItem('justAuthenticated') === 'true';
+      const authUserId = localStorage.getItem('authUserId') || user?.id;
       
-      // Check if we have auth info from localStorage (for fresh signups)
-      if (justSignedUp && authUserId) {
-        console.log('[Onboarding] Using auth info from localStorage (fresh signup)');
-        
-        // Clear the marker
-        localStorage.removeItem('justSignedUp');
-        
+      console.log('[Onboarding] Auth markers - justSignedUp:', justSignedUp, 'justAuthenticated:', justAuthenticated, 'authUserId:', authUserId, 'user:', !!user);
+      
+      // Clear the markers to prevent reuse
+      if (justSignedUp) localStorage.removeItem('justSignedUp');
+      if (justAuthenticated) localStorage.removeItem('justAuthenticated');
+      
+      // If user is signed in but we don't have their ID in state, try to get it from Supabase
+      if (!authUserId && !user) {
         try {
-          // Get the profile directly
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', authUserId)
-            .single();
-            
-          if (profileError) {
-            console.error('[Onboarding] Error fetching profile for fresh signup:', profileError);
-            // Continue to normal flow, don't return
-          } else if (profileData) {
-            console.log('[Onboarding] Found profile for fresh signup:', profileData);
-            
-            // Pre-fill form with data from the profile
-            setFormData(prevData => ({
-              ...prevData,
-              username: profileData.username || '',
-              displayName: profileData.display_name || '',
-              bio: profileData.bio || '',
-              preferredGenres: profileData.preferred_genres || [],
-              themeColor: profileData.theme_color || '#6366f1'
-            }));
-            
-            setLoading(false);
-            clearTimeout(safetyTimeout);
-            return;
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          if (currentUser) {
+            console.log('[Onboarding] Retrieved user from Supabase:', currentUser.id);
           }
-        } catch (error) {
-          console.error('[Onboarding] Error in fresh signup flow:', error);
-          // Continue to normal flow, don't return
+        } catch (err) {
+          console.error('[Onboarding] Error getting current user:', err);
         }
       }
       
-      // Get the most up-to-date values directly
+      // Get the most up-to-date user
       const currentUser = user;
       
-      console.log('[Onboarding] Auth info - user:', !!currentUser);
-      
       // Force loading to false if we don't have any auth method
-      if (!currentUser) {
+      if (!currentUser && !authUserId) {
         console.warn('[Onboarding] No auth method found, stopping initialization');
         setErrorMessage('Could not determine your identity. Please try signing in again.');
         setLoading(false);
-        clearTimeout(safetyTimeout);
+        clearTimeout(safetyTimeoutRef.current);
         return;
       }
       
-      // Determine which ID to use (authenticated user)
-      const profileId = currentUser.id;
+      // Determine which ID to use (prefer context user over localStorage for consistency)
+      const profileId = currentUser?.id || authUserId;
       
       if (!profileId) {
         console.error('[Onboarding] No profile ID available, aborting');
         setErrorMessage('Could not determine your identity. Please try signing in again.');
         setLoading(false);
-        clearTimeout(safetyTimeout);
+        clearTimeout(safetyTimeoutRef.current);
         return;
       }
       
@@ -395,7 +373,7 @@ export default function OnboardingForm() {
         console.error('[Onboarding] Error fetching profile:', profileError);
         setErrorMessage(`Error loading your profile: ${profileError.message}`);
         setLoading(false);
-        clearTimeout(safetyTimeout);
+        clearTimeout(safetyTimeoutRef.current);
         return;
       }
       
@@ -414,21 +392,80 @@ export default function OnboardingForm() {
         }));
         
         setLoading(false);
-        clearTimeout(safetyTimeout);
+        clearTimeout(safetyTimeoutRef.current);
         return;
       }
       
       // If we get here, profile doesn't exist, need to create one
       console.log('[Onboarding] No profile found, creating empty profile');
       try {
-        // Use the createEmptyProfile from useAuth which handles proper profile creation
-        await createEmptyProfile(currentUser.id);
-        console.log('[Onboarding] Created empty profile for user:', currentUser.id);
+        // First ensure the user is authenticated with a valid session
+        console.log('[Onboarding] Checking if user has valid session');
+        const { data: sessionData } = await supabase.auth.getSession();
+        
+        if (!sessionData?.session) {
+          console.warn('[Onboarding] No valid session found, attempting to use auth provider');
+          // Try to get their auth method from the form context in case getSession fails
+          if (!createEmptyProfile) {
+            throw new Error('Auth provider not available for profile creation');
+          }
+        }
+        
+        // Try to create a profile with the auth provider first
+        if (createEmptyProfile) {
+          try {
+            console.log('[Onboarding] Using auth context to create profile');
+            await createEmptyProfile(profileId);
+            console.log('[Onboarding] Created empty profile for user:', profileId);
+          } catch (authError) {
+            console.error('[Onboarding] Error using auth context for profile creation:', authError);
+            
+            // Fall back to direct creation if auth context fails
+            console.log('[Onboarding] Falling back to direct profile creation');
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert([{
+                id: profileId,
+                username: `user_${Date.now().toString(36)}`,
+                display_name: 'New User',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                onboarded: false,
+                preferred_genres: [],
+                bio: '',
+                theme_color: '#6366f1'
+              }]);
+              
+            if (insertError) {
+              throw insertError;
+            }
+          }
+        } else {
+          // Direct creation as fallback
+          console.log('[Onboarding] Creating profile directly via Supabase');
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert([{
+              id: profileId,
+              username: `user_${Date.now().toString(36)}`,
+              display_name: 'New User',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              onboarded: false,
+              preferred_genres: [],
+              bio: '',
+              theme_color: '#6366f1'
+            }]);
+            
+          if (insertError) {
+            throw insertError;
+          }
+        }
       } catch (createError) {
-        console.error('[Onboarding] Error in createEmptyProfile:', createError);
+        console.error('[Onboarding] Error creating profile:', createError);
         setErrorMessage(`Error creating profile: ${String(createError)}`);
         setLoading(false);
-        clearTimeout(safetyTimeout);
+        clearTimeout(safetyTimeoutRef.current);
         return;
       }
       
@@ -445,7 +482,7 @@ export default function OnboardingForm() {
           console.error('[Onboarding] Error fetching new profile:', newProfileError);
           setErrorMessage(`Error fetching your profile: ${newProfileError.message}`);
           setLoading(false);
-          clearTimeout(safetyTimeout);
+          clearTimeout(safetyTimeoutRef.current);
           return;
         }
         
@@ -453,7 +490,7 @@ export default function OnboardingForm() {
           console.error('[Onboarding] New profile is null after creation');
           setErrorMessage('Error creating your profile. Profile not found after creation.');
           setLoading(false);
-          clearTimeout(safetyTimeout);
+          clearTimeout(safetyTimeoutRef.current);
           return;
         }
         
@@ -472,17 +509,18 @@ export default function OnboardingForm() {
         console.error('[Onboarding] Exception fetching new profile:', fetchError);
         setErrorMessage(`Error retrieving your profile: ${String(fetchError)}`);
         setLoading(false);
-        clearTimeout(safetyTimeout);
+        clearTimeout(safetyTimeoutRef.current);
         return;
       }
       
       // Successfully loaded profile data, set loading to false
       setLoading(false);
-      clearTimeout(safetyTimeout);
+      clearTimeout(safetyTimeoutRef.current);
     } catch (error) {
       console.error('[Onboarding] Unhandled error in initializeProfile:', error);
       setErrorMessage('An unexpected error occurred. Please try again later.');
       setLoading(false);
+      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
     }
   };
 
