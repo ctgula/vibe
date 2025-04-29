@@ -207,12 +207,28 @@ export default function Home() {
 
   // Handle continue action
   const handleContinue = (path: string) => {
-    // First check if authenticated - this prevents loading issues
-    if (path === ROUTES.ROOMS && !user && !isLoading) {
-      // Redirect to sign in if trying to access rooms without authentication
-      toast.info("Please sign in to access rooms");
-      router.push(ROUTES.LOGIN);
-      return;
+    // Always check authentication for rooms
+    if (path === ROUTES.ROOMS) {
+      if (!user && !isLoading) {
+        // Direct to sign in if not authenticated
+        toast.info("Please sign in to access rooms");
+        router.push(ROUTES.LOGIN);
+        return;
+      } 
+      else if (isLoading) {
+        // Show loading toast if auth check is still in progress
+        toast.info("Checking your login status...");
+        // Add a delay before redirecting so the user sees the toast
+        setTimeout(() => {
+          // Re-check after timeout
+          if (!user) {
+            router.push(ROUTES.LOGIN);
+          } else {
+            router.push(path as any);
+          }
+        }, 1500);
+        return;
+      }
     }
     
     // Otherwise proceed to requested path

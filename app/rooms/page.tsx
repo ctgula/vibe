@@ -31,17 +31,25 @@ export default function RoomsPage() {
   });
   const [topic, setTopic] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [localAuthChecked, setLocalAuthChecked] = useState(false);
 
-  // Make sure the user has a profile
+  // First, handle auth check with a separate effect to avoid rendering issues
   useEffect(() => {
-    if (authLoading) return;
-
-    if (!user) {
-      // If not logged in, redirect to login
-      router.push('/auth/signin');
-      return;
+    if (!authLoading && !localAuthChecked) {
+      if (!user) {
+        console.log('No authenticated user, redirecting to sign in');
+        router.push('/auth/signin');
+      } else {
+        console.log('User authenticated:', user.id);
+        setLocalAuthChecked(true);
+      }
     }
+  }, [user, authLoading, router, localAuthChecked]);
 
+  // Only run this effect if user is authenticated (prevents unnecessary profile checks)
+  useEffect(() => {
+    if (!localAuthChecked || !user) return;
+    
     const ensureProfile = async () => {
       try {
         console.log('Checking if user has a profile:', user.id);
@@ -75,7 +83,7 @@ export default function RoomsPage() {
     };
     
     ensureProfile();
-  }, [user, authLoading, supabase, createEmptyProfile, router]);
+  }, [user, createEmptyProfile, supabase, localAuthChecked]);
 
   const handleCreateRoom = async () => {
     if (!roomData.name.trim()) {

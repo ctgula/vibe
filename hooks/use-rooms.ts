@@ -114,17 +114,15 @@ export function useRooms() {
   };
 
   const createRoom = async (name: string, description: string, topics: string[] = []) => {
-    // Get the user ID from either auth user or guest ID in localStorage
-    const userId = user?.id || localStorage.getItem('guestProfileId');
-    
-    if (!userId) {
-      toast.error('You must be logged in or have a guest account to create a room');
+    // Only allow authenticated users (no more guest users)
+    if (!user?.id) {
+      toast.error('You must be logged in to create a room');
       return null;
     }
 
     try {
       setIsLoading(true);
-      console.log('Creating room with user ID:', userId);
+      console.log('Creating room with user ID:', user.id);
 
       // 1. First create the room
       const { data: newRoom, error: roomError } = await supabase
@@ -132,7 +130,7 @@ export function useRooms() {
         .insert({
           name,
           description,
-          created_by: userId,
+          created_by: user.id,
           is_active: true,
           topics,
           created_at: new Date().toISOString(),
@@ -154,7 +152,7 @@ export function useRooms() {
         .from('room_participants')
         .insert({
           room_id: newRoom.id,
-          user_id: userId,
+          user_id: user.id,
           is_active: true,
           created_at: new Date().toISOString()
         });
@@ -170,7 +168,7 @@ export function useRooms() {
       const { data: userProfile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', userId)
+        .eq('id', user.id)
         .single();
 
       if (profileError) {
@@ -183,7 +181,7 @@ export function useRooms() {
         participants: [{
           id: crypto.randomUUID(), // Temporary ID for the participant
           room_id: newRoom.id,
-          user_id: userId,
+          user_id: user.id,
           created_at: new Date().toISOString(),
           is_active: true,
           is_speaking: false,
