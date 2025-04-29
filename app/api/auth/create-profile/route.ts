@@ -2,7 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 
-export const runtime = 'edge';
+// Convert from edge to node runtime for better Vercel compatibility
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
