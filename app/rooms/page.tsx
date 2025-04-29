@@ -36,41 +36,38 @@ export default function RoomsPage() {
   useEffect(() => {
     if (authLoading) return;
 
-    if (!user && !localStorage.getItem('guestProfileId')) {
-      // If not logged in and not a guest, redirect to login
+    if (!user) {
+      // If not logged in, redirect to login
       router.push('/auth/signin');
       return;
     }
 
     const ensureProfile = async () => {
       try {
-        // Only check for regular users, guest profiles are managed elsewhere
-        if (user) {
-          console.log('Checking if user has a profile:', user.id);
+        console.log('Checking if user has a profile:', user.id);
+        
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
+        
+        if (error) {
+          console.error('Error checking profile:', error);
+        } else if (!data) {
+          console.log('No profile found, creating one');
           
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .maybeSingle();
-          
-          if (error) {
-            console.error('Error checking profile:', error);
-          } else if (!data) {
-            console.log('No profile found, creating one');
-            
-            // Use the createEmptyProfile function from useAuth context
-            if (createEmptyProfile) {
-              await createEmptyProfile(user.id);
-              console.log('Profile created successfully via createEmptyProfile');
-            } else {
-              // Fallback to direct creation if createEmptyProfile is not available
-              console.error('createEmptyProfile not available');
-              toast.error('Error creating profile');
-            }
+          // Use the createEmptyProfile function from useAuth context
+          if (createEmptyProfile) {
+            await createEmptyProfile(user.id);
+            console.log('Profile created successfully via createEmptyProfile');
           } else {
-            console.log('Profile exists:', data);
+            // Fallback to direct creation if createEmptyProfile is not available
+            console.error('createEmptyProfile not available');
+            toast.error('Error creating profile');
           }
+        } else {
+          console.log('Profile exists:', data);
         }
       } catch (err) {
         console.error('Exception checking profile:', err);
@@ -307,9 +304,7 @@ function RoomCard({ room }: { room: RoomWithParticipants }) {
   const router = useRouter();
   
   const navigateToRoom = () => {
-    // For now, we'll just toast - in a real app this would navigate to the room
-    toast.info(`Joining ${room.name}`);
-    // router.push(`/room/${room.id}`);
+    router.push(`/room/${room.id}`);
   };
   
   return (

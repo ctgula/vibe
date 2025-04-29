@@ -207,6 +207,15 @@ export default function Home() {
 
   // Handle continue action
   const handleContinue = (path: string) => {
+    // First check if authenticated - this prevents loading issues
+    if (path === ROUTES.ROOMS && !user && !isLoading) {
+      // Redirect to sign in if trying to access rooms without authentication
+      toast.info("Please sign in to access rooms");
+      router.push(ROUTES.LOGIN);
+      return;
+    }
+    
+    // Otherwise proceed to requested path
     router.push(path as any);
   };
 

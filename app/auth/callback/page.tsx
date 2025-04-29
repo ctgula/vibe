@@ -21,6 +21,7 @@ export default function CallbackPage() {
         const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
         const errorDesc = params.get('error_description');
+        const provider = params.get('provider') || localStorage.getItem('auth_provider');
         
         if (errorDesc) {
           setError(errorDesc);
@@ -99,17 +100,58 @@ export default function CallbackPage() {
             
             // Check if user has completed onboarding
             try {
+              setMessage('Checking your profile...');
+              
+              // Get user profile from database
               const { data: profileData, error: profileError } = await supabase
                 .from('profiles')
-                .select('onboarded, id')
+                .select('*')
                 .eq('id', data.session.user.id)
                 .single();
-                
-              if (profileError) {
-                console.error('Error checking onboarding status:', profileError);
-              }
               
-              console.log('Profile data in callback:', profileData);
+              if (profileError) {
+                // If profile doesn't exist, create it (especially for OAuth users)
+                if (profileError.code === 'PGRST116') {  // Record not found
+                  console.log('No profile found, creating one...');
+                  
+                  // For OAuth users, create a profile with data from auth
+                  const { data: user } = await supabase.auth.getUser();
+                  const username = `user_${Date.now().toString(36)}`;
+                  const displayName = user.user?.user_metadata?.full_name || 
+                                     user.user?.user_metadata?.name || 
+                                     'New User';
+                  
+                  const { error: createError } = await supabase
+                    .from('profiles')
+                    .insert({
+                      id: data.session.user.id,
+                      username: username,
+                      display_name: displayName,
+                      email: user.user?.email,
+                      avatar_url: user.user?.user_metadata?.avatar_url,
+                      created_at: new Date().toISOString(),
+                      updated_at: new Date().toISOString(),
+                      onboarded: false,
+                    });
+                  
+                  if (createError) {
+                    console.error('Error creating profile:', createError);
+                  }
+                  
+                  // Redirect to onboarding to complete profile setup
+                  localStorage.removeItem('redirectAfterAuth');
+                  sessionStorage.removeItem('redirectAfterAuth');
+                  localStorage.setItem('justAuthenticated', 'true');
+                  
+                  console.log('Created new profile, redirecting to onboarding');
+                  setTimeout(() => {
+                    window.location.href = '/onboarding';
+                  }, 500);
+                  return;
+                }
+                
+                console.error('Error getting profile:', profileError);
+              }
               
               // Determine redirect path
               let finalRedirectPath = '/directory';
@@ -129,6 +171,7 @@ export default function CallbackPage() {
               // Clear stored redirect paths
               localStorage.removeItem('redirectAfterAuth');
               sessionStorage.removeItem('redirectAfterAuth');
+              localStorage.removeItem('auth_provider');
               
               // Store auth success flag
               localStorage.setItem('justAuthenticated', 'true');

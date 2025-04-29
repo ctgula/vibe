@@ -45,6 +45,31 @@ export function SignInForm() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    
+    try {
+      // Store provider info to help the callback page
+      localStorage.setItem('auth_provider', 'google');
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        }
+      });
+      
+      if (error) throw error;
+      
+      toast.success('Redirecting to Google...');
+      
+    } catch (error: any) {
+      console.error('Google sign in error:', error);
+      toast.error(error?.message || 'Failed to sign in with Google');
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="flex justify-center items-center min-h-screen p-4">
       <div className="w-full max-w-md bg-zinc-900 p-6 rounded-lg border border-zinc-800">
@@ -89,6 +114,14 @@ export function SignInForm() {
             {loading ? 'Signing in...' : 'Sign In'}
           </Button>
         </form>
+        
+        <Button
+          onClick={handleGoogleSignIn}
+          disabled={loading}
+          className="w-full bg-red-600 hover:bg-red-700 mt-4"
+        >
+          {loading ? 'Signing in with Google...' : 'Sign In with Google'}
+        </Button>
         
         <p className="mt-4 text-center text-sm text-zinc-400">
           Don't have an account?{' '}

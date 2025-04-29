@@ -109,32 +109,44 @@ export default function CreateRoomForm() {
         return;
       }
 
+      // Ensure we have a valid session token
+      if (ensureSessionToken) {
+        await ensureSessionToken();
+      }
+
       const creatorUsername = profile?.username;
       
       if (!creatorUsername) {
-          setError('Could not determine creator username.');
-          toast({ title: "Username error", description: "Unable to find username.", variant: "destructive" });
-          setIsCreating(false);
-          return;
+        setError('Could not determine creator username.');
+        toast({ title: "Username error", description: "Unable to find username.", variant: "destructive" });
+        setIsCreating(false);
+        return;
       }
 
       // Generate a room ID
       const roomId = uuidv4();
       
+      // Add console logging to debug the room creation payload
+      const roomPayload = {
+        id: roomId,
+        room_name: name.trim(),
+        description: description.trim() || null,
+        is_private: isPrivate,
+        created_by: userId,
+        is_live: false,
+        enable_video: false,
+        max_participants: 50, // Default maximum
+        tags: tags.length > 0 ? tags : null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      console.log('Creating room with payload:', roomPayload);
+      
       // Create room
       const { data, error: roomError } = await supabase
         .from('rooms')
-        .insert({
-          id: roomId,
-          room_name: name.trim(),
-          description: description.trim() || null,
-          is_private: isPrivate,
-          created_by: userId,
-          is_live: false,
-          enable_video: false,
-          max_participants: 50, // Default maximum
-          tags: tags.length > 0 ? tags : null,
-        })
+        .insert(roomPayload)
         .select()
         .single();
 
@@ -150,15 +162,22 @@ export default function CreateRoomForm() {
         return;
       }
 
+      console.log('Room created successfully:', data);
+
       // Add the creator as a participant
+      const participantPayload = {
+        room_id: roomId,
+        user_id: userId,
+        is_speaker: true,
+        is_moderator: true,
+        joined_at: new Date().toISOString()
+      };
+      
+      console.log('Adding participant with payload:', participantPayload);
+      
       const { error: participantError } = await supabase
         .from('room_participants')
-        .insert({
-          room_id: roomId,
-          user_id: userId,
-          is_speaker: true,
-          is_moderator: true
-        });
+        .insert(participantPayload);
 
       if (participantError) {
         console.error('Participant error:', participantError);
