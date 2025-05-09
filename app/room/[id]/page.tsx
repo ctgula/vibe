@@ -175,46 +175,128 @@ export default function Room({ params }: { params: { id: string } }) {
     threshold: 70
   });
 
-  // Subscribe to participant changes
   useEffect(() => {
-    if (!params.id || !roomData) return;
+    if (!user?.id || !roomData?.id) return;
 
+    // Set up real-time subscriptions for participants
+    const participantsSubscription = supabase
+      .channel(`room:${roomData.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'room_participants',
+        filter: `room_id=eq.${roomData.id}`,
+      }, async (payload) => {
+        // Refresh participants list
+        const { data: latestParticipants } = await supabase
+          .from('room_participants')
+          .select('*, profiles(username, display_name, avatar_url)')
+          .eq('room_id', roomData.id)
+          .eq('is_active', true);
+        
+        if (latestParticipants) {
+          setParticipants(latestParticipants);
+          // Update active speakers list
+          const activeSpeakers = latestParticipants.filter(p => p.is_speaker);
+          setSpeakers(activeSpeakers);
+          // Update audience list
+          const currentAudience = latestParticipants.filter(p => !p.is_speaker);
+          setAudience(currentAudience);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      participantsSubscription.unsubscribe();
+    };
+  }, [user?.id, roomData?.id]);
+
+  // Improved media stream handling
+  const initializeMediaStream = async (type: 'audio' | 'video' = 'audio') => {
     try {
-      const participantsSubscription = supabase
-        .channel(`room-participants:${params.id}`)
-        .on('postgres_changes', { 
-          event: '*', 
-          schema: 'public', 
-          table: 'room_participants',
-          filter: `room_id=eq.${params.id}`
-        }, (payload) => {
-          console.log('Participant update:', payload);
-          
-          // Refresh participant lists
-          fetchParticipants();
-          
-          // Handle participant removal
-          if (payload.eventType === 'DELETE' && 
-              (payload.old.user_id === user?.id)) {
-            setError('You have been removed from this room');
-            router.push('/');
-          }
-        })
-        .subscribe((status) => {
-          console.log('Participants subscription status:', status);
-          if (status === 'SUBSCRIBED') {
-            console.log('✅ Subscribed to participant updates');
-          }
-        });
+      if (type === 'audio' && audioStream) {
+        audioStream.getTracks().forEach(track => track.stop());
+      }
+      if (type === 'video' && videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+      }
 
-      return () => {
-        participantsSubscription.unsubscribe();
+      const constraints = {
+        audio: type === 'audio' ? { 
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        } : false,
+        video: type === 'video'
       };
-    } catch (err) {
-      console.error('Error in participants subscription:', err);
-      setError('Failed to subscribe to participant updates');
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      if (type === 'audio') {
+        setAudioStream(stream);
+      } else {
+        setVideoStream(stream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }
+
+      // Log successful media initialization
+      logActivity(`${type}_initialized`, { success: true });
+      
+      return stream;
+    } catch (error) {
+      console.error(`Error initializing ${type} stream:`, error);
+      toast({
+        title: `${type.charAt(0).toUpperCase() + type.slice(1)} Error`,
+        description: `Unable to access ${type} device. Please check your permissions.`,
+        variant: 'destructive',
+      });
+      logActivity(`${type}_error`, { error: error.message });
+      return null;
     }
-  }, [params.id, roomData, user?.id, router]);
+  };
+
+  // Cleanup function for media resources
+  const cleanupMediaResources = () => {
+    if (audioStream) {
+      audioStream.getTracks().forEach(track => track.stop());
+      setAudioStream(null);
+    }
+    if (videoStream) {
+      videoStream.getTracks().forEach(track => track.stop());
+      setVideoStream(null);
+    }
+  };
+
+  // Improved room cleanup
+  const cleanup = async () => {
+    try {
+      cleanupMediaResources();
+      
+      if (user?.id && roomData?.id) {
+        await supabase
+          .from('room_participants')
+          .update({
+            is_active: false,
+            left_at: new Date().toISOString(),
+          })
+          .eq('room_id', roomData.id)
+          .eq('user_id', user.id);
+
+        logActivity('left_room');
+      }
+    } catch (error) {
+      console.error('Error during cleanup:', error);
+    }
+  };
+
+  // Use cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, [user?.id, roomData?.id]);
 
   // Fetch participants
   const fetchParticipants = async () => {

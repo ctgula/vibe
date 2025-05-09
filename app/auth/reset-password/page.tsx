@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/use-supabase-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Loader2, Mail } from 'lucide-react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabaseDirect } from '@/lib/supabase-direct';
 import { toast } from 'sonner';
 import {
   Card,
@@ -25,7 +25,15 @@ export default function ResetPasswordPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  // Using the direct Supabase client to bypass environment issues
+  const supabase = supabaseDirect;
+  
+  // Log Supabase configuration for debugging
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Using direct Supabase client for authentication');
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

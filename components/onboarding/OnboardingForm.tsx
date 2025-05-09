@@ -430,7 +430,7 @@ export default function OnboardingForm() {
                 display_name: 'New User',
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
-                onboarded: false,
+                onboarding_completed: false,
                 preferred_genres: [],
                 bio: '',
                 theme_color: '#6366f1'
@@ -551,7 +551,7 @@ export default function OnboardingForm() {
           bio: formData.bio,
           preferred_genres: formData.preferredGenres,
           theme_color: formData.themeColor,
-          onboarded: true,
+          onboarding_completed: true,
           updated_at: new Date().toISOString()
         })
         .eq('id', profileId);

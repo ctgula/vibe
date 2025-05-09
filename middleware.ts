@@ -15,6 +15,14 @@ export function middleware(req: NextRequest) {
       });
     }
     
+    // Handle auth routes
+    if (pathname === '/login') {
+      return NextResponse.redirect(new URL('/auth/signin', req.url));
+    }
+    if (pathname === '/signup') {
+      return NextResponse.redirect(new URL('/auth/signup', req.url));
+    }
+    
     // Add redirects for deprecated routes
     if (pathname.startsWith('/rooms/') && !pathname.includes('[id]')) {
       return NextResponse.redirect(new URL(pathname.replace('/rooms/', '/room/'), req.url));

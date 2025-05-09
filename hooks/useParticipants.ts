@@ -30,7 +30,7 @@ export function useParticipants(roomId: string, userId: string, guestId?: string
     try {
       const { data, error } = await supabase
         .from('rooms')
-        .select('created_by, created_by_guest')
+        .select('created_by')
         .eq('id', roomId)
         .single();
       
@@ -39,7 +39,7 @@ export function useParticipants(roomId: string, userId: string, guestId?: string
         return false;
       }
       
-      return data?.created_by === userId || data?.created_by_guest === guestId;
+      return data?.created_by === userId;
     } catch (err) {
       console.error('❌ Error checking room creator:', err);
       return false;
@@ -103,7 +103,8 @@ export function useParticipants(roomId: string, userId: string, guestId?: string
           *,
           profiles (
             id,
-            name,
+            display_name,
+            username,
             avatar_url
           )
         `)
@@ -129,17 +130,38 @@ export function useParticipants(roomId: string, userId: string, guestId?: string
         return;
       }
 
-      const mappedParticipants = data.map((participant) => ({
-        id: participant.user_id || participant.guest_id,
-        name: participant.profiles?.name || `Guest_${(participant.user_id || participant.guest_id).substring(0, 6)}`,
-        avatar: participant.profiles?.avatar_url || null,
+      const mappedParticipants = data.map((participant) => {
+        // Defensive: profiles could be null or an error object
+        let name = `User_${(participant.user_id || participant.guest_id).toString().substring(0, 6)}`;
+        let avatar = null;
+        if (
+          participant.profiles &&
+          typeof participant.profiles === 'object' &&
+          'display_name' in participant.profiles
+        ) {
+          // @ts-expect-error: dynamic property check
+          name = participant.profiles.display_name || participant.profiles.username || name;
+          // @ts-expect-error: dynamic property check
+          avatar = participant.profiles.avatar_url || null;
+        }
+        return {
+          id: String(participant.user_id || participant.guest_id),
+          name,
+          avatar,
+          isSpeaker: participant.is_speaker || false,
+          isMuted: participant.is_muted || false,
+          hasRaisedHand: participant.has_raised_hand || false,
+          isHost: participant.is_host || false,
+          isActive: participant.is_active || false,
+          isGuest: false,
+        };
+      });
         isSpeaker: participant.is_speaker || false,
         isMuted: participant.is_muted || false,
         hasRaisedHand: participant.has_raised_hand || false,
         isHost: participant.is_host || false,
         isActive: participant.is_active || false,
-        isGuest: !!participant.guest_id,
-        guestId: participant.guest_id || undefined
+        isGuest: false,
       }));
       
       console.log('🔄 Mapped participants:', mappedParticipants);
@@ -398,11 +420,8 @@ export function useParticipants(roomId: string, userId: string, guestId?: string
         async (payload) => {
           console.log('👋 Participant left:', payload);
           
-          // Update room activity when a participant leaves
-          await updateRoomActivity();
-          
           // Remove the participant from state without refetching all participants
-          setParticipants(prev => prev.filter(participant => participant.id !== payload.old.user_id));
+          setParticipants(prev => prev.filter(participant => participant.id !== String(payload.old.user_id)));
         }
       )
       .subscribe((status) => {

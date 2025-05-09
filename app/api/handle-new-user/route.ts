@@ -79,7 +79,7 @@ export async function POST(request: Request) {
         avatar_url: user.user_metadata?.avatar_url || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        onboarded: false
+        onboarding_completed: false
       }]);
       
     if (insertError) {

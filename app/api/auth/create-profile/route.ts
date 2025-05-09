@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       display_name: 'New User',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      onboarded: false,
+      onboarding_completed: false,
     };
     
     // Create the profile

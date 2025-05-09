@@ -6,296 +6,176 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
-      messages: {
+      participants: {
         Row: {
+          guest_id: string | null
           id: string
-          created_at: string
-          content: string
-          room_id: string
-          profile_id: string
-          is_system: boolean | null
-        }
-        Insert: {
-          id?: string
-          created_at?: string
-          content: string
-          room_id: string
-          profile_id: string
-          is_system?: boolean | null
-        }
-        Update: {
-          id?: string
-          created_at?: string
-          content?: string
-          room_id?: string
-          profile_id?: string
-          is_system?: boolean | null
-        }
-      }
-      room_messages: {
-        Row: {
-          id: string
-          created_at: string
-          content: string
+          joined_at: string | null
           room_id: string
           user_id: string | null
-          guest_id: string | null
         }
         Insert: {
+          guest_id?: string | null
           id?: string
-          created_at?: string
-          content: string
+          joined_at?: string | null
           room_id: string
           user_id?: string | null
-          guest_id?: string | null
         }
         Update: {
+          guest_id?: string | null
           id?: string
-          created_at?: string
-          content?: string
+          joined_at?: string | null
           room_id?: string
           user_id?: string | null
-          guest_id?: string | null
         }
-      }
-      notifications: {
-        Row: {
-          id: string
-          created_at: string
-          profile_id: string
-          title: string
-          body: string
-          type: string
-          data: Json | null
-          read: boolean
-        }
-        Insert: {
-          id?: string
-          created_at?: string
-          profile_id: string
-          title: string
-          body: string
-          type: string
-          data?: Json | null
-          read?: boolean
-        }
-        Update: {
-          id?: string
-          created_at?: string
-          profile_id?: string
-          title?: string
-          body?: string
-          type?: string
-          data?: Json | null
-          read?: boolean
-        }
+        Relationships: [
+          {
+            foreignKeyName: "participants_guest_id_fkey"
+            columns: ["guest_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participants_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
-          id: string
-          created_at: string
-          updated_at: string | null
-          username: string | null
-          name: string | null
-          display_name: string | null
           avatar_url: string | null
           bio: string | null
-          is_guest: boolean
+          created_at: string | null
+          display_name: string | null
           email: string | null
+          full_name: string | null
+          id: string
+          is_guest: boolean | null
+          onboarding_completed: boolean
+          preferred_genres: string[] | null
+          theme_color: string | null
+          updated_at: string | null
+          username: string | null
         }
         Insert: {
-          id: string
-          created_at?: string
-          updated_at?: string | null
-          username?: string | null
-          name?: string | null
-          display_name?: string | null
           avatar_url?: string | null
           bio?: string | null
-          is_guest?: boolean
+          created_at?: string | null
+          display_name?: string | null
           email?: string | null
+          full_name?: string | null
+          id: string
+          is_guest?: boolean | null
+          onboarding_completed?: boolean
+          preferred_genres?: string[] | null
+          theme_color?: string | null
+          updated_at?: string | null
+          username?: string | null
         }
         Update: {
-          id?: string
-          created_at?: string
-          updated_at?: string | null
-          username?: string | null
-          name?: string | null
-          display_name?: string | null
           avatar_url?: string | null
           bio?: string | null
-          is_guest?: boolean
+          created_at?: string | null
+          display_name?: string | null
           email?: string | null
+          full_name?: string | null
+          id?: string
+          is_guest?: boolean | null
+          onboarding_completed?: boolean
+          preferred_genres?: string[] | null
+          theme_color?: string | null
+          updated_at?: string | null
+          username?: string | null
         }
+        Relationships: []
       }
       room_participants: {
         Row: {
-          id: string
-          created_at: string
-          room_id: string
-          profile_id: string
-          user_id: string | null
           guest_id: string | null
-          is_speaker: boolean
-          is_moderator: boolean
-          has_raised_hand: boolean
-          is_muted: boolean
-          is_active: boolean
+          has_raised_hand: boolean | null
+          id: string
+          is_active: boolean | null
+          is_host: boolean | null
+          is_muted: boolean | null
+          is_speaker: boolean | null
+          joined_at: string
+          room_id: string
+          user_id: string | null
         }
         Insert: {
-          id?: string
-          created_at?: string
-          room_id: string
-          profile_id: string
-          user_id?: string | null
           guest_id?: string | null
-          is_speaker?: boolean
-          is_moderator?: boolean
-          has_raised_hand?: boolean
-          is_muted?: boolean
-          is_active?: boolean
+          has_raised_hand?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          is_host?: boolean | null
+          is_muted?: boolean | null
+          is_speaker?: boolean | null
+          joined_at?: string
+          room_id: string
+          user_id?: string | null
         }
         Update: {
-          id?: string
-          created_at?: string
-          room_id?: string
-          profile_id?: string
-          user_id?: string | null
           guest_id?: string | null
-          is_speaker?: boolean
-          is_moderator?: boolean
-          has_raised_hand?: boolean
-          is_muted?: boolean
-          is_active?: boolean
+          has_raised_hand?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          is_host?: boolean | null
+          is_muted?: boolean | null
+          is_speaker?: boolean | null
+          joined_at?: string
+          room_id?: string
+          user_id?: string | null
         }
+        Relationships: []
       }
       rooms: {
         Row: {
-          id: string
-          created_at: string
-          name: string
-          description: string | null
-          is_private: boolean
+          created_at: string | null
           created_by: string
-          is_active: boolean
-          last_active_at: string | null
-          has_camera: boolean | null
+          id: string
+          is_active: boolean | null
+          is_public: boolean | null
+          name: string
         }
         Insert: {
-          id?: string
-          created_at?: string
-          name: string
-          description?: string | null
-          is_private?: boolean
+          created_at?: string | null
           created_by: string
-          is_active?: boolean
-          last_active_at?: string | null
-          has_camera?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          is_public?: boolean | null
+          name: string
         }
         Update: {
-          id?: string
-          created_at?: string
-          name?: string
-          description?: string | null
-          is_private?: boolean
+          created_at?: string | null
           created_by?: string
-          is_active?: boolean
-          last_active_at?: string | null
-          has_camera?: boolean | null
-        }
-      }
-      subscription_tokens: {
-        Row: {
-          id: string
-          created_at: string
-          profile_id: string
-          token: string
-          endpoint: string
-        }
-        Insert: {
           id?: string
-          created_at?: string
-          profile_id: string
-          token: string
-          endpoint: string
+          is_active?: boolean | null
+          is_public?: boolean | null
+          name?: string
         }
-        Update: {
-          id?: string
-          created_at?: string
-          profile_id?: string
-          token?: string
-          endpoint?: string
-        }
-      }
-      activity_logs: {
-        Row: {
-          id: string
-          room_id: string | null
-          user_id: string | null
-          guest_id: string | null
-          action: string
-          details: Json | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          room_id?: string | null
-          user_id?: string | null
-          guest_id?: string | null
-          action: string
-          details?: Json | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          room_id?: string | null
-          user_id?: string | null
-          guest_id?: string | null
-          action?: string
-          details?: Json | null
-          created_at?: string
-        }
-      }
-      room_analytics: {
-        Row: {
-          id: string
-          room_id: string
-          message_count: number
-          participant_count: number
-          active_participant_count: number
-          last_active_at: string | null
-          is_trending: boolean
-          trending_score: number
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          room_id: string
-          message_count: number
-          participant_count: number
-          active_participant_count: number
-          last_active_at?: string | null
-          is_trending?: boolean
-          trending_score?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          room_id?: string
-          message_count?: number
-          participant_count?: number
-          active_participant_count?: number
-          last_active_at?: string | null
-          is_trending?: boolean
-          trending_score?: number
-          created_at?: string
-          updated_at?: string
-        }
+        Relationships: [
+          {
+            foreignKeyName: "rooms_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -307,11 +187,119 @@ export interface Database {
     Enums: {
       [_ in never]: never
     }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
 }
 
-export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]
+type DefaultSchema = Database[Extract<keyof Database, "public">]
 
-export type TableRow<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row']
-export type TableInsert<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert']
-export type TableUpdate<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Update']
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof Database },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof Database },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof Database },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof Database },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof Database },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const

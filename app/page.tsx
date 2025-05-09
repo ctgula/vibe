@@ -91,7 +91,7 @@ const ActionButton = memo(({
 ActionButton.displayName = 'ActionButton';
 
 // For performance, load secondary content only after initial render
-const SecondaryContent = dynamic(() => Promise.resolve(({ onContinue }: { onContinue: (path: string) => void }) => (
+const SecondaryContent = dynamic(() => Promise.resolve(({ handleContinue }: { handleContinue: (path: string) => void }) => (
   <>
     {/* Feature Cards */}
     <div className="mt-12 sm:mt-16">
@@ -141,27 +141,79 @@ const SecondaryContent = dynamic(() => Promise.resolve(({ onContinue }: { onCont
     </div>
 
     {/* CTA Section */}
-    <div className="mt-16 backdrop-blur-md bg-gradient-to-r from-purple-900/20 to-indigo-900/20 rounded-2xl p-6 sm:p-8 border border-purple-500/20 shadow-lg text-center">
-      <h3 className="text-lg sm:text-xl font-semibold mb-2">Ready to connect?</h3>
-      <p className="text-sm sm:text-base text-gray-300 mb-4 max-w-xl mx-auto">
-        Join thousands of others in audio and video rooms with crystal clear quality.
-      </p>
-      <ActionButton
-        onClick={() => onContinue(ROUTES.ROOMS)}
-        primary
-        className="max-w-xs mx-auto"
-        ariaLabel="Get started with Vibe"
-      >
-        Get Started
-        <ArrowRight className="w-4 h-4 ml-2" aria-hidden="true" />
-      </ActionButton>
+    <div className="mt-16 relative">
+      {/* Gradient background with enhanced blur effect */}
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-600/10 via-indigo-600/10 to-black/30 rounded-3xl backdrop-blur-2xl" />
+      
+      {/* Content container with improved border gradient */}
+      <div className="relative px-6 py-12 sm:py-16 rounded-3xl overflow-hidden bg-black/20" 
+           style={{
+             backgroundImage: 'radial-gradient(circle at top right, rgba(147, 51, 234, 0.05), transparent 40%), radial-gradient(circle at bottom left, rgba(79, 70, 229, 0.05), transparent 40%)',
+             border: '1px solid rgba(147, 51, 234, 0.1)'
+           }}>
+        {/* Decorative elements with adjusted opacity */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-purple-600/10 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4 w-60 h-60 bg-indigo-600/10 rounded-full blur-3xl animate-pulse" />
+        
+        {/* Main content with enhanced typography */}
+        <div className="relative max-w-3xl mx-auto text-center space-y-8">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold">
+            Ready to Experience the
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-fuchsia-400 to-indigo-400"> Future of Social Audio?</span>
+          </h2>
+          <p className="text-base sm:text-lg text-zinc-300 max-w-2xl mx-auto leading-relaxed">
+            Join thousands of creators and listeners in immersive audio spaces. Start your journey today.
+          </p>
+          
+          {/* Action buttons with improved gradients */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 pt-4">
+            <ActionButton
+              onClick={() => handleContinue(ROUTES.SIGN_UP)}
+              primary
+              className="max-w-xs !py-4 !bg-gradient-to-r !from-purple-600 !via-fuchsia-600 !to-indigo-600 hover:!opacity-90 !border-0 !shadow-lg !shadow-purple-900/20"
+              ariaLabel="Create your account"
+            >
+              <span className="flex items-center gap-2">
+                Create Your Space
+                <Sparkles className="w-5 h-5" aria-hidden="true" />
+              </span>
+            </ActionButton>
+            <ActionButton
+              onClick={() => handleContinue(ROUTES.ROOMS)}
+              className="max-w-xs !py-4 !bg-white/5 !border !border-purple-500/20 hover:!bg-white/10"
+              ariaLabel="Explore live rooms"
+            >
+              <span className="flex items-center gap-2">
+                Explore Live Rooms
+                <Compass className="w-5 h-5" aria-hidden="true" />
+              </span>
+            </ActionButton>
+          </div>
+          
+          {/* Stats with improved styling */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 sm:gap-12 pt-8 sm:pt-12 max-w-2xl mx-auto">
+            <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-lg border border-white/5">
+              <div className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">10K+</div>
+              <div className="text-sm text-zinc-400 font-medium">Active Rooms</div>
+            </div>
+            <div className="p-4 rounded-2xl bg-white/5 backdrop-blur-lg border border-white/5">
+              <div className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">50K+</div>
+              <div className="text-sm text-zinc-400 font-medium">Daily Users</div>
+            </div>
+            <div className="col-span-2 sm:col-span-1 p-4 rounded-2xl bg-white/5 backdrop-blur-lg border border-white/5">
+              <div className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">4.9★</div>
+              <div className="text-sm text-zinc-400 font-medium">User Rating</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </>
 )), { ssr: false });
 
 export default function Home() {
   const router = useRouter();
-  const { user, isLoading } = useAuth();
+  const { user, profile, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('join');
   const [showSecondary, setShowSecondary] = useState(false);
   const [isPortrait, setIsPortrait] = useState(true);
@@ -200,7 +252,7 @@ export default function Home() {
 
   // Redirect based on user state
   useEffect(() => {
-    if (!isLoading && user && user.onboarded === false) {
+    if (!isLoading && profile?.onboarding_completed === false) {
       router.push(ROUTES.ONBOARDING);
     }
   }, [isLoading, user, router]);
@@ -242,15 +294,15 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </Head>
       <div 
-        className="min-h-screen bg-black text-white ios-safe-area"
+        className="min-h-screen flex flex-col bg-black text-white ios-safe-area"
         style={{
           minHeight: `calc(var(--vh, 1vh) * 100)`,
           height: windowHeight
         }}
       >
-        <div className="flex flex-col min-h-[inherit]">
+        <div className="flex flex-col flex-grow">
           {/* Hero header area */}
-          <main className="flex-1 relative pb-safe">
+          <main className="flex-grow relative pb-safe">
             <div className="px-4 sm:px-6 md:px-8 pt-4 sm:pt-6 pb-6 md:pb-8 max-w-6xl mx-auto">
               {/* Navigation */}
               <header className="flex justify-between items-center mb-8 sm:mb-10">
@@ -366,21 +418,30 @@ export default function Home() {
                 </div>
                 
                 {/* Dynamically load secondary content for optimal performance */}
-                {showSecondary && <SecondaryContent onContinue={handleContinue} />}
+                {showSecondary && <SecondaryContent handleContinue={handleContinue} />}
               </div>
             </div>
           </main>
           
-          {/* Footer - minimal and clean */}
-          <footer className="text-center text-xs sm:text-sm text-gray-500 py-6 pb-safe border-t border-gray-800 backdrop-blur-sm bg-black/10 mt-auto">
-            <div className="max-w-5xl mx-auto px-4">
-              <div className="flex items-center justify-center mb-2">
-                <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-1 sm:p-1.5 rounded-lg shadow-sm mr-2">
-                  <Headphones className="w-3 h-3 sm:w-4 sm:h-4 text-white" aria-hidden="true" />
+          {/* Footer - updated for 2025 look and feel */}
+          <footer className="mt-16 border-t border-zinc-800/50 bg-black/20 backdrop-blur-sm py-8 pb-safe relative z-10">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-1.5 rounded-lg shadow-md">
+                    <Headphones className="w-4 h-4 text-white" aria-hidden="true" />
+                  </div>
+                  <span className="font-medium text-white">vibe</span>
+                  <span className="text-sm text-zinc-500">&copy; {new Date().getFullYear()}</span>
                 </div>
-                <span className="font-medium">vibe</span>
+                <nav className="flex gap-4 sm:gap-6">
+                  {/* Add actual links later */}
+                  <a href="#" className="text-sm text-zinc-400 hover:text-purple-400 transition-colors">Terms</a>
+                  <a href="#" className="text-sm text-zinc-400 hover:text-purple-400 transition-colors">Privacy</a>
+                  {/* Optional: Add Contact, Blog, etc. */}
+                  {/* <a href="#" className="text-sm text-zinc-400 hover:text-purple-400 transition-colors">Contact</a> */}
+                </nav>
               </div>
-              <p>&copy; 2025 Vibe. The future of live audio & video spaces.</p>
             </div>
           </footer>
         </div>
