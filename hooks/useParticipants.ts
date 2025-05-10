@@ -156,13 +156,6 @@ export function useParticipants(roomId: string, userId: string, guestId?: string
           isGuest: false,
         };
       });
-        isSpeaker: participant.is_speaker || false,
-        isMuted: participant.is_muted || false,
-        hasRaisedHand: participant.has_raised_hand || false,
-        isHost: participant.is_host || false,
-        isActive: participant.is_active || false,
-        isGuest: false,
-      }));
       
       console.log('🔄 Mapped participants:', mappedParticipants);
       setParticipants(mappedParticipants);
